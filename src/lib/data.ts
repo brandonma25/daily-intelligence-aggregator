@@ -34,7 +34,7 @@ export async function getViewerAccount(): Promise<ViewerAccount | null> {
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
-    .map((part) => part.charAt(0).toUpperCase())
+    .map((part: string) => part.charAt(0).toUpperCase())
     .join("")
     .slice(0, 2);
 
