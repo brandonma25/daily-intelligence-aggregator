@@ -3,6 +3,7 @@ import { ExternalLink } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
+import { SubmitButton } from "@/components/submit-button";
 import { Badge } from "@/components/ui/badge";
 import { Panel } from "@/components/ui/panel";
 import { getDashboardData, getViewerAccount } from "@/lib/data";
@@ -20,13 +21,66 @@ export default async function SourcesPage() {
           eyebrow="Source management"
           title="Track the feeds that matter"
           description="Start with RSS for the MVP. This page now includes a curated starter set of live news and newsletter feeds so you can begin populating real daily briefings quickly."
+          aside={
+            <div className="rounded-[22px] border border-[var(--line)] bg-white/75 px-4 py-3 text-sm text-[var(--foreground)]">
+              {data.sources.length} saved source{data.sources.length === 1 ? "" : "s"}
+            </div>
+          }
         />
+
+        <Panel className="p-6">
+          <div className="flex flex-col gap-2">
+            <h2 className="text-lg font-semibold text-[var(--foreground)]">Your saved sources</h2>
+            <p className="text-sm leading-7 text-[var(--muted)]">
+              These are the feeds already attached to your topics and eligible for briefing generation.
+            </p>
+          </div>
+
+          <div className="mt-6 grid gap-4">
+            {data.sources.length ? (
+              data.sources.map((source) => (
+                <Panel key={source.id} className="p-6">
+                  <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-xl font-semibold text-[var(--foreground)]">{source.name}</h2>
+                        <Badge>{source.topicName ?? "Unassigned"}</Badge>
+                        <Badge className={source.status === "active" ? "text-[var(--accent)]" : ""}>
+                          {source.status}
+                        </Badge>
+                      </div>
+                      <div className="space-y-1 text-sm text-[var(--muted)]">
+                        <p>{source.feedUrl}</p>
+                        {source.homepageUrl ? <p>{source.homepageUrl}</p> : null}
+                      </div>
+                    </div>
+                    {source.homepageUrl ? (
+                      <a
+                        href={source.homepageUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-white/70 px-4 py-2 text-sm text-[var(--foreground)]"
+                      >
+                        Visit source
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    ) : null}
+                  </div>
+                </Panel>
+              ))
+            ) : (
+              <div className="rounded-[24px] border border-dashed border-[var(--line)] bg-[var(--panel)]/55 p-5 text-sm leading-7 text-[var(--foreground)]">
+                No saved sources yet. Import one from the starter library below or add a custom RSS feed.
+              </div>
+            )}
+          </div>
+        </Panel>
 
         <Panel className="p-6">
           <div className="flex flex-col gap-2">
             <h2 className="text-lg font-semibold text-[var(--foreground)]">Recommended live sources</h2>
             <p className="text-sm leading-7 text-[var(--muted)]">
-              These are ready-to-import feeds from established publications and newsletters. Pick a topic and save each source with one click.
+              These are vetted feeds you can add next. Think of this section as a source library, not your current configuration.
             </p>
           </div>
 
@@ -71,12 +125,12 @@ export default async function SourcesPage() {
                         ))}
                       </select>
                     </label>
-                    <button
-                      className="inline-flex items-end justify-center rounded-full bg-[var(--foreground)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
+                    <SubmitButton
+                      className="self-end"
+                      idleLabel="Import source"
+                      pendingLabel="Importing..."
                       disabled={!isSupabaseConfigured || data.topics.length === 0}
-                    >
-                      Import source
-                    </button>
+                    />
                   </form>
                 ) : (
                   <div className="mt-5 rounded-2xl border border-[var(--line)] bg-[var(--panel)]/60 px-4 py-3 text-sm text-[var(--muted)]">
@@ -97,39 +151,6 @@ export default async function SourcesPage() {
             ))}
           </div>
         </Panel>
-
-        <div className="grid gap-4">
-          {data.sources.map((source) => (
-            <Panel key={source.id} className="p-6">
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                <div className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-xl font-semibold text-[var(--foreground)]">{source.name}</h2>
-                    <Badge>{source.topicName ?? "Unassigned"}</Badge>
-                    <Badge className={source.status === "active" ? "text-[var(--accent)]" : ""}>
-                      {source.status}
-                    </Badge>
-                  </div>
-                  <div className="space-y-1 text-sm text-[var(--muted)]">
-                    <p>{source.feedUrl}</p>
-                    {source.homepageUrl ? <p>{source.homepageUrl}</p> : null}
-                  </div>
-                </div>
-                {source.homepageUrl ? (
-                  <a
-                    href={source.homepageUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-white/70 px-4 py-2 text-sm text-[var(--foreground)]"
-                  >
-                    Visit source
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
-                ) : null}
-              </div>
-            </Panel>
-          ))}
-        </div>
 
         <Panel className="p-6">
           <h2 className="text-lg font-semibold text-[var(--foreground)]">Add an RSS source</h2>
@@ -181,12 +202,7 @@ export default async function SourcesPage() {
                 disabled={!isSupabaseConfigured}
               />
             </label>
-            <button
-              className="inline-flex items-center justify-center rounded-full bg-[var(--foreground)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
-              disabled={!isSupabaseConfigured}
-            >
-              Save source
-            </button>
+            <SubmitButton idleLabel="Save source" pendingLabel="Saving source..." disabled={!isSupabaseConfigured} />
           </form>
         </Panel>
       </div>

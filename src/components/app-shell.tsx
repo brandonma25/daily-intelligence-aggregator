@@ -106,8 +106,11 @@ export function AppShell({
 
       <main className="min-w-0 flex-1 pt-16 lg:pt-0">
         {mode !== "demo" ? (
-          <div className="sticky top-4 z-30 mb-4 flex justify-end">
-            <AccountMenu account={account} />
+          <div className="mb-4 space-y-3">
+            <div className="flex justify-end">
+              <AccountMenu account={account} />
+            </div>
+            {!account ? <GuestCallout /> : null}
           </div>
         ) : null}
         {children}
@@ -138,22 +141,22 @@ function AccountMenu({ account }: { account?: ViewerAccount | null }) {
         aria-label="Open account management"
         aria-expanded={open}
         className={cn(
-          "w-full rounded-[28px] border p-4 text-left shadow-[0_12px_28px_rgba(19,26,34,0.10)] backdrop-blur transition-colors lg:p-5",
+          "w-full rounded-[26px] border bg-[var(--surface)] p-3 text-left shadow-[0_10px_24px_rgba(19,26,34,0.08)] transition-colors",
           signedIn
-            ? "border-[rgba(31,79,70,0.14)] bg-[rgba(255,255,255,0.92)]"
-            : "border-[rgba(19,26,34,0.10)] bg-[rgba(231,233,236,0.92)]",
+            ? "border-[rgba(31,79,70,0.14)]"
+            : "border-[rgba(19,26,34,0.10)] bg-[rgba(239,240,242,0.96)]",
         )}
         onClick={() => setOpen((value) => !value)}
       >
-        <div className="flex items-start justify-between gap-3">
-          <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 space-y-2">
             <Badge className={cn(!signedIn ? "bg-white/55" : "")}>
               {signedIn ? "Account" : "Guest"}
             </Badge>
             <div className="flex items-center gap-3">
               <span
                 className={cn(
-                  "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-sm font-semibold",
+                  "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-semibold",
                   signedIn
                     ? "bg-[var(--foreground)] text-white"
                     : "bg-[rgba(19,26,34,0.12)] text-[var(--foreground)]",
@@ -165,13 +168,13 @@ function AccountMenu({ account }: { account?: ViewerAccount | null }) {
                 <span className="block truncate text-sm font-semibold text-[var(--foreground)]">
                   {signedIn ? account?.displayName : "Account access"}
                 </span>
-                <span className="block truncate text-xs leading-6 text-[var(--muted)]">
+                <span className="block truncate text-xs leading-5 text-[var(--muted)]">
                   {signedIn ? account?.email : "Sign in to save your briefings"}
                 </span>
               </span>
             </div>
           </div>
-          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[var(--line)] bg-white/60 text-[var(--foreground)]">
+          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-[var(--line)] bg-white/65 text-[var(--foreground)]">
             <ChevronDown className="h-4 w-4 text-[var(--muted)]" />
           </span>
         </div>
@@ -179,23 +182,33 @@ function AccountMenu({ account }: { account?: ViewerAccount | null }) {
 
       {open ? (
         <Panel className="absolute right-0 top-[calc(100%+0.75rem)] w-full min-w-[320px] p-5">
-          <div className="flex items-start gap-4">
-            <span
-              className={cn(
-                "flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
-                signedIn ? "bg-[var(--foreground)] text-white" : "bg-[rgba(19,26,34,0.12)] text-[var(--foreground)]",
-              )}
-            >
-              {signedIn ? account?.initials : <UserRound className="h-5 w-5" />}
-            </span>
-            <div className="min-w-0">
-              <p className="truncate text-base font-semibold text-[var(--foreground)]">
-                {signedIn ? account?.displayName : "Guest access"}
-              </p>
-              <p className="truncate text-sm text-[var(--muted)]">
-                {signedIn ? account?.email : "Sign in with email to unlock saved topics, sources, and account tools."}
-              </p>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-4">
+              <span
+                className={cn(
+                  "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-sm font-semibold",
+                  signedIn ? "bg-[var(--foreground)] text-white" : "bg-[rgba(19,26,34,0.12)] text-[var(--foreground)]",
+                )}
+              >
+                {signedIn ? account?.initials : <UserRound className="h-5 w-5" />}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-base font-semibold text-[var(--foreground)]">
+                  {signedIn ? account?.displayName : "Guest access"}
+                </p>
+                <p className="truncate text-sm text-[var(--muted)]">
+                  {signedIn ? account?.email : "Sign in with email to unlock saved topics, sources, and account tools."}
+                </p>
+              </div>
             </div>
+            <button
+              type="button"
+              aria-label="Close account menu"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--line)] bg-white/60 text-[var(--foreground)]"
+              onClick={() => setOpen(false)}
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
 
           <div className="mt-5 space-y-3">
@@ -277,9 +290,16 @@ function SidebarPanel({
       <div className="space-y-8">
         <div className="flex items-start justify-between gap-3">
           <div className={cn("space-y-4", collapsed && !mobile ? "w-full" : "")}>
-            <Badge className={cn(collapsed && !mobile ? "justify-center px-0 py-2" : "")}>
-              {collapsed && !mobile ? "DI" : "Daily Intelligence"}
-            </Badge>
+            {collapsed && !mobile ? (
+              <div className="space-y-3 text-center">
+                <Badge className="justify-center px-0 py-2">DI</Badge>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+                  Menu
+                </p>
+              </div>
+            ) : (
+              <Badge>Daily Intelligence</Badge>
+            )}
             <div className="space-y-2">
               <h1
                 className={cn(
@@ -337,7 +357,7 @@ function SidebarPanel({
                     ? "justify-center px-0 py-3"
                     : "gap-3 px-4 py-3",
                   active
-                    ? "bg-[var(--foreground)] text-white"
+                    ? "border border-[rgba(31,79,70,0.12)] bg-[var(--foreground)] text-white shadow-[0_10px_24px_rgba(19,26,34,0.16)]"
                     : "text-[var(--foreground)] hover:bg-white/60",
                 )}
                 onClick={mobile ? onClose : undefined}
@@ -363,7 +383,7 @@ function SidebarPanel({
             collapsed && !mobile ? "text-center" : "",
           )}
         >
-          Mode
+          Workspace state
         </p>
         {collapsed && !mobile ? (
           <p className="mt-2 text-center text-sm font-semibold text-[var(--foreground)]">
@@ -372,12 +392,35 @@ function SidebarPanel({
         ) : (
           <p className="mt-2 text-sm leading-6 text-[var(--foreground)]">
             {mode === "demo"
-              ? "Demo mode is active. Connect Supabase and your AI key to save data and generate live briefings."
+              ? "Demo mode shows placeholder workflows. Connect services in Settings to unlock saved data and live generation."
               : mode === "public"
-                ? "Public live mode is active. The app is pulling current tech and finance headlines from public feeds on a 15-minute refresh cycle."
-                : "Live mode is active. Your saved topics, sources, and briefings are connected."}
+                ? "Public mode is active. Guests are seeing live tech and finance feeds on a 15-minute refresh cycle."
+                : "Live mode is active. Your saved topics, sources, and briefings are connected to your account."}
           </p>
         )}
+      </div>
+    </Panel>
+  );
+}
+
+function GuestCallout() {
+  return (
+    <Panel className="border border-[rgba(31,79,70,0.14)] bg-[linear-gradient(135deg,rgba(255,255,255,0.94),rgba(247,243,236,0.98))] p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-[var(--foreground)]">
+            You&apos;re browsing in guest mode.
+          </p>
+          <p className="mt-1 text-sm leading-7 text-[var(--muted)]">
+            Sign in to save sources, build custom topics, and keep a personal briefing history.
+          </p>
+        </div>
+        <Link
+          href="/#email-access"
+          className="inline-flex items-center justify-center rounded-full bg-[var(--foreground)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(19,26,34,0.16)]"
+        >
+          Sign in
+        </Link>
       </div>
     </Panel>
   );

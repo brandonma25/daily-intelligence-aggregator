@@ -1,16 +1,22 @@
 import { generateBriefingAction } from "@/app/actions";
 import { PageHeader } from "@/components/page-header";
+import { SubmitButton } from "@/components/submit-button";
 import { StoryCard } from "@/components/story-card";
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { getDashboardData, getViewerAccount } from "@/lib/data";
 import { formatBriefingDate } from "@/lib/utils";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ generated?: string }>;
+}) {
+  const params = await searchParams;
   const data = await getDashboardData();
   const viewer = await getViewerAccount();
+  const generated = params.generated === "1";
   const topStories = data.briefing.items.filter((item) => item.priority === "top");
   const grouped = data.topics.map((topic) => ({
     topic,
@@ -20,6 +26,11 @@ export default async function DashboardPage() {
   return (
     <AppShell currentPath="/dashboard" mode={data.mode} account={viewer}>
       <div className="space-y-6 py-2">
+        {generated ? (
+          <Panel className="border border-[rgba(31,79,70,0.16)] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(243,249,247,0.92))] p-4 text-sm text-[var(--foreground)]">
+            Your briefing was refreshed successfully.
+          </Panel>
+        ) : null}
         <PageHeader
           eyebrow={formatBriefingDate(data.briefing.briefingDate)}
           title={data.briefing.title}
@@ -35,7 +46,11 @@ export default async function DashboardPage() {
                 </p>
               </div>
               <form action={generateBriefingAction}>
-                <Button className="w-full">Generate fresh briefing</Button>
+                <SubmitButton
+                  className="w-full"
+                  idleLabel="Generate fresh briefing"
+                  pendingLabel="Generating briefing..."
+                />
               </form>
             </div>
           }

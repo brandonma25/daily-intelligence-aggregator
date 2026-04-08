@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -23,29 +25,48 @@ export default async function HistoryPage() {
           description="History helps you go back to prior scans, revisit stories you skipped, and build a lightweight knowledge trail over time."
         />
 
-        <div className="grid gap-4">
-          {history.map((briefing) => (
-            <Panel key={briefing.id} className="p-6">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <p className="text-sm font-medium text-[var(--muted)]">
-                    {formatBriefingDate(briefing.briefingDate)}
-                  </p>
-                  <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
-                    {briefing.title}
-                  </h2>
-                  <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--muted)]">
-                    {briefing.intro}
-                  </p>
+        {!viewer ? (
+          <Panel className="p-6">
+            <p className="text-sm font-semibold text-[var(--foreground)]">No history yet for guest mode</p>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--muted)]">
+              Briefing history becomes useful once you sign in and start generating or saving briefings tied to your account.
+            </p>
+            <Link
+              href="/#email-access"
+              className="mt-5 inline-flex items-center justify-center rounded-full bg-[var(--foreground)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(19,26,34,0.16)]"
+            >
+              Sign in to save history
+            </Link>
+          </Panel>
+        ) : history.length ? (
+          <div className="grid gap-4">
+            {history.map((briefing) => (
+              <Panel key={briefing.id} className="p-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-[var(--muted)]">
+                      {formatBriefingDate(briefing.briefingDate)}
+                    </p>
+                    <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
+                      {briefing.title}
+                    </h2>
+                    <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--muted)]">
+                      {briefing.intro}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge>{briefing.items.length} stories</Badge>
+                    <Badge>{briefing.readingWindow}</Badge>
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Badge>{briefing.items.length} stories</Badge>
-                  <Badge>{briefing.readingWindow}</Badge>
-                </div>
-              </div>
-            </Panel>
-          ))}
-        </div>
+              </Panel>
+            ))}
+          </div>
+        ) : (
+          <Panel className="p-6 text-sm leading-7 text-[var(--foreground)]">
+            Your account does not have any saved briefings yet. Generate a fresh briefing on the Today page to start your archive.
+          </Panel>
+        )}
       </div>
     </AppShell>
   );

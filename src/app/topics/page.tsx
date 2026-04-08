@@ -1,6 +1,9 @@
 import { createTopicAction } from "@/app/actions";
+import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
+import { SubmitButton } from "@/components/submit-button";
+import { Badge } from "@/components/ui/badge";
 import { Panel } from "@/components/ui/panel";
 import { getDashboardData, getViewerAccount } from "@/lib/data";
 import { isSupabaseConfigured } from "@/lib/env";
@@ -16,6 +19,11 @@ export default async function TopicsPage() {
           eyebrow="Topic management"
           title="Choose the areas that deserve attention"
           description="Topics give the product structure. Each source can be attached to a topic so the daily briefing stays organized and easy to scan."
+          aside={
+            <Link href="#add-topic" className="inline-flex items-center justify-center rounded-full bg-[var(--foreground)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(19,26,34,0.16)]">
+              Add topic
+            </Link>
+          }
         />
 
         <div className="grid gap-4 lg:grid-cols-2">
@@ -23,16 +31,26 @@ export default async function TopicsPage() {
             <Panel key={topic.id} className="p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-xl font-semibold text-[var(--foreground)]">{topic.name}</h2>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-xl font-semibold text-[var(--foreground)]">{topic.name}</h2>
+                    <Badge>Topic</Badge>
+                    <Badge>{data.sources.filter((source) => source.topicId === topic.id).length} sources</Badge>
+                  </div>
                   <p className="mt-3 text-sm leading-7 text-[var(--muted)]">{topic.description}</p>
+                  <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+                    Accent color
+                  </p>
                 </div>
-                <div className="h-3 w-3 rounded-full" style={{ backgroundColor: topic.color }} />
+                <div className="flex items-center gap-3">
+                  <div className="h-3 w-3 rounded-full" style={{ backgroundColor: topic.color }} />
+                  <span className="text-xs font-medium text-[var(--muted)]">{topic.color}</span>
+                </div>
               </div>
             </Panel>
           ))}
         </div>
 
-        <Panel className="p-6">
+        <Panel id="add-topic" className="p-6">
           <h2 className="text-lg font-semibold text-[var(--foreground)]">Add a new topic</h2>
           <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
             {isSupabaseConfigured
@@ -69,12 +87,12 @@ export default async function TopicsPage() {
                 disabled={!isSupabaseConfigured}
               />
             </label>
-            <button
-              className="inline-flex items-center justify-center rounded-full bg-[var(--foreground)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
+            <SubmitButton
+              idleLabel="Save topic"
+              pendingLabel="Saving topic..."
+              className="inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-semibold text-white"
               disabled={!isSupabaseConfigured}
-            >
-              Save topic
-            </button>
+            />
           </form>
         </Panel>
 
