@@ -6,6 +6,7 @@ import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
+import { getViewerAccount } from "@/lib/data";
 import { isSupabaseConfigured } from "@/lib/env";
 
 const features = [
@@ -34,9 +35,10 @@ export default async function HomePage({
   const params = await searchParams;
   const sent = params.sent === "1";
   const authRequired = params.auth === "1";
+  const viewer = await getViewerAccount();
 
   return (
-    <AppShell currentPath="/" mode={isSupabaseConfigured ? "public" : "demo"}>
+    <AppShell currentPath="/" mode={isSupabaseConfigured ? "public" : "demo"} account={viewer}>
       <Panel className="overflow-hidden">
         <div className="grid gap-10 p-8 md:p-10 lg:grid-cols-[1.2fr_0.8fr] lg:p-12">
           <div className="space-y-8">

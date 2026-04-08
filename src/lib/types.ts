@@ -59,3 +59,10 @@ export type DashboardData = {
   topics: Topic[];
   sources: Source[];
 };
+
+export type ViewerAccount = {
+  id: string;
+  email: string;
+  displayName: string;
+  initials: string;
+};

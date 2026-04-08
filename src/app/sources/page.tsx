@@ -5,15 +5,16 @@ import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Panel } from "@/components/ui/panel";
-import { getDashboardData } from "@/lib/data";
+import { getDashboardData, getViewerAccount } from "@/lib/data";
 import { isSupabaseConfigured } from "@/lib/env";
 import { recommendedSources } from "@/lib/source-catalog";
 
 export default async function SourcesPage() {
   const data = await getDashboardData();
+  const viewer = await getViewerAccount();
 
   return (
-    <AppShell currentPath="/sources" mode={data.mode}>
+    <AppShell currentPath="/sources" mode={data.mode} account={viewer}>
       <div className="space-y-6 py-2">
         <PageHeader
           eyebrow="Source management"

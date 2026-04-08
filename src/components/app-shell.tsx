@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import {
+  ChevronDown,
   History,
   House,
   Layers3,
@@ -10,14 +11,17 @@ import {
   Newspaper,
   PanelLeftClose,
   PanelLeftOpen,
+  PanelTopOpen,
   Rss,
   Settings2,
   X,
 } from "lucide-react";
 
+import { signOutAction } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
+import type { ViewerAccount } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -35,10 +39,12 @@ export function AppShell({
   children,
   currentPath,
   mode,
+  account,
 }: {
   children: React.ReactNode;
   currentPath: string;
   mode: "demo" | "live" | "public";
+  account?: ViewerAccount | null;
 }) {
   const [desktopCollapsed, setDesktopCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -97,7 +103,92 @@ export function AppShell({
         />
       </aside>
 
-      <main className="min-w-0 flex-1 pt-16 lg:pt-0">{children}</main>
+      <main className="min-w-0 flex-1 pt-16 lg:pt-0">
+        {account ? (
+          <div className="sticky top-4 z-30 mb-4 flex justify-end">
+            <AccountMenu account={account} />
+          </div>
+        ) : null}
+        {children}
+      </main>
+    </div>
+  );
+}
+
+function AccountMenu({ account }: { account: ViewerAccount }) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function handleWindowClick() {
+      setOpen(false);
+    }
+
+    window.addEventListener("click", handleWindowClick);
+    return () => window.removeEventListener("click", handleWindowClick);
+  }, [open]);
+
+  return (
+    <div className="relative" onClick={(event) => event.stopPropagation()}>
+      <button
+        type="button"
+        aria-label="Open account management"
+        aria-expanded={open}
+        className="flex items-center gap-3 rounded-full border border-[var(--line)] bg-white/85 px-2 py-2 shadow-[0_12px_28px_rgba(19,26,34,0.10)] backdrop-blur"
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--foreground)] text-sm font-semibold text-white">
+          {account.initials}
+        </span>
+        <span className="hidden min-w-0 text-left md:block">
+          <span className="block truncate text-sm font-semibold text-[var(--foreground)]">
+            {account.displayName}
+          </span>
+          <span className="block truncate text-xs text-[var(--muted)]">{account.email}</span>
+        </span>
+        <ChevronDown className="mr-2 h-4 w-4 text-[var(--muted)]" />
+      </button>
+
+      {open ? (
+        <Panel className="absolute right-0 top-[calc(100%+0.75rem)] w-[320px] p-5">
+          <div className="flex items-start gap-4">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--foreground)] text-sm font-semibold text-white">
+              {account.initials}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-base font-semibold text-[var(--foreground)]">
+                {account.displayName}
+              </p>
+              <p className="truncate text-sm text-[var(--muted)]">{account.email}</p>
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            <Link
+              href="/settings#user-settings"
+              className="flex items-center justify-between rounded-[20px] border border-[var(--line)] bg-white/70 px-4 py-3 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-white"
+              onClick={() => setOpen(false)}
+            >
+              <span>User settings</span>
+              <PanelTopOpen className="h-4 w-4" />
+            </Link>
+            <div className="rounded-[20px] border border-[var(--line)] bg-[var(--panel)]/70 px-4 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+                Account management
+              </p>
+              <p className="mt-2 text-sm leading-7 text-[var(--foreground)]">
+                Manage your briefing preferences, saved sources, notification cadence, and privacy controls from one place.
+              </p>
+            </div>
+            <form action={signOutAction}>
+              <Button type="submit" variant="secondary" className="w-full">
+                Sign out
+              </Button>
+            </form>
+          </div>
+        </Panel>
+      ) : null}
     </div>
   );
 }

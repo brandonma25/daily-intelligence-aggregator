@@ -2,14 +2,20 @@ import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Panel } from "@/components/ui/panel";
-import { getHistory } from "@/lib/data";
+import { getHistory, getViewerAccount } from "@/lib/data";
+import { isSupabaseConfigured } from "@/lib/env";
 import { formatBriefingDate } from "@/lib/utils";
 
 export default async function HistoryPage() {
   const history = await getHistory();
+  const viewer = await getViewerAccount();
 
   return (
-    <AppShell currentPath="/history" mode="demo">
+    <AppShell
+      currentPath="/history"
+      mode={viewer ? "live" : isSupabaseConfigured ? "public" : "demo"}
+      account={viewer}
+    >
       <div className="space-y-6 py-2">
         <PageHeader
           eyebrow="Briefing history"

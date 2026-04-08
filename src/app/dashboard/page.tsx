@@ -5,11 +5,12 @@ import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
-import { getDashboardData } from "@/lib/data";
+import { getDashboardData, getViewerAccount } from "@/lib/data";
 import { formatBriefingDate } from "@/lib/utils";
 
 export default async function DashboardPage() {
   const data = await getDashboardData();
+  const viewer = await getViewerAccount();
   const topStories = data.briefing.items.filter((item) => item.priority === "top");
   const grouped = data.topics.map((topic) => ({
     topic,
@@ -17,7 +18,7 @@ export default async function DashboardPage() {
   }));
 
   return (
-    <AppShell currentPath="/dashboard" mode={data.mode}>
+    <AppShell currentPath="/dashboard" mode={data.mode} account={viewer}>
       <div className="space-y-6 py-2">
         <PageHeader
           eyebrow={formatBriefingDate(data.briefing.briefingDate)}

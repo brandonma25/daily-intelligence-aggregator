@@ -2,14 +2,15 @@ import { createTopicAction } from "@/app/actions";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { Panel } from "@/components/ui/panel";
-import { getDashboardData } from "@/lib/data";
+import { getDashboardData, getViewerAccount } from "@/lib/data";
 import { isSupabaseConfigured } from "@/lib/env";
 
 export default async function TopicsPage() {
   const data = await getDashboardData();
+  const viewer = await getViewerAccount();
 
   return (
-    <AppShell currentPath="/topics" mode={data.mode}>
+    <AppShell currentPath="/topics" mode={data.mode} account={viewer}>
       <div className="space-y-6 py-2">
         <PageHeader
           eyebrow="Topic management"

@@ -4,7 +4,47 @@ import { demoDashboardData, demoHistory, demoSources, demoTopics } from "@/lib/d
 import { clusterArticles, fetchFeedArticles } from "@/lib/rss";
 import { summarizeCluster } from "@/lib/summarizer";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { DailyBriefing, DashboardData, Source, Topic } from "@/lib/types";
+import type { DailyBriefing, DashboardData, Source, Topic, ViewerAccount } from "@/lib/types";
+
+export async function getViewerAccount(): Promise<ViewerAccount | null> {
+  const supabase = await createSupabaseServerClient();
+
+  if (!supabase) {
+    return null;
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user?.email) {
+    return null;
+  }
+
+  const localName = user.email.split("@")[0] ?? "Reader";
+  const displayName =
+    user.user_metadata?.full_name ||
+    user.user_metadata?.name ||
+    localName
+      .split(/[._-]+/)
+      .filter(Boolean)
+      .map((part: string) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
+  const initials = (displayName || user.email)
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("")
+    .slice(0, 2);
+
+  return {
+    id: user.id,
+    email: user.email,
+    displayName: displayName || user.email,
+    initials: initials || user.email.charAt(0).toUpperCase(),
+  };
+}
 
 export async function getDashboardData(): Promise<DashboardData> {
   const supabase = await createSupabaseServerClient();

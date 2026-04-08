@@ -40,6 +40,24 @@ export async function requestMagicLinkAction(formData: FormData) {
   redirect("/?sent=1");
 }
 
+export async function signOutAction() {
+  if (!isSupabaseConfigured) {
+    redirect("/");
+  }
+
+  const supabase = await createSupabaseServerClient();
+
+  await supabase?.auth.signOut();
+
+  revalidatePath("/");
+  revalidatePath("/dashboard");
+  revalidatePath("/topics");
+  revalidatePath("/sources");
+  revalidatePath("/history");
+  revalidatePath("/settings");
+  redirect("/");
+}
+
 export async function createTopicAction(formData: FormData) {
   if (!isSupabaseConfigured) {
     redirect("/topics?demo=1");
