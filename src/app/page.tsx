@@ -46,7 +46,7 @@ export default function HomePage() {
                 <input
                   name="email"
                   type="email"
-                  placeholder="you@company.com"
+                  placeholder="you@example.com"
                   className="min-w-0 flex-1 rounded-full border border-[var(--line)] bg-white/70 px-5 py-3 text-sm outline-none"
                 />
                 <Button className="gap-2 px-5 py-3 text-sm">
@@ -126,7 +126,7 @@ export default function HomePage() {
                 Sign-in path
               </p>
               <p className="mt-3 text-sm leading-7 text-white/85">
-                For the MVP, the app supports Supabase email magic links. If you have not connected Supabase yet, the product opens in a polished demo mode so you can review the experience immediately.
+                For the MVP, the app supports Supabase email magic links for any valid email address. If you have not connected Supabase yet, the product opens in a polished demo mode so you can review the experience immediately.
               </p>
             </div>
           </div>
