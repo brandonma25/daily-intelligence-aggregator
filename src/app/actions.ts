@@ -21,6 +21,35 @@ const sourceSchema = z.object({
   topicId: z.string().min(1),
 });
 
+const credentialsSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8).max(72),
+});
+
+const oauthProviderSchema = z.enum(["google", "apple"]);
+
+async function syncUserProfile() {
+  const supabase = await createSupabaseServerClient();
+
+  if (!supabase) {
+    return { supabase: null, user: null };
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (user) {
+    await supabase.from("user_profiles").upsert({
+      id: user.id,
+      email: user.email ?? "",
+      last_sign_in_at: new Date().toISOString(),
+    });
+  }
+
+  return { supabase, user };
+}
+
 export async function requestMagicLinkAction(formData: FormData) {
   const email = z.string().email().parse(formData.get("email"));
 
@@ -38,6 +67,107 @@ export async function requestMagicLinkAction(formData: FormData) {
   });
 
   redirect("/?sent=1");
+}
+
+export async function signUpWithPasswordAction(formData: FormData) {
+  const { email, password } = credentialsSchema.parse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+  });
+
+  if (!isSupabaseConfigured) {
+    redirect("/?demo=1");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) {
+    redirect("/?auth=signup-error");
+  }
+
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: `${env.appUrl}/auth/callback`,
+    },
+  });
+
+  if (error) {
+    redirect("/?auth=signup-error");
+  }
+
+  if (data.user) {
+    await supabase.from("user_profiles").upsert({
+      id: data.user.id,
+      email: data.user.email ?? email,
+      last_sign_in_at: new Date().toISOString(),
+    });
+  }
+
+  if (data.session) {
+    revalidatePath("/");
+    revalidatePath("/dashboard");
+    redirect("/dashboard");
+  }
+
+  redirect("/?auth=confirm");
+}
+
+export async function signInWithPasswordAction(formData: FormData) {
+  const { email, password } = credentialsSchema.parse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+  });
+
+  if (!isSupabaseConfigured) {
+    redirect("/?demo=1");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) {
+    redirect("/?auth=invalid");
+  }
+
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) {
+    redirect("/?auth=invalid");
+  }
+
+  await syncUserProfile();
+
+  revalidatePath("/");
+  revalidatePath("/dashboard");
+  redirect("/dashboard");
+}
+
+export async function signInWithProviderAction(formData: FormData) {
+  const provider = oauthProviderSchema.parse(formData.get("provider"));
+
+  if (!isSupabaseConfigured) {
+    redirect("/?demo=1");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) {
+    redirect("/?auth=oauth-error");
+  }
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: {
+      redirectTo: `${env.appUrl}/auth/callback`,
+    },
+  });
+
+  if (error || !data.url) {
+    redirect("/?auth=oauth-error");
+  }
+
+  redirect(data.url);
 }
 
 export async function signOutAction() {

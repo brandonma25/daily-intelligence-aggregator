@@ -1,6 +1,11 @@
-import { requestMagicLinkAction } from "@/app/actions";
+import {
+  requestMagicLinkAction,
+  signInWithPasswordAction,
+  signInWithProviderAction,
+  signUpWithPasswordAction,
+} from "@/app/actions";
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, MailCheck, Sparkles, ShieldCheck, Rss } from "lucide-react";
+import { ArrowRight, CheckCircle2, KeyRound, MailCheck, Sparkles, ShieldCheck, Rss } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +39,8 @@ export default async function HomePage({
 }) {
   const params = await searchParams;
   const sent = params.sent === "1";
-  const authRequired = params.auth === "1";
+  const authState = params.auth;
+  const authRequired = authState === "1";
   const viewer = await getViewerAccount();
 
   return (
@@ -54,18 +60,100 @@ export default async function HomePage({
 
             {isSupabaseConfigured ? (
               <div id="email-access" className="max-w-xl scroll-mt-24 space-y-3">
-                <form action={requestMagicLinkAction} className="flex flex-col gap-3 sm:flex-row">
-                  <input
-                    name="email"
-                    type="email"
-                    placeholder="you@example.com"
-                    className="min-w-0 flex-1 rounded-full border border-[var(--line)] bg-white/70 px-5 py-3 text-sm outline-none"
-                  />
-                  <Button className="gap-2 px-5 py-3 text-sm">
-                    Send sign-in link
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </form>
+                <div className="rounded-[30px] border border-[var(--line)] bg-white/70 p-5 md:p-6">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge>Authentication</Badge>
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+                      Password, Google, Apple, or magic link
+                    </span>
+                  </div>
+
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                    <form action={signInWithProviderAction}>
+                      <input type="hidden" name="provider" value="google" />
+                      <Button variant="secondary" className="w-full justify-between px-5 py-3 text-sm">
+                        Continue with Google
+                        <ArrowRight className="h-4 w-4" />
+                      </Button>
+                    </form>
+                    <form action={signInWithProviderAction}>
+                      <input type="hidden" name="provider" value="apple" />
+                      <Button variant="secondary" className="w-full justify-between px-5 py-3 text-sm">
+                        Continue with Apple
+                        <ArrowRight className="h-4 w-4" />
+                      </Button>
+                    </form>
+                  </div>
+
+                  <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                    <form action={signUpWithPasswordAction} className="space-y-3 rounded-[24px] border border-[var(--line)] bg-white/75 p-4">
+                      <div className="flex items-center gap-2">
+                        <KeyRound className="h-4 w-4 text-[var(--accent)]" />
+                        <p className="text-sm font-semibold text-[var(--foreground)]">Create account</p>
+                      </div>
+                      <input
+                        name="email"
+                        type="email"
+                        placeholder="you@example.com"
+                        className="w-full rounded-2xl border border-[var(--line)] bg-white/70 px-4 py-3 text-sm outline-none"
+                      />
+                      <input
+                        name="password"
+                        type="password"
+                        placeholder="Create a password"
+                        minLength={8}
+                        className="w-full rounded-2xl border border-[var(--line)] bg-white/70 px-4 py-3 text-sm outline-none"
+                      />
+                      <Button className="w-full justify-between px-5 py-3 text-sm">
+                        Sign up with password
+                        <ArrowRight className="h-4 w-4" />
+                      </Button>
+                    </form>
+
+                    <form action={signInWithPasswordAction} className="space-y-3 rounded-[24px] border border-[var(--line)] bg-white/75 p-4">
+                      <div className="flex items-center gap-2">
+                        <KeyRound className="h-4 w-4 text-[var(--accent)]" />
+                        <p className="text-sm font-semibold text-[var(--foreground)]">Sign in</p>
+                      </div>
+                      <input
+                        name="email"
+                        type="email"
+                        placeholder="you@example.com"
+                        className="w-full rounded-2xl border border-[var(--line)] bg-white/70 px-4 py-3 text-sm outline-none"
+                      />
+                      <input
+                        name="password"
+                        type="password"
+                        placeholder="Your password"
+                        minLength={8}
+                        className="w-full rounded-2xl border border-[var(--line)] bg-white/70 px-4 py-3 text-sm outline-none"
+                      />
+                      <Button variant="secondary" className="w-full justify-between px-5 py-3 text-sm">
+                        Sign in with password
+                        <ArrowRight className="h-4 w-4" />
+                      </Button>
+                    </form>
+                  </div>
+
+                  <div className="mt-5 rounded-[24px] border border-dashed border-[var(--line)] bg-[var(--panel)]/50 p-4">
+                    <p className="text-sm font-semibold text-[var(--foreground)]">Passwordless fallback</p>
+                    <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+                      Prefer not to use a password? Request a magic link and confirm the sign-in from your inbox.
+                    </p>
+                    <form action={requestMagicLinkAction} className="mt-4 flex flex-col gap-3 sm:flex-row">
+                      <input
+                        name="email"
+                        type="email"
+                        placeholder="you@example.com"
+                        className="min-w-0 flex-1 rounded-full border border-[var(--line)] bg-white/70 px-5 py-3 text-sm outline-none"
+                      />
+                      <Button className="gap-2 px-5 py-3 text-sm">
+                        Send sign-in link
+                        <ArrowRight className="h-4 w-4" />
+                      </Button>
+                    </form>
+                  </div>
+                </div>
 
                 {sent ? (
                   <div className="overflow-hidden rounded-[28px] border border-[rgba(31,79,70,0.18)] bg-[linear-gradient(135deg,rgba(31,79,70,0.14),rgba(255,255,255,0.92))] shadow-[0_18px_45px_rgba(31,79,70,0.10)]">
@@ -99,6 +187,30 @@ export default async function HomePage({
                 {authRequired ? (
                   <div className="rounded-[24px] border border-[var(--line)] bg-white/70 px-5 py-4 text-sm leading-7 text-[var(--foreground)]">
                     Sign in with your email first, then you&apos;ll be redirected back into the app.
+                  </div>
+                ) : null}
+
+                {authState === "confirm" ? (
+                  <div className="rounded-[24px] border border-[rgba(31,79,70,0.18)] bg-white/70 px-5 py-4 text-sm leading-7 text-[var(--foreground)]">
+                    Your account has been created. Check your inbox to confirm your email address before signing in.
+                  </div>
+                ) : null}
+
+                {authState === "invalid" ? (
+                  <div className="rounded-[24px] border border-[rgba(148,72,53,0.18)] bg-white/70 px-5 py-4 text-sm leading-7 text-[var(--foreground)]">
+                    That email and password combination did not work. Double-check your credentials and try again.
+                  </div>
+                ) : null}
+
+                {authState === "signup-error" ? (
+                  <div className="rounded-[24px] border border-[rgba(148,72,53,0.18)] bg-white/70 px-5 py-4 text-sm leading-7 text-[var(--foreground)]">
+                    We couldn&apos;t create the account with that password just yet. Try a stronger password or a different email.
+                  </div>
+                ) : null}
+
+                {authState === "oauth-error" ? (
+                  <div className="rounded-[24px] border border-[rgba(148,72,53,0.18)] bg-white/70 px-5 py-4 text-sm leading-7 text-[var(--foreground)]">
+                    The social sign-in request did not complete. Check that the provider is enabled in Supabase and try again.
                   </div>
                 ) : null}
               </div>
@@ -174,7 +286,7 @@ export default async function HomePage({
                 Sign-in path
               </p>
               <p className="mt-3 text-sm leading-7 text-white/85">
-                For the MVP, the app supports Supabase email magic links for any valid email address. If you have not connected Supabase yet, the product opens in a polished demo mode so you can review the experience immediately.
+                The app now supports email passwords, Google, Apple, and Supabase magic links. If you have not connected Supabase yet, the product opens in a polished demo mode so you can review the experience immediately.
               </p>
             </div>
           </div>
