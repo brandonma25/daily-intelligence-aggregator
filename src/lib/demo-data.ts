@@ -105,6 +105,13 @@ export const demoBriefing: DailyBriefing = {
       estimatedMinutes: 5,
       read: false,
       priority: "top",
+      importanceScore: 82,
+      importanceLabel: "Critical",
+      rankingSignals: [
+        "Fresh reporting in the current cycle.",
+        "Covered by multiple live tech sources.",
+        "Strong match for the tech brief.",
+      ],
     },
     {
       id: "item-2",
@@ -127,6 +134,13 @@ export const demoBriefing: DailyBriefing = {
       estimatedMinutes: 4,
       read: false,
       priority: "top",
+      importanceScore: 78,
+      importanceLabel: "High",
+      rankingSignals: [
+        "Fresh reporting in the current cycle.",
+        "Covered by multiple finance sources.",
+        "Strong match for the finance brief.",
+      ],
     },
   ],
 };

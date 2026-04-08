@@ -1,6 +1,7 @@
 import { formatISO } from "date-fns";
 
 import { demoDashboardData, demoHistory, demoSources, demoTopics } from "@/lib/demo-data";
+import { rankNewsClusters } from "@/lib/ranking";
 import { clusterArticles, fetchFeedArticles } from "@/lib/rss";
 import { summarizeCluster } from "@/lib/summarizer";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -143,6 +144,9 @@ export async function getDashboardData(): Promise<DashboardData> {
           estimatedMinutes: item.estimated_minutes,
           read: item.is_read,
           priority: item.priority,
+          importanceScore: undefined,
+          importanceLabel: undefined,
+          rankingSignals: [],
         })) ?? [],
     },
   };
@@ -198,6 +202,9 @@ export async function getHistory() {
           estimatedMinutes: item.estimated_minutes,
           read: item.is_read,
           priority: item.priority,
+          importanceScore: undefined,
+          importanceLabel: undefined,
+          rankingSignals: [],
         })) ?? [],
     }),
   );
@@ -222,38 +229,50 @@ export async function generateDailyBriefing(
         return null;
       }
 
-      const topCluster = clusterArticles(articles)[0];
+      const rankedClusters = rankNewsClusters(topic.name, clusterArticles(articles)).slice(0, 3);
 
-      if (!topCluster) {
+      if (!rankedClusters.length) {
         return null;
       }
 
-      const summary = await summarizeCluster(topic.name, topCluster.sources);
+      const summaries = await Promise.all(
+        rankedClusters.map(async (cluster, clusterIndex) => {
+          const summary = await summarizeCluster(topic.name, cluster.sources);
 
-      return {
-        id: `generated-${topic.id}`,
-        topicId: topic.id,
-        topicName: topic.name,
-        title: summary.headline,
-        whatHappened: summary.whatHappened,
-        keyPoints: summary.keyPoints,
-        whyItMatters: summary.whyItMatters,
-        sources: topCluster.sources.slice(0, 3).map((article) => ({
-          title: article.sourceName,
-          url: article.url,
-        })),
-        estimatedMinutes: summary.estimatedMinutes,
-        read: false,
-        priority: index < 2 ? ("top" as const) : ("normal" as const),
-      };
+          return {
+            id: `generated-${topic.id}-${clusterIndex + 1}`,
+            topicId: topic.id,
+            topicName: topic.name,
+            title: summary.headline,
+            whatHappened: summary.whatHappened,
+            keyPoints: summary.keyPoints,
+            whyItMatters: summary.whyItMatters,
+            sources: cluster.sources.slice(0, 3).map((article) => ({
+              title: article.sourceName,
+              url: article.url,
+            })),
+            estimatedMinutes: summary.estimatedMinutes,
+            read: false,
+            priority: index < 2 ? ("top" as const) : ("normal" as const),
+            importanceScore: cluster.importanceScore,
+            importanceLabel: cluster.importanceLabel,
+            rankingSignals: cluster.rankingSignals,
+          };
+        }),
+      );
+
+      return summaries;
     }),
   );
 
-  const validItems = items.filter(
-    (
-      item,
-    ): item is NonNullable<(typeof items)[number]> => item !== null,
-  );
+  const validItems = items
+    .flat()
+    .filter((item): item is NonNullable<typeof item> => item !== null)
+    .sort((left, right) => (right.importanceScore ?? 0) - (left.importanceScore ?? 0))
+    .map((item, index) => ({
+      ...item,
+      priority: index < 5 ? ("top" as const) : ("normal" as const),
+    }));
 
   if (!validItems.length) {
     return demoDashboardData.briefing;

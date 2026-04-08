@@ -42,6 +42,9 @@ export type BriefingItem = {
   estimatedMinutes: number;
   read: boolean;
   priority: "top" | "normal";
+  importanceScore?: number;
+  importanceLabel?: "Critical" | "High" | "Watch";
+  rankingSignals?: string[];
 };
 
 export type DailyBriefing = {

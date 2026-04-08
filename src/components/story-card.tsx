@@ -15,6 +15,10 @@ export function StoryCard({ item }: { item: BriefingItem }) {
             <div className="flex flex-wrap gap-2">
               <Badge>{item.topicName}</Badge>
               {item.priority === "top" ? <Badge className="text-[var(--accent)]">Top story</Badge> : null}
+              {item.importanceLabel ? <Badge>{item.importanceLabel}</Badge> : null}
+              {typeof item.importanceScore === "number" ? (
+                <Badge className="text-[var(--accent)]">{item.importanceScore}/100</Badge>
+              ) : null}
             </div>
             <div>
               <h3 className="text-xl font-semibold tracking-tight text-[var(--foreground)]">
@@ -62,6 +66,24 @@ export function StoryCard({ item }: { item: BriefingItem }) {
           </p>
           <p className="text-sm leading-7 text-[var(--foreground)]">{item.whyItMatters}</p>
         </section>
+
+        {item.rankingSignals?.length ? (
+          <section className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+              Ranking rationale
+            </p>
+            <div className="grid gap-2">
+              {item.rankingSignals.slice(0, 3).map((signal) => (
+                <div
+                  key={signal}
+                  className="rounded-[18px] border border-[var(--line)] bg-[var(--panel)]/55 px-4 py-3 text-sm leading-7 text-[var(--foreground)]"
+                >
+                  {signal}
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         <section className="space-y-3">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">

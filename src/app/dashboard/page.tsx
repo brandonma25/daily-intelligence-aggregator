@@ -63,6 +63,7 @@ export default async function DashboardPage() {
                   <div className="flex items-center gap-2">
                     <Badge>{story.topicName}</Badge>
                     <Badge className="text-[var(--accent)]">Top story</Badge>
+                    {story.importanceLabel ? <Badge>{story.importanceLabel}</Badge> : null}
                   </div>
                   <h3 className="mt-4 text-lg font-semibold text-[var(--foreground)]">
                     {story.title}
@@ -70,6 +71,11 @@ export default async function DashboardPage() {
                   <p className="mt-3 text-sm leading-7 text-[var(--muted)]">
                     {story.whyItMatters}
                   </p>
+                  {typeof story.importanceScore === "number" ? (
+                    <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+                      Importance score {story.importanceScore}/100
+                    </p>
+                  ) : null}
                 </div>
               ))}
             </div>
