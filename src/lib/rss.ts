@@ -67,24 +67,21 @@ async function fetchNewsApiArticles(feedUrl: string, sourceName: string) {
 
   const payload = await response.json();
 
-  return (payload.articles ?? []).slice(0, 15).map<FeedArticle>(
-    (
-      article: {
-        title?: string;
-        url?: string;
-        description?: string;
-        content?: string;
-        publishedAt?: string;
-      },
-      index: number,
-    ) => ({
+  return ((payload.articles ?? []) as Array<{
+    title?: string;
+    url?: string;
+    description?: string;
+    content?: string;
+    publishedAt?: string;
+  }>)
+    .slice(0, 15)
+    .map((article, index): FeedArticle => ({
       title: article.title?.trim() || `Untitled article ${index + 1}`,
       url: article.url?.trim() || url.toString(),
       summaryText: stripHtml(article.description ?? article.content ?? article.title ?? ""),
       sourceName,
       publishedAt: article.publishedAt ?? new Date().toISOString(),
-    }),
-  );
+    }));
 }
 
 export function clusterArticles(
