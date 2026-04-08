@@ -18,6 +18,7 @@ export const env = {
   openAiApiKey: process.env.OPENAI_API_KEY ?? "",
   openAiModel: process.env.OPENAI_MODEL ?? "gpt-4.1-mini",
   openAiBaseUrl: process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1",
+  newsApiKey: process.env.NEWS_API_KEY ?? "",
 };
 
 export const isSupabaseConfigured =

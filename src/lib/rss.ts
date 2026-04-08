@@ -1,5 +1,6 @@
 import Parser from "rss-parser";
 
+import { env } from "@/lib/env";
 import { stripHtml } from "@/lib/utils";
 
 export type FeedArticle = {
@@ -13,6 +14,10 @@ export type FeedArticle = {
 const parser = new Parser();
 
 export async function fetchFeedArticles(feedUrl: string, sourceName: string) {
+  if (feedUrl.startsWith("newsapi://")) {
+    return fetchNewsApiArticles(feedUrl, sourceName);
+  }
+
   const response = await fetch(feedUrl, {
     next: { revalidate: 900 },
     headers: {
@@ -36,6 +41,50 @@ export async function fetchFeedArticles(feedUrl: string, sourceName: string) {
     sourceName,
     publishedAt: item.isoDate ?? item.pubDate ?? new Date().toISOString(),
   }));
+}
+
+async function fetchNewsApiArticles(feedUrl: string, sourceName: string) {
+  if (!env.newsApiKey) {
+    throw new Error(`NewsAPI key is not configured for ${sourceName}`);
+  }
+
+  const normalizedUrl = feedUrl.replace("newsapi://", "https://");
+  const url = new URL(normalizedUrl);
+  url.searchParams.set("pageSize", url.searchParams.get("pageSize") ?? "15");
+  url.searchParams.set("language", url.searchParams.get("language") ?? "en");
+
+  const response = await fetch(url.toString(), {
+    next: { revalidate: 900 },
+    headers: {
+      "X-Api-Key": env.newsApiKey,
+      "User-Agent": "Daily-Intelligence-Aggregator/1.0",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`NewsAPI request failed for ${sourceName}`);
+  }
+
+  const payload = await response.json();
+
+  return (payload.articles ?? []).slice(0, 15).map<FeedArticle>(
+    (
+      article: {
+        title?: string;
+        url?: string;
+        description?: string;
+        content?: string;
+        publishedAt?: string;
+      },
+      index: number,
+    ) => ({
+      title: article.title?.trim() || `Untitled article ${index + 1}`,
+      url: article.url?.trim() || url.toString(),
+      summaryText: stripHtml(article.description ?? article.content ?? article.title ?? ""),
+      sourceName,
+      publishedAt: article.publishedAt ?? new Date().toISOString(),
+    }),
+  );
 }
 
 export function clusterArticles(

@@ -1,5 +1,6 @@
 import { subDays } from "date-fns";
 
+import { env } from "@/lib/env";
 import type { DashboardData, DailyBriefing, Source, Topic } from "@/lib/types";
 
 const today = new Date().toISOString();
@@ -48,10 +49,29 @@ export const demoSources: Source[] = [
     status: "active",
   },
   {
+    id: "source-techcrunch",
+    name: "TechCrunch",
+    feedUrl: "https://techcrunch.com/feed/",
+    homepageUrl: "https://techcrunch.com",
+    topicId: "topic-tech",
+    topicName: "Tech",
+    status: "active",
+  },
+  {
     id: "source-ft",
     name: "Financial Times",
     feedUrl: "https://www.ft.com/rss/home",
     homepageUrl: "https://www.ft.com",
+    topicId: "topic-finance",
+    topicName: "Finance",
+    status: "active",
+  },
+  {
+    id: "source-gdelt-finance",
+    name: "GDELT Finance Monitor",
+    feedUrl:
+      "https://api.gdeltproject.org/api/v2/doc/doc?query=(market%20OR%20stocks%20OR%20fed%20OR%20inflation%20OR%20earnings)&mode=artlist&maxrecords=25&timespan=1day&sort=datedesc&format=rss",
+    homepageUrl: "https://www.gdeltproject.org",
     topicId: "topic-finance",
     topicName: "Finance",
     status: "active",
@@ -74,6 +94,19 @@ export const demoSources: Source[] = [
     topicName: "Finance",
     status: "active",
   },
+  ...(env.newsApiKey
+    ? ([
+        {
+          id: "source-newsapi-business",
+          name: "NewsAPI Business",
+          feedUrl: "newsapi://newsapi.org/v2/top-headlines?category=business&country=us",
+          homepageUrl: "https://newsapi.org",
+          topicId: "topic-finance",
+          topicName: "Finance",
+          status: "active",
+        },
+      ] satisfies Source[])
+    : []),
 ];
 
 export const demoBriefing: DailyBriefing = {
