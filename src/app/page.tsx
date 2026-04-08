@@ -2,6 +2,7 @@ import { requestMagicLinkAction } from "@/app/actions";
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, MailCheck, Sparkles, ShieldCheck, Rss } from "lucide-react";
 
+import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
@@ -35,7 +36,7 @@ export default async function HomePage({
   const authRequired = params.auth === "1";
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-[1440px] flex-col gap-6 px-4 py-4 lg:px-6">
+    <AppShell currentPath="/" mode={isSupabaseConfigured ? "public" : "demo"}>
       <Panel className="overflow-hidden">
         <div className="grid gap-10 p-8 md:p-10 lg:grid-cols-[1.2fr_0.8fr] lg:p-12">
           <div className="space-y-8">
@@ -177,6 +178,6 @@ export default async function HomePage({
           </div>
         </div>
       </Panel>
-    </div>
+    </AppShell>
   );
 }

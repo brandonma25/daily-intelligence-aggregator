@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   History,
+  House,
   Layers3,
   Menu,
   Newspaper,
@@ -20,6 +21,7 @@ import { Panel } from "@/components/ui/panel";
 import { cn } from "@/lib/utils";
 
 const navItems = [
+  { href: "/", label: "Home", icon: House },
   { href: "/dashboard", label: "Today", icon: Newspaper },
   { href: "/topics", label: "Topics", icon: Layers3 },
   { href: "/sources", label: "Sources", icon: Rss },
