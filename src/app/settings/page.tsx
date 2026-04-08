@@ -23,7 +23,7 @@ const setupItems = [
   },
 ];
 
-const userSettingFeatures = [
+const accountSettingsFeatures = [
   {
     title: "Profile details",
     description: "Name, preferred email, and the account identity shown across the app.",
@@ -40,6 +40,9 @@ const userSettingFeatures = [
     title: "Delivery cadence",
     description: "Email digests, refresh timing, and notification reminders for the daily briefing window.",
   },
+];
+
+const accountManagementFeatures = [
   {
     title: "Security and sessions",
     description: "Magic-link login activity, sign-out from other devices, and account verification status.",
@@ -76,17 +79,17 @@ export default async function SettingsPage() {
           ))}
         </div>
 
-        <Panel id="user-settings" className="scroll-mt-24 p-6">
+        <Panel id="account-settings" className="scroll-mt-24 p-6">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-                User settings
+                Account settings
               </p>
               <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
-                Account management
+                Personal preferences
               </h2>
               <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--muted)]">
-                This is the right home for account-level controls that shape the briefing experience for each signed-in reader.
+                This section covers the personal settings that shape how each signed-in reader experiences the product.
               </p>
             </div>
             {viewer ? (
@@ -101,7 +104,30 @@ export default async function SettingsPage() {
           </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {userSettingFeatures.map((item) => (
+            {accountSettingsFeatures.map((item) => (
+              <div key={item.title} className="rounded-[22px] border border-[var(--line)] bg-white/60 p-5">
+                <h3 className="text-base font-semibold text-[var(--foreground)]">{item.title}</h3>
+                <p className="mt-3 text-sm leading-7 text-[var(--muted)]">{item.description}</p>
+              </div>
+            ))}
+          </div>
+        </Panel>
+
+        <Panel id="account-management" className="scroll-mt-24 p-6">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+              Account management
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">
+              Ownership and controls
+            </h2>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--muted)]">
+              This section is where account-level governance, privacy, and lifecycle controls should live.
+            </p>
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            {accountManagementFeatures.map((item) => (
               <div key={item.title} className="rounded-[22px] border border-[var(--line)] bg-white/60 p-5">
                 <h3 className="text-base font-semibold text-[var(--foreground)]">{item.title}</h3>
                 <p className="mt-3 text-sm leading-7 text-[var(--muted)]">{item.description}</p>

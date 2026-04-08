@@ -166,19 +166,27 @@ function AccountMenu({ account }: { account: ViewerAccount }) {
 
           <div className="mt-5 space-y-3">
             <Link
-              href="/settings#user-settings"
+              href="/settings#account-settings"
               className="flex items-center justify-between rounded-[20px] border border-[var(--line)] bg-white/70 px-4 py-3 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-white"
               onClick={() => setOpen(false)}
             >
-              <span>User settings</span>
+              <span>Account settings</span>
+              <PanelTopOpen className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/settings#account-management"
+              className="flex items-center justify-between rounded-[20px] border border-[var(--line)] bg-white/70 px-4 py-3 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-white"
+              onClick={() => setOpen(false)}
+            >
+              <span>Account management</span>
               <PanelTopOpen className="h-4 w-4" />
             </Link>
             <div className="rounded-[20px] border border-[var(--line)] bg-[var(--panel)]/70 px-4 py-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-                Account management
+                Quick access
               </p>
               <p className="mt-2 text-sm leading-7 text-[var(--foreground)]">
-                Manage your briefing preferences, saved sources, notification cadence, and privacy controls from one place.
+                Open your personal preferences, account controls, and session tools from this menu.
               </p>
             </div>
             <form action={signOutAction}>
