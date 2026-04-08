@@ -1,6 +1,6 @@
 import { requestMagicLinkAction } from "@/app/actions";
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Sparkles, ShieldCheck, Rss } from "lucide-react";
+import { ArrowRight, CheckCircle2, MailCheck, Sparkles, ShieldCheck, Rss } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -65,8 +65,31 @@ export default async function HomePage({
                 </form>
 
                 {sent ? (
-                  <div className="rounded-[24px] border border-[var(--line)] bg-[var(--accent-soft)] px-5 py-4 text-sm leading-7 text-[var(--foreground)]">
-                    Check your inbox for a secure sign-in link. Open the latest email we just sent and click the confirmation button to continue.
+                  <div className="overflow-hidden rounded-[28px] border border-[rgba(31,79,70,0.18)] bg-[linear-gradient(135deg,rgba(31,79,70,0.14),rgba(255,255,255,0.92))] shadow-[0_18px_45px_rgba(31,79,70,0.10)]">
+                    <div className="flex items-start gap-4 px-5 py-5 md:px-6">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--foreground)] text-white shadow-[0_12px_26px_rgba(19,26,34,0.18)]">
+                        <MailCheck className="h-5 w-5" />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge className="border-[rgba(31,79,70,0.18)] bg-white/80 text-[var(--accent)]">
+                            Inbox check
+                          </Badge>
+                          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+                            Sign-in link sent
+                          </span>
+                        </div>
+                        <p className="text-base font-semibold text-[var(--foreground)]">
+                          Check your inbox to confirm your email address.
+                        </p>
+                        <p className="text-sm leading-7 text-[var(--muted)]">
+                          Open the latest email we just sent, then click the secure confirmation button to finish signing in.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="border-t border-[rgba(19,26,34,0.08)] bg-white/60 px-5 py-3 text-xs uppercase tracking-[0.18em] text-[var(--muted)] md:px-6">
+                      No email yet? Check spam or request a fresh link.
+                    </div>
                   </div>
                 ) : null}
 
