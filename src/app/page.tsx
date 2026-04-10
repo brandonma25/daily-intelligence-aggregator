@@ -238,6 +238,12 @@ export default async function HomePage({
                     The social sign-in request did not complete. Check that the provider is enabled in Supabase and try again.
                   </div>
                 ) : null}
+
+                {authState === "callback-error" ? (
+                  <div className="rounded-[24px] border border-[rgba(148,72,53,0.18)] bg-white/70 px-5 py-4 text-sm leading-7 text-[var(--foreground)]">
+                    We could not restore your session cleanly. Try signing in again, or use an incognito window if the browser is holding a stale session.
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div className="flex flex-wrap gap-3">

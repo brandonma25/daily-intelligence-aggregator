@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { env, isSupabaseConfigured } from "@/lib/env";
 import { generateDailyBriefing } from "@/lib/data";
+import { errorContext, logServerEvent } from "@/lib/observability";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const topicSchema = z.object({
@@ -35,19 +36,53 @@ async function syncUserProfile() {
     return { supabase: null, user: null };
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (user) {
-    await supabase.from("user_profiles").upsert({
-      id: user.id,
-      email: user.email ?? "",
-      last_sign_in_at: new Date().toISOString(),
+    if (user) {
+      await supabase.from("user_profiles").upsert({
+        id: user.id,
+        email: user.email ?? "",
+        last_sign_in_at: new Date().toISOString(),
+      });
+    }
+
+    return { supabase, user };
+  } catch (error) {
+    logServerEvent("error", "syncUserProfile failed", {
+      route: "server-action",
+      ...errorContext(error),
     });
+    return { supabase, user: null };
+  }
+}
+
+async function requireActionSession(unauthenticatedRedirect: string, route: string) {
+  const supabase = await createSupabaseServerClient();
+
+  if (!supabase) {
+    redirect(unauthenticatedRedirect);
   }
 
-  return { supabase, user };
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      redirect("/?auth=1");
+    }
+
+    return { supabase, user };
+  } catch (error) {
+    logServerEvent("error", "Action auth lookup failed", {
+      route,
+      ...errorContext(error),
+    });
+    redirect("/?auth=callback-error");
+  }
 }
 
 export async function requestMagicLinkAction(formData: FormData) {
@@ -59,12 +94,21 @@ export async function requestMagicLinkAction(formData: FormData) {
 
   const supabase = await createSupabaseServerClient();
 
-  await supabase?.auth.signInWithOtp({
-    email,
-    options: {
-      emailRedirectTo: `${env.appUrl}/auth/callback`,
-    },
-  });
+  try {
+    await supabase?.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${env.appUrl}/auth/callback`,
+      },
+    });
+  } catch (error) {
+    logServerEvent("error", "Magic link request failed", {
+      route: "/",
+      email,
+      ...errorContext(error),
+    });
+    redirect("/?auth=callback-error");
+  }
 
   redirect("/?sent=1");
 }
@@ -84,13 +128,26 @@ export async function signUpWithPasswordAction(formData: FormData) {
     redirect("/?auth=signup-error");
   }
 
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      emailRedirectTo: `${env.appUrl}/auth/callback`,
-    },
-  });
+  let data;
+  let error;
+  try {
+    const result = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${env.appUrl}/auth/callback`,
+      },
+    });
+    data = result.data;
+    error = result.error;
+  } catch (thrownError) {
+    logServerEvent("error", "Password sign-up failed", {
+      route: "/",
+      email,
+      ...errorContext(thrownError),
+    });
+    redirect("/?auth=signup-error");
+  }
 
   if (error) {
     redirect("/?auth=signup-error");
@@ -128,10 +185,21 @@ export async function signInWithPasswordAction(formData: FormData) {
     redirect("/?auth=invalid");
   }
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+  let error;
+  try {
+    const result = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    error = result.error;
+  } catch (thrownError) {
+    logServerEvent("error", "Password sign-in failed", {
+      route: "/",
+      email,
+      ...errorContext(thrownError),
+    });
+    redirect("/?auth=invalid");
+  }
 
   if (error) {
     redirect("/?auth=invalid");
@@ -156,12 +224,25 @@ export async function signInWithProviderAction(formData: FormData) {
     redirect("/?auth=oauth-error");
   }
 
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider,
-    options: {
-      redirectTo: `${env.appUrl}/auth/callback`,
-    },
-  });
+  let data;
+  let error;
+  try {
+    const result = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${env.appUrl}/auth/callback`,
+      },
+    });
+    data = result.data;
+    error = result.error;
+  } catch (thrownError) {
+    logServerEvent("error", "OAuth sign-in request failed", {
+      route: "/",
+      provider,
+      ...errorContext(thrownError),
+    });
+    redirect("/?auth=oauth-error");
+  }
 
   if (error || !data.url) {
     redirect("/?auth=oauth-error");
@@ -177,7 +258,14 @@ export async function signOutAction() {
 
   const supabase = await createSupabaseServerClient();
 
-  await supabase?.auth.signOut();
+  try {
+    await supabase?.auth.signOut();
+  } catch (error) {
+    logServerEvent("warn", "Sign-out failed; continuing with local reset path", {
+      route: "signOutAction",
+      ...errorContext(error),
+    });
+  }
 
   revalidatePath("/");
   revalidatePath("/dashboard");
@@ -193,16 +281,7 @@ export async function createTopicAction(formData: FormData) {
     redirect("/topics?demo=1");
   }
 
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) redirect("/topics?demo=1");
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/?auth=1");
-  }
+  const { supabase, user } = await requireActionSession("/topics?demo=1", "createTopicAction");
 
   const payload = topicSchema.parse({
     name: formData.get("name"),
@@ -210,10 +289,19 @@ export async function createTopicAction(formData: FormData) {
     color: formData.get("color"),
   });
 
-  await supabase.from("topics").insert({
-    user_id: user.id,
-    ...payload,
-  });
+  try {
+    await supabase.from("topics").insert({
+      user_id: user.id,
+      ...payload,
+    });
+  } catch (error) {
+    logServerEvent("error", "Topic creation failed", {
+      route: "/topics",
+      userId: user.id,
+      ...errorContext(error),
+    });
+    redirect("/topics?error=1");
+  }
 
   revalidatePath("/topics");
   revalidatePath("/dashboard");
@@ -225,16 +313,7 @@ export async function createSourceAction(formData: FormData) {
     redirect("/sources?demo=1");
   }
 
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) redirect("/sources?demo=1");
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/?auth=1");
-  }
+  const { supabase, user } = await requireActionSession("/sources?demo=1", "createSourceAction");
 
   const payload = sourceSchema.parse({
     name: formData.get("name"),
@@ -243,23 +322,43 @@ export async function createSourceAction(formData: FormData) {
     topicId: formData.get("topicId"),
   });
 
-  const { data: existing } = await supabase
-    .from("sources")
-    .select("id")
-    .eq("user_id", user.id)
-    .eq("feed_url", payload.feedUrl)
-    .eq("topic_id", payload.topicId)
-    .maybeSingle();
+  let existing;
+  try {
+    const result = await supabase
+      .from("sources")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("feed_url", payload.feedUrl)
+      .eq("topic_id", payload.topicId)
+      .maybeSingle();
+    existing = result.data;
+  } catch (error) {
+    logServerEvent("error", "Source lookup failed", {
+      route: "/sources",
+      userId: user.id,
+      ...errorContext(error),
+    });
+    redirect("/sources?error=1");
+  }
 
   if (!existing) {
-    await supabase.from("sources").insert({
-      user_id: user.id,
-      name: payload.name,
-      feed_url: payload.feedUrl,
-      homepage_url: payload.homepageUrl || null,
-      topic_id: payload.topicId,
-      status: "active",
-    });
+    try {
+      await supabase.from("sources").insert({
+        user_id: user.id,
+        name: payload.name,
+        feed_url: payload.feedUrl,
+        homepage_url: payload.homepageUrl || null,
+        topic_id: payload.topicId,
+        status: "active",
+      });
+    } catch (error) {
+      logServerEvent("error", "Source creation failed", {
+        route: "/sources",
+        userId: user.id,
+        ...errorContext(error),
+      });
+      redirect("/sources?error=1");
+    }
   }
 
   revalidatePath("/sources");
@@ -272,16 +371,7 @@ export async function generateBriefingAction() {
     redirect("/dashboard?demo=1");
   }
 
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) redirect("/dashboard?demo=1");
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/?auth=1");
-  }
+  const { supabase, user } = await requireActionSession("/dashboard?demo=1", "generateBriefingAction");
 
   const [{ data: topics }, { data: sources }] = await Promise.all([
     supabase
@@ -293,7 +383,14 @@ export async function generateBriefingAction() {
       .select("id, user_id, name, feed_url, homepage_url, topic_id, status, created_at")
       .eq("user_id", user.id)
       .eq("status", "active"),
-  ]);
+  ]).catch((error) => {
+    logServerEvent("error", "Briefing prerequisites failed", {
+      route: "/dashboard",
+      userId: user.id,
+      ...errorContext(error),
+    });
+    redirect("/dashboard?error=1");
+  });
 
   const briefing = await generateDailyBriefing(
     (topics ?? []).map((topic) => ({
@@ -322,7 +419,15 @@ export async function generateBriefingAction() {
     .select("id")
     .eq("user_id", user.id)
     .eq("briefing_date", briefingDate)
-    .maybeSingle();
+    .maybeSingle()
+    .catch((error) => {
+      logServerEvent("error", "Briefing lookup failed", {
+        route: "/dashboard",
+        userId: user.id,
+        ...errorContext(error),
+      });
+      redirect("/dashboard?error=1");
+    });
 
   let briefingId = existing?.id;
 
@@ -386,10 +491,19 @@ export async function toggleReadAction(formData: FormData) {
   const supabase = await createSupabaseServerClient();
   if (!supabase) redirect("/dashboard?demo=1");
 
-  await supabase
-    .from("briefing_items")
-    .update({ is_read: current !== "true" })
-    .eq("id", itemId);
+  try {
+    await supabase
+      .from("briefing_items")
+      .update({ is_read: current !== "true" })
+      .eq("id", itemId);
+  } catch (error) {
+    logServerEvent("error", "Toggle read failed", {
+      route: "/dashboard",
+      itemId,
+      ...errorContext(error),
+    });
+    redirect("/dashboard?error=1");
+  }
 
   revalidatePath("/dashboard");
   revalidatePath("/history");
@@ -405,14 +519,7 @@ export async function markAllReadAction(formData: FormData) {
     redirect("/dashboard");
   }
 
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) redirect("/dashboard");
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/?auth=1");
+  const { supabase, user } = await requireActionSession("/dashboard", "markAllReadAction");
 
   const { data: briefing } = await supabase
     .from("daily_briefings")
@@ -439,14 +546,7 @@ export async function deleteTopicAction(formData: FormData) {
   }
 
   const topicId = z.string().min(1).parse(formData.get("topicId"));
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) redirect("/topics?demo=1");
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/?auth=1");
+  const { supabase, user } = await requireActionSession("/topics?demo=1", "deleteTopicAction");
 
   await supabase
     .from("topics")
