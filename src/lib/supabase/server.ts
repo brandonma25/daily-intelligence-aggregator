@@ -1,7 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import type { User } from "@supabase/supabase-js";
 
 import { env, isSupabaseConfigured } from "@/lib/env";
+import { errorContext, logServerEvent } from "@/lib/observability";
 
 export async function createSupabaseServerClient() {
   if (!isSupabaseConfigured) {
@@ -29,4 +31,46 @@ export async function createSupabaseServerClient() {
       },
     },
   });
+}
+
+export async function safeGetUser(route: string): Promise<{
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+  user: User | null;
+  sessionCookiePresent: boolean;
+}> {
+  const supabase = await createSupabaseServerClient();
+  const cookieStore = await cookies();
+  const sessionCookiePresent = cookieStore
+    .getAll()
+    .some((cookie) => cookie.name.startsWith("sb-") && cookie.name.includes("auth-token"));
+
+  if (!supabase) {
+    return {
+      supabase: null,
+      user: null,
+      sessionCookiePresent,
+    };
+  }
+
+  try {
+    const result = await supabase.auth.getUser();
+
+    return {
+      supabase,
+      user: result.data.user,
+      sessionCookiePresent,
+    };
+  } catch (error) {
+    logServerEvent("error", "safeGetUser failed during SSR", {
+      route,
+      sessionCookiePresent,
+      ...errorContext(error),
+    });
+
+    return {
+      supabase,
+      user: null,
+      sessionCookiePresent,
+    };
+  }
 }

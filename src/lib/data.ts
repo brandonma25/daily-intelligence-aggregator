@@ -1,29 +1,24 @@
 import { formatISO } from "date-fns";
 
 import { demoDashboardData, demoHistory, demoSources, demoTopics } from "@/lib/demo-data";
+import { logServerEvent } from "@/lib/observability";
 import { rankNewsClusters } from "@/lib/ranking";
 import { clusterArticles, fetchFeedArticles } from "@/lib/rss";
+import { withServerFallback } from "@/lib/server-safety";
 import { summarizeCluster } from "@/lib/summarizer";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, safeGetUser } from "@/lib/supabase/server";
 import type { DailyBriefing, DashboardData, Source, Topic, ViewerAccount } from "@/lib/types";
 
 export async function getViewerAccount(): Promise<ViewerAccount | null> {
-  const supabase = await createSupabaseServerClient();
-
-  if (!supabase) {
-    return null;
-  }
-
-  let user;
-  try {
-    const result = await supabase.auth.getUser();
-    user = result.data.user;
-  } catch (error) {
-    console.error("Failed to read Supabase user during SSR.", error);
-    return null;
-  }
+  const { user, sessionCookiePresent } = await safeGetUser("/");
 
   if (!user?.email) {
+    if (sessionCookiePresent) {
+      logServerEvent("warn", "Viewer lookup fell back to guest mode", {
+        route: "/",
+        sessionCookiePresent,
+      });
+    }
     return null;
   }
 
@@ -53,44 +48,58 @@ export async function getViewerAccount(): Promise<ViewerAccount | null> {
 }
 
 export async function getDashboardData(): Promise<DashboardData> {
-  const supabase = await createSupabaseServerClient();
+  const { supabase, user, sessionCookiePresent } = await safeGetUser("/dashboard");
 
-  if (!supabase) {
+  if (!supabase || !user) {
+    if (sessionCookiePresent) {
+      logServerEvent("warn", "Dashboard SSR fell back to public mode", {
+        route: "/dashboard",
+        sessionCookiePresent,
+      });
+    }
     return getPublicDashboardData();
   }
 
-  let user;
-  try {
-    const result = await supabase.auth.getUser();
-    user = result.data.user;
-  } catch (error) {
-    console.error("Failed to read Supabase session for dashboard SSR.", error);
+  const [topicsResult, sourcesResult, briefingsResult] = await withServerFallback(
+    "dashboard queries",
+    async () =>
+      Promise.all([
+        supabase
+          .from("topics")
+          .select("id, user_id, name, description, color, created_at")
+          .eq("user_id", user.id)
+          .order("name"),
+        supabase
+          .from("sources")
+          .select("id, user_id, name, feed_url, homepage_url, topic_id, status, created_at, topics(name)")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("daily_briefings")
+          .select("id, briefing_date, title, intro, reading_window, briefing_items(id, topic_id, topic_name, title, what_happened, key_points, why_it_matters, sources, estimated_minutes, priority, is_read)")
+          .eq("user_id", user.id)
+          .order("briefing_date", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]),
+    [
+      { data: null, error: new Error("topics query fallback") },
+      { data: null, error: new Error("sources query fallback") },
+      { data: null, error: new Error("briefings query fallback") },
+    ],
+    { route: "/dashboard", userId: user.id },
+  );
+
+  if (topicsResult.error || sourcesResult.error || briefingsResult.error) {
+    logServerEvent("warn", "Dashboard data degraded to public fallback", {
+      route: "/dashboard",
+      userId: user.id,
+      topicsError: topicsResult.error?.message,
+      sourcesError: sourcesResult.error?.message,
+      briefingsError: briefingsResult.error?.message,
+    });
     return getPublicDashboardData();
   }
-
-  if (!user) {
-    return getPublicDashboardData();
-  }
-
-  const [topicsResult, sourcesResult, briefingsResult] = await Promise.all([
-    supabase
-      .from("topics")
-      .select("id, user_id, name, description, color, created_at")
-      .eq("user_id", user.id)
-      .order("name"),
-    supabase
-      .from("sources")
-      .select("id, user_id, name, feed_url, homepage_url, topic_id, status, created_at, topics(name)")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("daily_briefings")
-      .select("id, briefing_date, title, intro, reading_window, briefing_items(id, topic_id, topic_name, title, what_happened, key_points, why_it_matters, sources, estimated_minutes, priority, is_read)")
-      .eq("user_id", user.id)
-      .order("briefing_date", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-  ]);
 
   const topics: Topic[] =
     topicsResult.data?.map((topic) => ({
@@ -177,26 +186,38 @@ async function getPublicDashboardData(): Promise<DashboardData> {
 }
 
 export async function getHistory() {
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) return demoHistory;
-
-  let user;
-  try {
-    const result = await supabase.auth.getUser();
-    user = result.data.user;
-  } catch (error) {
-    console.error("Failed to read Supabase session for history SSR.", error);
+  const { supabase, user, sessionCookiePresent } = await safeGetUser("/history");
+  if (!supabase || !user) {
+    if (sessionCookiePresent) {
+      logServerEvent("warn", "History SSR fell back to demo history", {
+        route: "/history",
+        sessionCookiePresent,
+      });
+    }
     return demoHistory;
   }
 
-  if (!user) return demoHistory;
+  const { data, error } = await withServerFallback(
+    "history query",
+    async () =>
+      supabase
+        .from("daily_briefings")
+        .select("id, briefing_date, title, intro, reading_window, briefing_items(id, topic_id, topic_name, title, what_happened, key_points, why_it_matters, sources, estimated_minutes, priority, is_read)")
+        .eq("user_id", user.id)
+        .order("briefing_date", { ascending: false })
+        .limit(14),
+    { data: null, error: new Error("history query fallback") },
+    { route: "/history", userId: user.id },
+  );
 
-  const { data } = await supabase
-    .from("daily_briefings")
-    .select("id, briefing_date, title, intro, reading_window, briefing_items(id, topic_id, topic_name, title, what_happened, key_points, why_it_matters, sources, estimated_minutes, priority, is_read)")
-    .eq("user_id", user.id)
-    .order("briefing_date", { ascending: false })
-    .limit(14);
+  if (error) {
+    logServerEvent("warn", "History data degraded to demo history", {
+      route: "/history",
+      userId: user.id,
+      errorMessage: error.message,
+    });
+    return demoHistory;
+  }
 
   if (!data?.length) return demoHistory;
 
