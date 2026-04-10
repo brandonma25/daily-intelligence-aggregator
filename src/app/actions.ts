@@ -315,22 +315,24 @@ export async function createSourceAction(formData: FormData) {
     topicId: formData.get("topicId"),
   });
 
-  const sourceLookup = await supabase
-    .from("sources")
-    .select("id")
-    .eq("user_id", user.id)
-    .eq("feed_url", payload.feedUrl)
-    .eq("topic_id", payload.topicId)
-    .maybeSingle()
-    .catch((error) => {
-      logServerEvent("error", "Source lookup failed", {
-        route: "/sources",
-        userId: user.id,
-        ...errorContext(error),
-      });
-      redirect("/sources?error=1");
+  let existing: { id: string } | null = null;
+  try {
+    const sourceLookup = await supabase
+      .from("sources")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("feed_url", payload.feedUrl)
+      .eq("topic_id", payload.topicId)
+      .maybeSingle();
+    existing = sourceLookup.data;
+  } catch (error) {
+    logServerEvent("error", "Source lookup failed", {
+      route: "/sources",
+      userId: user.id,
+      ...errorContext(error),
     });
-  const existing = sourceLookup.data;
+    redirect("/sources?error=1");
+  }
 
   if (!existing) {
     try {
@@ -407,21 +409,23 @@ export async function generateBriefingAction() {
   );
 
   const briefingDate = briefing.briefingDate.slice(0, 10);
-  const briefingLookup = await supabase
-    .from("daily_briefings")
-    .select("id")
-    .eq("user_id", user.id)
-    .eq("briefing_date", briefingDate)
-    .maybeSingle()
-    .catch((error) => {
-      logServerEvent("error", "Briefing lookup failed", {
-        route: "/dashboard",
-        userId: user.id,
-        ...errorContext(error),
-      });
-      redirect("/dashboard?error=1");
+  let existing: { id: string } | null = null;
+  try {
+    const briefingLookup = await supabase
+      .from("daily_briefings")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("briefing_date", briefingDate)
+      .maybeSingle();
+    existing = briefingLookup.data;
+  } catch (error) {
+    logServerEvent("error", "Briefing lookup failed", {
+      route: "/dashboard",
+      userId: user.id,
+      ...errorContext(error),
     });
-  const existing = briefingLookup.data;
+    redirect("/dashboard?error=1");
+  }
 
   let briefingId = existing?.id;
 
