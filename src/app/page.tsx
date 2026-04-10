@@ -8,17 +8,16 @@ import {
 } from "@/app/actions";
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, KeyRound, MailCheck, Sparkles, ShieldCheck, Rss } from "lucide-react";
-
-export const metadata: Metadata = {
-  title: "Daily Intelligence Aggregator — High-signal daily briefings",
-};
-
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { getViewerAccount } from "@/lib/data";
 import { isSupabaseConfigured } from "@/lib/env";
+
+export const metadata: Metadata = {
+  title: "Daily Intelligence Aggregator — High-signal daily briefings",
+};
 
 const features = [
   {
