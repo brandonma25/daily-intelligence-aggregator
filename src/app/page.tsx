@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import {
   requestMagicLinkAction,
   signInWithPasswordAction,
@@ -48,11 +47,6 @@ export default async function HomePage({
   const authRequired = authState === "1";
   const viewer = await getViewerAccount();
 
-  // Signed-in users don't need the marketing/onboarding page — send them straight to their briefing
-  if (viewer && !authState) {
-    redirect("/dashboard");
-  }
-
   return (
     <AppShell currentPath="/" mode={isSupabaseConfigured ? "public" : "demo"} account={viewer}>
       <Panel className="overflow-hidden">
@@ -67,6 +61,27 @@ export default async function HomePage({
                 Turn scattered feeds into a polished daily briefing that helps you get smarter in 30 to 45 minutes, not two hours.
               </p>
             </div>
+
+            {viewer ? (
+              <div className="rounded-[24px] border border-[rgba(31,79,70,0.16)] bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(243,249,247,0.92))] p-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-[var(--foreground)]">
+                      Welcome back, {viewer.displayName}.
+                    </p>
+                    <p className="mt-1 text-sm leading-7 text-[var(--muted)]">
+                      Your dashboard is ready with the latest briefing and source updates.
+                    </p>
+                  </div>
+                  <Link href="/dashboard">
+                    <Button className="gap-2 px-5 py-3 text-sm">
+                      Open Today
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            ) : null}
 
             {isSupabaseConfigured ? (
               <div id="email-access" className="max-w-xl scroll-mt-24 space-y-3">
