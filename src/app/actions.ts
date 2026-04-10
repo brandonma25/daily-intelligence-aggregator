@@ -128,26 +128,23 @@ export async function signUpWithPasswordAction(formData: FormData) {
     redirect("/?auth=signup-error");
   }
 
-  let data;
-  let error;
-  try {
-    const result = await supabase.auth.signUp({
+  const result = await supabase.auth
+    .signUp({
       email,
       password,
       options: {
         emailRedirectTo: `${env.appUrl}/auth/callback`,
       },
+    })
+    .catch((error) => {
+      logServerEvent("error", "Password sign-up failed", {
+        route: "/",
+        email,
+        ...errorContext(error),
+      });
+      redirect("/?auth=signup-error");
     });
-    data = result.data;
-    error = result.error;
-  } catch (thrownError) {
-    logServerEvent("error", "Password sign-up failed", {
-      route: "/",
-      email,
-      ...errorContext(thrownError),
-    });
-    redirect("/?auth=signup-error");
-  }
+  const { data, error } = result;
 
   if (error) {
     redirect("/?auth=signup-error");
@@ -185,21 +182,20 @@ export async function signInWithPasswordAction(formData: FormData) {
     redirect("/?auth=invalid");
   }
 
-  let error;
-  try {
-    const result = await supabase.auth.signInWithPassword({
+  const result = await supabase.auth
+    .signInWithPassword({
       email,
       password,
+    })
+    .catch((error) => {
+      logServerEvent("error", "Password sign-in failed", {
+        route: "/",
+        email,
+        ...errorContext(error),
+      });
+      redirect("/?auth=invalid");
     });
-    error = result.error;
-  } catch (thrownError) {
-    logServerEvent("error", "Password sign-in failed", {
-      route: "/",
-      email,
-      ...errorContext(thrownError),
-    });
-    redirect("/?auth=invalid");
-  }
+  const { error } = result;
 
   if (error) {
     redirect("/?auth=invalid");
@@ -224,25 +220,22 @@ export async function signInWithProviderAction(formData: FormData) {
     redirect("/?auth=oauth-error");
   }
 
-  let data;
-  let error;
-  try {
-    const result = await supabase.auth.signInWithOAuth({
+  const result = await supabase.auth
+    .signInWithOAuth({
       provider,
       options: {
         redirectTo: `${env.appUrl}/auth/callback`,
       },
+    })
+    .catch((error) => {
+      logServerEvent("error", "OAuth sign-in request failed", {
+        route: "/",
+        provider,
+        ...errorContext(error),
+      });
+      redirect("/?auth=oauth-error");
     });
-    data = result.data;
-    error = result.error;
-  } catch (thrownError) {
-    logServerEvent("error", "OAuth sign-in request failed", {
-      route: "/",
-      provider,
-      ...errorContext(thrownError),
-    });
-    redirect("/?auth=oauth-error");
-  }
+  const { data, error } = result;
 
   if (error || !data.url) {
     redirect("/?auth=oauth-error");
@@ -322,24 +315,22 @@ export async function createSourceAction(formData: FormData) {
     topicId: formData.get("topicId"),
   });
 
-  let existing;
-  try {
-    const result = await supabase
-      .from("sources")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("feed_url", payload.feedUrl)
-      .eq("topic_id", payload.topicId)
-      .maybeSingle();
-    existing = result.data;
-  } catch (error) {
-    logServerEvent("error", "Source lookup failed", {
-      route: "/sources",
-      userId: user.id,
-      ...errorContext(error),
+  const sourceLookup = await supabase
+    .from("sources")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("feed_url", payload.feedUrl)
+    .eq("topic_id", payload.topicId)
+    .maybeSingle()
+    .catch((error) => {
+      logServerEvent("error", "Source lookup failed", {
+        route: "/sources",
+        userId: user.id,
+        ...errorContext(error),
+      });
+      redirect("/sources?error=1");
     });
-    redirect("/sources?error=1");
-  }
+  const existing = sourceLookup.data;
 
   if (!existing) {
     try {
@@ -373,7 +364,7 @@ export async function generateBriefingAction() {
 
   const { supabase, user } = await requireActionSession("/dashboard?demo=1", "generateBriefingAction");
 
-  const [{ data: topics }, { data: sources }] = await Promise.all([
+  const [topicResult, sourceResult] = await Promise.all([
     supabase
       .from("topics")
       .select("id, user_id, name, description, color, created_at")
@@ -391,9 +382,11 @@ export async function generateBriefingAction() {
     });
     redirect("/dashboard?error=1");
   });
+  const topics = topicResult.data ?? [];
+  const sources = sourceResult.data ?? [];
 
   const briefing = await generateDailyBriefing(
-    (topics ?? []).map((topic) => ({
+    topics.map((topic) => ({
       id: topic.id,
       userId: topic.user_id,
       name: topic.name,
@@ -401,7 +394,7 @@ export async function generateBriefingAction() {
       color: topic.color,
       createdAt: topic.created_at,
     })),
-    (sources ?? []).map((source) => ({
+    sources.map((source) => ({
       id: source.id,
       userId: source.user_id,
       name: source.name,
@@ -414,7 +407,7 @@ export async function generateBriefingAction() {
   );
 
   const briefingDate = briefing.briefingDate.slice(0, 10);
-  const { data: existing } = await supabase
+  const briefingLookup = await supabase
     .from("daily_briefings")
     .select("id")
     .eq("user_id", user.id)
@@ -428,6 +421,7 @@ export async function generateBriefingAction() {
       });
       redirect("/dashboard?error=1");
     });
+  const existing = briefingLookup.data;
 
   let briefingId = existing?.id;
 
