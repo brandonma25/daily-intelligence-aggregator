@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { formatISO } from "date-fns";
 
 import { demoDashboardData, demoHistory, demoSources, demoTopics } from "@/lib/demo-data";
@@ -392,14 +393,20 @@ export async function persistRawArticles(
 
   const fetchedArticles = fetchedResults.flatMap((result) =>
     result.status === "fulfilled"
-      ? result.value.articles.map((article) => ({
-          sourceId: result.value.source.id,
-          title: article.title,
-          url: article.url,
-          summaryText: article.summaryText,
-          publishedAt: article.publishedAt,
-          dedupeKey: `${result.value.source.id}::${article.url}`,
-        }))
+      ? result.value.articles.map((article) => {
+          const canonicalUrl = canonicalizeArticleUrl(article.url);
+          return {
+            sourceId: result.value.source.id,
+            topicId: result.value.source.topicId,
+            sourceName: article.sourceName,
+            title: article.title,
+            url: canonicalUrl,
+            summaryText: article.summaryText,
+            contentText: article.contentText,
+            publishedAt: article.publishedAt,
+            dedupeKey: createArticleDedupeKey(article.title, canonicalUrl),
+          };
+        })
       : [],
   );
 
@@ -413,7 +420,8 @@ export async function persistRawArticles(
     return;
   }
 
-  console.log("Fetched raw articles:", fetchedArticles.length);
+  const fetchedCount = fetchedArticles.length;
+  console.info("[ingestion] fetched_count=", fetchedCount, "failed_source_count=", failedFetches.length);
 
   const dedupeKeys = [...new Set(fetchedArticles.map((article) => article.dedupeKey))];
 
@@ -451,35 +459,93 @@ export async function persistRawArticles(
       dedupe_key: article.dedupeKey,
     }));
 
+  const skippedCount = fetchedCount - rowsToInsert.length;
+
   if (!rowsToInsert.length) {
+    console.info(
+      "[ingestion] inserted_count=",
+      0,
+      "skipped_count=",
+      skippedCount,
+      "failed_source_count=",
+      failedFetches.length,
+    );
     logServerEvent("info", "No new raw articles to insert after dedupe", {
       route,
       userId,
-      fetchedRows: fetchedArticles.length,
+      fetchedRows: fetchedCount,
+      skippedCount,
+      failedSourceCount: failedFetches.length,
     });
     return;
   }
 
   const insertResult = await supabase.from("articles").insert(rowsToInsert);
-  console.log("Inserted articles:", rowsToInsert.length);
 
   if (insertResult.error) {
     logServerEvent("warn", "Raw article persistence failed", {
-      route: "/dashboard",
+      route,
       userId,
       errorMessage: insertResult.error.message,
       attemptedRows: rowsToInsert.length,
+      skippedCount,
+      failedSourceCount: failedFetches.length,
     });
     return;
   }
 
+  console.info(
+    "[ingestion] inserted_count=",
+    rowsToInsert.length,
+    "skipped_count=",
+    skippedCount,
+    "failed_source_count=",
+    failedFetches.length,
+  );
+
   logServerEvent("info", "Stored raw articles", {
     route,
     userId,
+    fetchedCount,
     insertedRows: rowsToInsert.length,
+    skippedCount,
+    failedSourceCount: failedFetches.length,
   });
 }
 
+function canonicalizeArticleUrl(value: string) {
+  try {
+    const url = new URL(value);
+    url.hash = "";
+
+    const allowed = new URLSearchParams();
+    url.searchParams.forEach((paramValue, key) => {
+      const normalizedKey = key.toLowerCase();
+      if (
+        normalizedKey.startsWith("utm_") ||
+        normalizedKey === "fbclid" ||
+        normalizedKey === "gclid" ||
+        normalizedKey === "mc_cid" ||
+        normalizedKey === "mc_eid"
+      ) {
+        return;
+      }
+      allowed.append(key, paramValue);
+    });
+
+    const query = allowed.toString();
+    url.search = query ? `?${query}` : "";
+    return url.toString();
+  } catch {
+    return value.trim();
+  }
+}
+
+function createArticleDedupeKey(title: string, url: string) {
+  return createHash("sha256")
+    .update(`${title.trim().toLowerCase()}::${url.trim().toLowerCase()}`)
+    .digest("hex");
+}
 
 function deriveReadingWindow(estimatedMinutes: number[], fallback: string) {
   const totalMinutes = estimatedMinutes.reduce((sum, minutes) => sum + minutes, 0);

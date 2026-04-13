@@ -12,6 +12,7 @@ export const env = {
   openAiApiKey: readEnv("OPENAI_API_KEY"),
   openAiModel: readEnv("OPENAI_MODEL") || "gpt-4.1-mini",
   openAiBaseUrl: readEnv("OPENAI_BASE_URL") || "https://api.openai.com/v1",
+  theNewsApiKey: readEnv("THE_NEWS_API_KEY") || readEnv("NEWS_API_KEY"),
   newsApiKey: readEnv("NEWS_API_KEY"),
 };
 
