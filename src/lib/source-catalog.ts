@@ -157,4 +157,42 @@ export const recommendedSources: RecommendedSource[] = [
     importStatus: "manual",
     note: "Requires a valid NEWS_API_KEY before the importer can fetch articles successfully.",
   },
+
+  {
+    id: "ap-top-news",
+    name: "AP Top News",
+    topicLabel: "Geopolitics",
+    description: "Global breaking news from Associated Press.",
+    homepageUrl: "https://apnews.com",
+    feedUrl: "https://apnews.com/hub/apf-topnews?output=rss",
+    cadence: "Daily",
+    sourceType: "news",
+    importStatus: "ready",
+  },
+
+  {
+    id: "gdelt-ai-monitor",
+    name: "GDELT AI Monitor",
+    topicLabel: "AI",
+    description: "Global AI-related news via GDELT query.",
+    homepageUrl: "https://www.gdeltproject.org",
+    feedUrl:
+      "https://api.gdeltproject.org/api/v2/doc/doc?query=artificial%20intelligence&mode=artlist&maxrecords=25&timespan=1day&sort=datedesc&format=rss",
+    cadence: "Near real-time",
+    sourceType: "news",
+    importStatus: "ready",
+  },
+
+  {
+    id: "gdelt-geopolitics-monitor",
+    name: "GDELT Geopolitics",
+    topicLabel: "Geopolitics",
+    description: "Global geopolitics coverage via GDELT.",
+    homepageUrl: "https://www.gdeltproject.org",
+    feedUrl:
+      "https://api.gdeltproject.org/api/v2/doc/doc?query=china%20OR%20us%20OR%20war%20OR%20election&mode=artlist&maxrecords=25&timespan=1day&sort=datedesc&format=rss",
+    cadence: "Near real-time",
+    sourceType: "news",
+    importStatus: "ready",
+  },
 ];
