@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertCircle, CheckCheck, RefreshCw } from "lucide-react";
+import { AlertCircle, CheckCheck, ExternalLink, RefreshCw } from "lucide-react";
 
 import { generateBriefingAction, markAllReadAction } from "@/app/actions";
 import { PageHeader } from "@/components/page-header";
@@ -117,23 +117,44 @@ export default async function DashboardPage({
               </div>
             </div>
             <div className="mt-5 grid gap-3">
-              {topStories.map((story) => (
-                <div
-                  key={story.id}
-                  className="rounded-[20px] border border-[var(--line)] bg-white/60 p-4"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge>{story.topicName}</Badge>
-                    <Badge className="text-[var(--accent)]">Top story</Badge>
+              {topStories.map((story) => {
+                const primarySourceUrl = story.sources.find((source) => isValidStoryUrl(source.url))?.url;
+
+                return (
+                  <div
+                    key={story.id}
+                    className="rounded-[20px] border border-[var(--line)] bg-white/60 p-4"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge>{story.topicName}</Badge>
+                      <Badge className="text-[var(--accent)]">Top story</Badge>
+                    </div>
+                    {primarySourceUrl ? (
+                      <a
+                        href={primarySourceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-3 inline-flex items-start gap-2 text-base font-semibold leading-snug text-[var(--foreground)] underline-offset-4 hover:underline"
+                      >
+                        <span>{story.title}</span>
+                        <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--muted)]" />
+                      </a>
+                    ) : (
+                      <div className="mt-3">
+                        <h3 className="text-base font-semibold leading-snug text-[var(--foreground)]">
+                          {story.title}
+                        </h3>
+                        <p className="mt-1 text-xs font-medium uppercase tracking-[0.18em] text-[var(--muted)]">
+                          Source unavailable
+                        </p>
+                      </div>
+                    )}
+                    <p className="mt-2 text-sm leading-6 text-[var(--muted)] line-clamp-2">
+                      {story.whatHappened}
+                    </p>
                   </div>
-                  <h3 className="mt-3 text-base font-semibold leading-snug text-[var(--foreground)]">
-                    {story.title}
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-[var(--muted)] line-clamp-2">
-                    {story.whatHappened}
-                  </p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </Panel>
 
@@ -207,4 +228,13 @@ export default async function DashboardPage({
       </div>
     </AppShell>
   );
+}
+
+function isValidStoryUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
