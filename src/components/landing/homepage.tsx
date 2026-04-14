@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, ExternalLink } from "lucide-react";
 
 import AuthModal from "@/components/auth/auth-modal";
@@ -14,6 +14,7 @@ import { cn, formatBriefingDate, minutesToLabel } from "@/lib/utils";
 type LandingHomepageProps = {
   data: DashboardData;
   viewer: ViewerAccount | null;
+  authState?: string;
 };
 
 type CategoryKey = "Tech" | "Finance" | "Politics";
@@ -72,7 +73,7 @@ const CATEGORY_CONFIG: Array<{
   },
 ];
 
-export default function LandingHomepage({ data, viewer }: LandingHomepageProps) {
+export default function LandingHomepage({ data, viewer, authState }: LandingHomepageProps) {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const signedIn = Boolean(viewer);
 
@@ -80,6 +81,14 @@ export default function LandingHomepage({ data, viewer }: LandingHomepageProps) 
     () => organizeHomepageContent(data.briefing.items, data.sources),
     [data.briefing.items, data.sources],
   );
+
+  useEffect(() => {
+    if (authState && authState !== "confirm" && !signedIn) {
+      setAuthModalOpen(true);
+    }
+  }, [authState, signedIn]);
+
+  const authMessage = getHomepageAuthMessage(authState);
 
   return (
     <>
@@ -114,9 +123,26 @@ export default function LandingHomepage({ data, viewer }: LandingHomepageProps) 
         </div>
       </main>
 
-      <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} />
+      <AuthModal open={authModalOpen} onClose={() => setAuthModalOpen(false)} errorMessage={authMessage} />
     </>
   );
+}
+
+function getHomepageAuthMessage(authState?: string) {
+  switch (authState) {
+    case "1":
+      return null;
+    case "oauth-error":
+      return "Google sign-in could not be started. Check that Google is enabled in Supabase Auth and that the redirect URL is configured correctly.";
+    case "callback-error":
+      return "The sign-in callback could not be completed. Try again, and if it persists, verify the Google OAuth redirect URL in Supabase.";
+    case "signup-error":
+      return "We could not finish account creation. Try Google sign-in again or confirm the current auth provider settings.";
+    case "invalid":
+      return "That sign-in attempt was not accepted. Try again.";
+    default:
+      return null;
+  }
 }
 
 function HomepageNav({

@@ -74,6 +74,30 @@ OPENAI_BASE_URL=https://api.openai.com/v1
 npm run dev
 ```
 
+## Google OAuth setup
+
+If you want Google sign-in in addition to the existing email-based auth flows, enable Google in Supabase Auth.
+
+1. In Supabase, open `Authentication > Providers > Google`
+2. Enable the Google provider
+3. Add your Google OAuth client ID and client secret
+4. In the Google Cloud Console, add these authorized redirect URIs:
+
+```text
+http://localhost:3000/auth/callback
+https://daily-intelligence-aggregator-ybs9.vercel.app/auth/callback
+```
+
+5. If you use a Vercel preview deployment, add that preview URL's callback as well:
+
+```text
+https://your-preview-domain.vercel.app/auth/callback
+```
+
+6. Confirm `NEXT_PUBLIC_APP_URL` matches the current environment URL so Supabase sends users back to the correct callback route
+
+Google accounts and password-based accounts both use the same onboarding bootstrap, so starter topics are seeded for either path.
+
 ## How to run the app locally
 
 1. Open Terminal
