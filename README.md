@@ -81,20 +81,39 @@ If you want Google sign-in in addition to the existing email-based auth flows, e
 1. In Supabase, open `Authentication > Providers > Google`
 2. Enable the Google provider
 3. Add your Google OAuth client ID and client secret
-4. In the Google Cloud Console, add these authorized redirect URIs:
+4. In the Google Cloud Console, add these authorized JavaScript origins:
+
+```text
+http://localhost:3000
+https://daily-intelligence-aggregator-ybs9.vercel.app
+https://daily-intelligence-aggregator-git-91e1f4-brandonma25s-projects.vercel.app
+https://daily-intelligence-aggregator-ybs9-2omjap9oo.vercel.app
+```
+
+5. In the Google Cloud Console, add this authorized redirect URI for Supabase:
+
+```text
+https://fwkqjeumreaznfhnlzev.supabase.co/auth/v1/callback
+```
+
+6. In Supabase, add these Redirect URLs / allow-list entries for your app callback:
 
 ```text
 http://localhost:3000/auth/callback
 https://daily-intelligence-aggregator-ybs9.vercel.app/auth/callback
+https://daily-intelligence-aggregator-git-91e1f4-brandonma25s-projects.vercel.app/auth/callback
+https://daily-intelligence-aggregator-ybs9-2omjap9oo.vercel.app/auth/callback
 ```
 
-5. If you use a Vercel preview deployment, add that preview URL's callback as well:
+7. In Vercel, add these env vars to the `Preview` environment, not just `Production`:
 
 ```text
-https://your-preview-domain.vercel.app/auth/callback
+NEXT_PUBLIC_SUPABASE_URL=https://fwkqjeumreaznfhnlzev.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
+NEXT_PUBLIC_APP_URL=https://daily-intelligence-aggregator-git-91e1f4-brandonma25s-projects.vercel.app
 ```
 
-6. Confirm `NEXT_PUBLIC_APP_URL` matches the current environment URL so Supabase sends users back to the correct callback route
+8. Confirm `NEXT_PUBLIC_APP_URL` matches the environment URL you want OAuth to return to. The UI now computes the redirect target from the current browser origin, but keeping this env var aligned still helps other auth flows and docs stay correct.
 
 Google accounts and password-based accounts both use the same onboarding bootstrap, so starter topics are seeded for either path.
 

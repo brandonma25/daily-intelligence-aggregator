@@ -1,8 +1,8 @@
 "use client";
-import { useFormStatus } from "react-dom";
+import { useMemo, useState } from "react";
 
-import { signInWithProviderAction } from "@/app/actions";
 import { SubmitButton } from "@/components/submit-button";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type Props = {
   open: boolean;
@@ -11,7 +11,97 @@ type Props = {
 };
 
 export default function AuthModal({ open, onClose, errorMessage }: Props) {
+  const [googlePending, setGooglePending] = useState(false);
+  const [googleError, setGoogleError] = useState<string | null>(null);
+  const redirectTo = useMemo(() => getGoogleRedirectTo("/dashboard"), []);
+  const visibleError = googleError ?? errorMessage ?? null;
+
   if (!open) return null;
+
+  async function handleGoogleSignIn() {
+    const supabase = createSupabaseBrowserClient();
+
+    console.info("[auth] Google button clicked", {
+      redirectFlow: "full-page redirect",
+      redirectTo,
+      supabaseConfigured: Boolean(supabase),
+    });
+
+    if (!supabase) {
+      const message =
+        "Google sign-in is not configured on this deployment. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY to the Vercel Preview environment, then redeploy.";
+      console.error("[auth] Google OAuth cannot start because public Supabase env vars are missing", {
+        redirectTo,
+      });
+      setGoogleError(message);
+      return;
+    }
+
+    setGooglePending(true);
+    setGoogleError(null);
+
+    try {
+      console.info("[auth] Calling supabase.auth.signInWithOAuth in browser", {
+        provider: "google",
+        redirectTo,
+      });
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo,
+          skipBrowserRedirect: true,
+        },
+      });
+
+      console.info("[auth] signInWithOAuth completed", {
+        provider: "google",
+        redirectTo,
+        hasUrl: Boolean(data?.url),
+        errorMessage: error?.message ?? null,
+      });
+
+      if (error) {
+        const message = `Google sign-in could not be started: ${error.message}`;
+        console.error("[auth] Google OAuth returned an error", {
+          redirectTo,
+          error,
+        });
+        setGoogleError(message);
+        setGooglePending(false);
+        return;
+      }
+
+      if (!data?.url) {
+        const message =
+          "Google sign-in did not return a redirect URL. Check the Google provider setup in Supabase and the allowed redirect URLs for this environment.";
+        console.error("[auth] Google OAuth returned no redirect URL", {
+          redirectTo,
+          data,
+        });
+        setGoogleError(message);
+        setGooglePending(false);
+        return;
+      }
+
+      console.info("[auth] Redirecting browser to Google OAuth", {
+        providerUrl: data.url,
+        redirectTo,
+      });
+      window.location.assign(data.url);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? `Google sign-in failed before redirect: ${error.message}`
+          : "Google sign-in failed before redirect due to an unknown error.";
+      console.error("[auth] Google OAuth threw before redirect", {
+        redirectTo,
+        error,
+      });
+      setGoogleError(message);
+      setGooglePending(false);
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
@@ -33,17 +123,22 @@ export default function AuthModal({ open, onClose, errorMessage }: Props) {
           </button>
         </div>
 
-        {errorMessage ? (
-          <div className="mb-4 rounded-xl border border-[rgba(154,52,18,0.18)] bg-[rgba(154,52,18,0.08)] px-4 py-3 text-sm leading-6 text-[var(--foreground)]">
-            {errorMessage}
+        {visibleError ? (
+          <div
+            role="alert"
+            aria-live="polite"
+            className="mb-4 rounded-xl border border-[rgba(154,52,18,0.18)] bg-[rgba(154,52,18,0.08)] px-4 py-3 text-sm leading-6 text-[var(--foreground)]"
+          >
+            {visibleError}
           </div>
         ) : null}
 
-        <form action={signInWithProviderAction} className="space-y-3">
-          <input type="hidden" name="provider" value="google" />
-          <input type="hidden" name="next" value="/dashboard" />
-          <GoogleAuthButton />
-        </form>
+        <div className="space-y-3">
+          <GoogleAuthButton pending={googlePending} onClick={handleGoogleSignIn} />
+          <p className="text-xs leading-5 text-[var(--muted)]">
+            Google uses a full-page redirect flow. Redirect target for this page: <span className="font-medium text-[var(--foreground)]">{redirectTo}</span>
+          </p>
+        </div>
 
         <div className="my-5 flex items-center gap-3">
           <div className="h-px flex-1 bg-[var(--line)]" />
@@ -101,12 +196,11 @@ export default function AuthModal({ open, onClose, errorMessage }: Props) {
   );
 }
 
-function GoogleAuthButton() {
-  const { pending } = useFormStatus();
-
+function GoogleAuthButton({ pending, onClick }: { pending: boolean; onClick: () => void }) {
   return (
     <button
-      type="submit"
+      type="button"
+      onClick={onClick}
       disabled={pending}
       className="flex w-full items-center justify-center gap-3 rounded-xl border border-[var(--line-strong)] bg-[var(--surface-strong)] px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:translate-y-[-1px] disabled:translate-y-0 disabled:opacity-70"
     >
@@ -114,6 +208,14 @@ function GoogleAuthButton() {
       <span>{pending ? "Redirecting to Google..." : "Continue with Google"}</span>
     </button>
   );
+}
+
+function getGoogleRedirectTo(next: string) {
+  if (typeof window !== "undefined") {
+    return `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
+  }
+
+  return `http://localhost:3000/auth/callback?next=${encodeURIComponent(next)}`;
 }
 
 function EmailAuthButton({

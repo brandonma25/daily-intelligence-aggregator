@@ -31,22 +31,6 @@ const credentialsSchema = z.object({
   password: z.string().min(8).max(72),
 });
 
-const oauthProviderSchema = z.literal("google");
-
-function safeRedirectPath(value: FormDataEntryValue | null, fallback = "/dashboard") {
-  if (typeof value !== "string") {
-    return fallback;
-  }
-
-  const normalized = value.trim();
-
-  if (!normalized.startsWith("/") || normalized.startsWith("//")) {
-    return fallback;
-  }
-
-  return normalized;
-}
-
 type SupabaseServerClient = NonNullable<Awaited<ReturnType<typeof createSupabaseServerClient>>>;
 
 async function syncUserProfile() {
@@ -258,43 +242,6 @@ export async function signInWithPasswordAction(formData: FormData) {
   revalidatePath("/");
   revalidatePath("/dashboard");
   redirect("/dashboard");
-}
-
-export async function signInWithProviderAction(formData: FormData) {
-  const provider = oauthProviderSchema.parse(formData.get("provider"));
-  const next = safeRedirectPath(formData.get("next"));
-
-  if (!isSupabaseConfigured) {
-    redirect("/?demo=1");
-  }
-
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) {
-    redirect("/?auth=oauth-error");
-  }
-
-  const result = await supabase.auth
-    .signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: `${env.appUrl}/auth/callback?next=${encodeURIComponent(next)}`,
-      },
-    })
-    .catch((error) => {
-      logServerEvent("error", "OAuth sign-in request failed", {
-        route: "/",
-        provider,
-        ...errorContext(error),
-      });
-      redirect("/?auth=oauth-error");
-    });
-  const { data, error } = result;
-
-  if (error || !data.url) {
-    redirect("/?auth=oauth-error");
-  }
-
-  redirect(data.url);
 }
 
 export async function signOutAction() {
