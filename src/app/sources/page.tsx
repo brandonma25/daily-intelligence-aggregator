@@ -27,6 +27,8 @@ export default async function SourcesPage({
 
   const activeSources = data.sources.filter((s) => s.status === "active");
   const pausedSources = data.sources.filter((s) => s.status === "paused");
+  const topicOptions =
+    data.topics.length > 0 ? data.topics : [{ id: "__auto__", name: "General (auto-create)" }];
 
   return (
     <AppShell currentPath="/sources" mode={data.mode} account={viewer}>
@@ -49,6 +51,15 @@ export default async function SourcesPage({
               Settings
             </Link>{" "}
             to save sources.
+          </div>
+        ) : null}
+        {isSupabaseConfigured && !viewer ? (
+          <div className="rounded-[20px] border border-[var(--line)] bg-white/70 px-5 py-4 text-sm text-[var(--foreground)]">
+            Sign in from{" "}
+            <Link href="/?auth=1#email-access" className="font-semibold underline underline-offset-2">
+              the home page
+            </Link>{" "}
+            before creating sources. Source saves require an authenticated session.
           </div>
         ) : null}
 
@@ -116,70 +127,77 @@ export default async function SourcesPage({
             <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
               {isSupabaseConfigured
                 ? "Paste any RSS feed URL. The source will be assigned to the topic you choose and included in your next briefing."
-                : "Connect Supabase in Settings to save custom sources."}
+                : "The form is available for setup, but saving still requires Supabase credentials to be loaded."}
             </p>
           </div>
-          <form action={createSourceAction} className="grid gap-4 md:grid-cols-2">
-            <label className="space-y-1.5">
-              <span className="text-sm font-medium text-[var(--foreground)]">Source name</span>
-              <input
-                name="name"
-                placeholder="Financial Times"
-                required
-                className="w-full rounded-2xl border border-[var(--line)] bg-white/70 px-4 py-3 text-sm outline-none placeholder:text-[var(--muted)]/60 focus:border-[var(--foreground)] disabled:opacity-50"
-                disabled={!isSupabaseConfigured}
-              />
-            </label>
-            <label className="space-y-1.5">
-              <span className="text-sm font-medium text-[var(--foreground)]">Topic</span>
-              <select
-                name="topicId"
-                className="w-full rounded-2xl border border-[var(--line)] bg-white/70 px-4 py-3 text-sm outline-none disabled:opacity-50"
-                disabled={!isSupabaseConfigured || data.topics.length === 0}
-                defaultValue={data.topics[0]?.id}
-              >
-                {data.topics.map((topic) => (
-                  <option key={topic.id} value={topic.id}>
-                    {topic.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="space-y-1.5 md:col-span-2">
-              <span className="text-sm font-medium text-[var(--foreground)]">
-                RSS feed URL
-                <span className="ml-2 text-xs font-normal text-[var(--muted)]">
-                  e.g. https://example.com/feed.xml or /rss
+          {viewer ? (
+            <form action={createSourceAction} className="grid gap-4 md:grid-cols-2">
+              <label className="space-y-1.5">
+                <span className="text-sm font-medium text-[var(--foreground)]">Source name</span>
+                <input
+                  name="name"
+                  placeholder="Financial Times"
+                  required
+                  className="w-full rounded-2xl border border-[var(--line)] bg-white/70 px-4 py-3 text-sm outline-none placeholder:text-[var(--muted)]/60 focus:border-[var(--foreground)] disabled:opacity-50"
+                />
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-sm font-medium text-[var(--foreground)]">Topic</span>
+                <select
+                  name="topicId"
+                  className="w-full rounded-2xl border border-[var(--line)] bg-white/70 px-4 py-3 text-sm outline-none disabled:opacity-50"
+                  defaultValue={topicOptions[0]?.id}
+                >
+                  {topicOptions.map((topic) => (
+                    <option key={topic.id} value={topic.id}>
+                      {topic.name}
+                    </option>
+                  ))}
+                </select>
+                {data.topics.length === 0 ? (
+                  <p className="text-xs text-[var(--muted)]">
+                    Your first source will auto-create a starter topic so ingestion can begin immediately.
+                  </p>
+                ) : null}
+              </label>
+              <label className="space-y-1.5 md:col-span-2">
+                <span className="text-sm font-medium text-[var(--foreground)]">
+                  RSS feed URL
+                  <span className="ml-2 text-xs font-normal text-[var(--muted)]">
+                    e.g. https://example.com/feed.xml or /rss
+                  </span>
                 </span>
-              </span>
-              <input
-                name="feedUrl"
-                type="url"
-                placeholder="https://example.com/feed.xml"
-                required
-                className="w-full rounded-2xl border border-[var(--line)] bg-white/70 px-4 py-3 text-sm outline-none placeholder:text-[var(--muted)]/60 focus:border-[var(--foreground)] disabled:opacity-50"
-                disabled={!isSupabaseConfigured}
-              />
-            </label>
-            <label className="space-y-1.5 md:col-span-2">
-              <span className="text-sm font-medium text-[var(--foreground)]">
-                Homepage URL
-                <span className="ml-2 text-xs font-normal text-[var(--muted)]">optional</span>
-              </span>
-              <input
-                name="homepageUrl"
-                type="url"
-                placeholder="https://example.com"
-                className="w-full rounded-2xl border border-[var(--line)] bg-white/70 px-4 py-3 text-sm outline-none placeholder:text-[var(--muted)]/60 focus:border-[var(--foreground)] disabled:opacity-50"
-                disabled={!isSupabaseConfigured}
-              />
-            </label>
-            <div className="md:col-span-2">
-              <Button type="submit" disabled={!isSupabaseConfigured} className="px-6">
-                Save source
-              </Button>
+                <input
+                  name="feedUrl"
+                  type="url"
+                  placeholder="https://example.com/feed.xml"
+                  required
+                  className="w-full rounded-2xl border border-[var(--line)] bg-white/70 px-4 py-3 text-sm outline-none placeholder:text-[var(--muted)]/60 focus:border-[var(--foreground)] disabled:opacity-50"
+                />
+              </label>
+              <label className="space-y-1.5 md:col-span-2">
+                <span className="text-sm font-medium text-[var(--foreground)]">
+                  Homepage URL
+                  <span className="ml-2 text-xs font-normal text-[var(--muted)]">optional</span>
+                </span>
+                <input
+                  name="homepageUrl"
+                  type="url"
+                  placeholder="https://example.com"
+                  className="w-full rounded-2xl border border-[var(--line)] bg-white/70 px-4 py-3 text-sm outline-none placeholder:text-[var(--muted)]/60 focus:border-[var(--foreground)] disabled:opacity-50"
+                />
+              </label>
+              <div className="md:col-span-2">
+                <Button type="submit" className="px-6">
+                  Save source
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <div className="rounded-[18px] border border-[var(--line)] bg-white/60 px-4 py-4 text-sm leading-7 text-[var(--foreground)]">
+              Source creation is available after sign-in so the source can be saved to your account.
             </div>
-          </form>
+          )}
         </Panel>
 
         {/* Recommended sources — clearly labelled as suggestions */}
@@ -238,7 +256,7 @@ export default async function SourcesPage({
                       <ExternalLink className="h-3.5 w-3.5" />
                     </a>
 
-                    {source.feedUrl ? (
+                    {source.feedUrl && viewer ? (
                       <form action={createSourceAction} className="flex items-end gap-3">
                         <input type="hidden" name="name" value={source.name} />
                         <input type="hidden" name="feedUrl" value={source.feedUrl} />
@@ -246,13 +264,12 @@ export default async function SourcesPage({
                         <select
                           name="topicId"
                           className="rounded-2xl border border-[var(--line)] bg-white/70 px-3 py-2 text-sm outline-none disabled:opacity-40"
-                          disabled={!isSupabaseConfigured || data.topics.length === 0}
                           defaultValue={
                             data.topics.find((t) => t.name === source.topicLabel)?.id ??
-                            data.topics[0]?.id
+                            topicOptions[0]?.id
                           }
                         >
-                          {data.topics.map((topic) => (
+                          {topicOptions.map((topic) => (
                             <option key={topic.id} value={topic.id}>
                               {topic.name}
                             </option>
@@ -261,12 +278,18 @@ export default async function SourcesPage({
                         <Button
                           type="submit"
                           variant="secondary"
-                          disabled={!isSupabaseConfigured || data.topics.length === 0}
                           className="shrink-0 text-sm"
                         >
                           Import
                         </Button>
                       </form>
+                    ) : source.feedUrl ? (
+                      <Link
+                        href="/?auth=1#email-access"
+                        className="text-sm font-medium text-[var(--foreground)] underline underline-offset-2"
+                      >
+                        Sign in to import
+                      </Link>
                     ) : null}
                   </div>
                 </Panel>

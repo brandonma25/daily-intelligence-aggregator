@@ -15,6 +15,8 @@ create table if not exists public.topics (
   name text not null,
   description text not null default '',
   color text not null default '#1F4F46',
+  keywords text[] not null default '{}'::text[],
+  exclude_keywords text[] not null default '{}'::text[],
   created_at timestamptz not null default now()
 );
 
@@ -39,6 +41,16 @@ create table if not exists public.articles (
   published_at timestamptz,
   dedupe_key text,
   created_at timestamptz not null default now()
+);
+
+create table if not exists public.article_topics (
+  id uuid primary key default gen_random_uuid(),
+  article_id uuid not null references public.articles(id) on delete cascade,
+  topic_id uuid not null references public.topics(id) on delete cascade,
+  matched_keywords text[] not null default '{}'::text[],
+  match_score integer not null default 0,
+  created_at timestamptz not null default now(),
+  unique (article_id, topic_id)
 );
 
 create table if not exists public.daily_briefings (
@@ -88,6 +100,7 @@ alter table public.user_profiles enable row level security;
 alter table public.topics enable row level security;
 alter table public.sources enable row level security;
 alter table public.articles enable row level security;
+alter table public.article_topics enable row level security;
 alter table public.daily_briefings enable row level security;
 alter table public.briefing_items enable row level security;
 
@@ -102,6 +115,21 @@ create policy "Users manage their own sources" on public.sources
 
 create policy "Users manage their own articles" on public.articles
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create policy "Users manage their own article-topic matches" on public.article_topics
+  for all using (
+    exists (
+      select 1 from public.articles
+      where public.articles.id = article_id
+      and public.articles.user_id = auth.uid()
+    )
+  ) with check (
+    exists (
+      select 1 from public.articles
+      where public.articles.id = article_id
+      and public.articles.user_id = auth.uid()
+    )
+  );
 
 create policy "Users manage their own briefings" on public.daily_briefings
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
