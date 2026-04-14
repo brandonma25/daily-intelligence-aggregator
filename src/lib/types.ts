@@ -4,6 +4,8 @@ export type Topic = {
   name: string;
   description: string;
   color: string;
+  keywords?: string[];
+  excludeKeywords?: string[];
   createdAt?: string;
 };
 
@@ -42,6 +44,9 @@ export type BriefingItem = {
   estimatedMinutes: number;
   read: boolean;
   priority: "top" | "normal";
+  matchedKeywords?: string[];
+  matchScore?: number;
+  publishedAt?: string;
   importanceScore?: number;
   importanceLabel?: "Critical" | "High" | "Watch";
   rankingSignals?: string[];

@@ -56,28 +56,35 @@ export function StoryCard({ item }: { item: BriefingItem }) {
               <p className="mt-1.5 text-sm font-medium text-[var(--muted)]">
                 {minutesToLabel(item.estimatedMinutes)}
               </p>
+              {item.matchedKeywords?.length ? (
+                <p className="mt-2 text-sm font-medium text-[var(--accent)]">
+                  Matched on: {item.matchedKeywords.join(", ")}
+                </p>
+              ) : null}
             </div>
           </div>
 
-          <form action={toggleReadAction}>
-            <input type="hidden" name="itemId" value={item.id} />
-            <input type="hidden" name="current" value={String(item.read)} />
-            <button
-              className={cn(
-                "flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-colors",
-                item.read
-                  ? "border-[rgba(31,79,70,0.18)] bg-[rgba(31,79,70,0.06)] text-[var(--accent)]"
-                  : "border-[var(--line)] bg-white/60 text-[var(--muted)] hover:bg-white",
-              )}
-            >
-              {item.read ? (
-                <CheckCircle2 className="h-4 w-4 text-[var(--accent)]" />
-              ) : (
-                <Circle className="h-4 w-4" />
-              )}
-              {item.read ? "Read" : "Mark as read"}
-            </button>
-          </form>
+          {item.id.startsWith("generated-") ? null : (
+            <form action={toggleReadAction}>
+              <input type="hidden" name="itemId" value={item.id} />
+              <input type="hidden" name="current" value={String(item.read)} />
+              <button
+                className={cn(
+                  "flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-colors",
+                  item.read
+                    ? "border-[rgba(31,79,70,0.18)] bg-[rgba(31,79,70,0.06)] text-[var(--accent)]"
+                    : "border-[var(--line)] bg-white/60 text-[var(--muted)] hover:bg-white",
+                )}
+              >
+                {item.read ? (
+                  <CheckCircle2 className="h-4 w-4 text-[var(--accent)]" />
+                ) : (
+                  <Circle className="h-4 w-4" />
+                )}
+                {item.read ? "Read" : "Mark as read"}
+              </button>
+            </form>
+          )}
         </div>
 
         <section className="space-y-2">

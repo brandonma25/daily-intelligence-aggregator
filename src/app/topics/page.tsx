@@ -94,6 +94,23 @@ export default async function TopicsPage({
                           <p className="mt-1.5 text-sm leading-6 text-[var(--muted)]">
                             {topic.description}
                           </p>
+                          {topic.keywords?.length ? (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {topic.keywords.map((keyword) => (
+                                <span
+                                  key={`${topic.id}-${keyword}`}
+                                  className="rounded-full border border-[var(--line)] bg-white/70 px-2.5 py-1 text-xs font-medium text-[var(--foreground)]"
+                                >
+                                  {keyword}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                          {topic.excludeKeywords?.length ? (
+                            <p className="mt-2 text-xs text-[var(--muted)]">
+                              Excluding: {topic.excludeKeywords.join(", ")}
+                            </p>
+                          ) : null}
                           <p className="mt-2 text-xs text-[var(--muted)]">
                             {storyCount} {storyCount === 1 ? "story" : "stories"} in today&apos;s briefing
                           </p>
@@ -182,6 +199,31 @@ export default async function TopicsPage({
                   maxLength={200}
                   placeholder="Describe what this topic covers — e.g. model launches, enterprise adoption, regulatory shifts."
                   className="w-full rounded-2xl border border-[var(--line)] bg-white/70 px-4 py-3 text-sm outline-none placeholder:text-[var(--muted)]/60 focus:border-[var(--foreground)] disabled:opacity-50"
+                />
+              </label>
+
+              <label className="space-y-1.5 md:col-span-2">
+                <span className="text-sm font-medium text-[var(--foreground)]">
+                  Keywords
+                </span>
+                <input
+                  name="keywords"
+                  placeholder="AI, chips, Nvidia, data centers"
+                  className="w-full rounded-2xl border border-[var(--line)] bg-white/70 px-4 py-3 text-sm outline-none placeholder:text-[var(--muted)]/60 focus:border-[var(--foreground)] focus:ring-0 disabled:opacity-50"
+                />
+                <p className="text-xs text-[var(--muted)]">
+                  Separate keywords with commas. If left blank, the topic name will be used.
+                </p>
+              </label>
+
+              <label className="space-y-1.5 md:col-span-2">
+                <span className="text-sm font-medium text-[var(--foreground)]">
+                  Exclude keywords
+                </span>
+                <input
+                  name="excludeKeywords"
+                  placeholder="sports, gaming"
+                  className="w-full rounded-2xl border border-[var(--line)] bg-white/70 px-4 py-3 text-sm outline-none placeholder:text-[var(--muted)]/60 focus:border-[var(--foreground)] focus:ring-0 disabled:opacity-50"
                 />
               </label>
 

@@ -1,19 +1,8 @@
-"use client";
+import LandingHomepage from "@/components/landing/homepage";
+import { getDashboardData, getViewerAccount } from "@/lib/data";
 
-import { useState } from "react";
-import AuthModal from "@/components/auth/auth-modal";
-import HeroSection from "@/components/landing/hero";
+export default async function Page() {
+  const [data, viewer] = await Promise.all([getDashboardData(), getViewerAccount()]);
 
-export default function Page() {
-  const [authModalOpen, setAuthModalOpen] = useState(false);
-
-  return (
-    <main>
-      <HeroSection onGetStarted={() => setAuthModalOpen(true)} />
-      <AuthModal
-        open={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
-      />
-    </main>
-  );
+  return <LandingHomepage data={data} viewer={viewer} />;
 }

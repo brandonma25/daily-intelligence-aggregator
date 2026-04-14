@@ -5,14 +5,17 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { env, isSupabaseConfigured } from "@/lib/env";
-import { generateDailyBriefing, persistRawArticles } from "@/lib/data";
+import { buildMatchedBriefing, persistRawArticles, syncTopicMatches } from "@/lib/data";
 import { errorContext, logServerEvent } from "@/lib/observability";
+import { parseKeywordList } from "@/lib/topic-matching";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const topicSchema = z.object({
   name: z.string().min(2).max(40),
   description: z.string().min(10).max(200),
   color: z.string().min(4).max(20),
+  keywords: z.array(z.string().min(1)).default([]),
+  excludeKeywords: z.array(z.string().min(1)).default([]),
 });
 
 const sourceSchema = z.object({
@@ -114,6 +117,8 @@ async function ensureDefaultTopic(
       name: "General",
       description: "Starter topic for newly imported sources.",
       color: "#1f4f46",
+      keywords: ["general"],
+      exclude_keywords: [],
     })
     .select("id")
     .single();
@@ -320,12 +325,18 @@ export async function createTopicAction(formData: FormData) {
     name: formData.get("name"),
     description: formData.get("description"),
     color: formData.get("color"),
+    keywords: parseKeywordList(formData.get("keywords")),
+    excludeKeywords: parseKeywordList(formData.get("excludeKeywords")),
   });
 
   try {
     const topicInsert = await supabase.from("topics").insert({
       user_id: user.id,
-      ...payload,
+      name: payload.name,
+      description: payload.description,
+      color: payload.color,
+      keywords: payload.keywords.length ? payload.keywords : [payload.name],
+      exclude_keywords: payload.excludeKeywords,
     });
     if (topicInsert.error) {
       throw topicInsert.error;
@@ -432,7 +443,7 @@ export async function generateBriefingAction() {
   const [topicResult, sourceResult] = await Promise.all([
     supabase
       .from("topics")
-      .select("id, user_id, name, description, color, created_at")
+      .select("id, user_id, name, description, color, keywords, exclude_keywords, created_at")
       .eq("user_id", user.id),
     supabase
       .from("sources")
@@ -462,17 +473,20 @@ export async function generateBriefingAction() {
 
   await persistRawArticles(supabase, user.id, normalizedSources, "/dashboard?action=generate");
 
-  const briefing = await generateDailyBriefing(
-    topics.map((topic) => ({
-      id: topic.id,
-      userId: topic.user_id,
-      name: topic.name,
-      description: topic.description,
-      color: topic.color,
-      createdAt: topic.created_at,
-    })),
-    normalizedSources,
-  );
+  const normalizedTopics = topics.map((topic) => ({
+    id: topic.id,
+    userId: topic.user_id,
+    name: topic.name,
+    description: topic.description,
+    color: topic.color,
+    keywords: (topic.keywords as string[] | null | undefined) ?? [],
+    excludeKeywords: (topic.exclude_keywords as string[] | null | undefined) ?? [],
+    createdAt: topic.created_at,
+  }));
+
+  await syncTopicMatches(supabase, user.id, normalizedTopics);
+
+  const briefing = await buildMatchedBriefing(supabase, user.id, normalizedTopics, normalizedSources);
 
   const briefingDate = briefing.briefingDate.slice(0, 10);
   let existing: { id: string } | null = null;

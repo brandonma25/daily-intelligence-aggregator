@@ -31,10 +31,15 @@ export default async function DashboardPage({
   const topStoryIds = new Set(topStories.map((item) => item.id));
   const grouped = data.topics.map((topic) => ({
     topic,
-    // Topic sections only show items NOT already in the priority scan
-    items: data.briefing.items.filter(
-      (item) => item.topicId === topic.id && !topStoryIds.has(item.id),
-    ),
+    items: data.briefing.items
+      .filter((item) => item.topicId === topic.id && !topStoryIds.has(item.id))
+      .sort((left, right) => {
+        const scoreDelta = (right.matchScore ?? 0) - (left.matchScore ?? 0);
+        if (scoreDelta !== 0) return scoreDelta;
+        const rightPublished = right.publishedAt ? new Date(right.publishedAt).getTime() : 0;
+        const leftPublished = left.publishedAt ? new Date(left.publishedAt).getTime() : 0;
+        return rightPublished - leftPublished;
+      }),
   }));
 
   const allRead = data.briefing.items.length > 0 && data.briefing.items.every((item) => item.read);
@@ -149,6 +154,11 @@ export default async function DashboardPage({
                         </p>
                       </div>
                     )}
+                    {story.matchedKeywords?.length ? (
+                      <p className="mt-2 text-sm font-medium text-[var(--accent)]">
+                        Matched on: {story.matchedKeywords.join(", ")}
+                      </p>
+                    ) : null}
                     <p className="mt-2 text-sm leading-6 text-[var(--muted)] line-clamp-2">
                       {story.whatHappened}
                     </p>
@@ -201,29 +211,34 @@ export default async function DashboardPage({
 
         {/* Topic sections — deduplicated */}
         <section className="space-y-6">
-          {grouped.map(({ topic, items }) =>
-            items.length ? (
-              <div key={topic.id} id={`topic-${topic.id}`} className="scroll-mt-6 space-y-3">
-                <div className="flex items-center gap-3">
-                  <span
-                    className="h-2.5 w-2.5 rounded-full"
-                    style={{ backgroundColor: topic.color }}
-                  />
-                  <div>
-                    <h2 className="display-font text-2xl text-[var(--foreground)]">
-                      {topic.name}
-                    </h2>
-                  </div>
-                  <p className="hidden text-sm text-[var(--muted)] md:block">{topic.description}</p>
+          {grouped.map(({ topic, items }) => (
+            <div key={topic.id} id={`topic-${topic.id}`} className="scroll-mt-6 space-y-3">
+              <div className="flex items-center gap-3">
+                <span
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: topic.color }}
+                />
+                <div>
+                  <h2 className="display-font text-2xl text-[var(--foreground)]">
+                    {topic.name}
+                  </h2>
                 </div>
+                <p className="hidden text-sm text-[var(--muted)] md:block">{topic.description}</p>
+              </div>
+              {items.length ? (
                 <div className="grid gap-4">
                   {items.map((item) => (
                     <StoryCard key={item.id} item={item} />
                   ))}
                 </div>
-              </div>
-            ) : null,
-          )}
+              ) : (
+                <Panel className="p-5 text-sm leading-7 text-[var(--muted)]">
+                  <p className="font-medium text-[var(--foreground)]">No matched stories yet for this topic.</p>
+                  <p>Try adjusting keywords or refreshing your briefing.</p>
+                </Panel>
+              )}
+            </div>
+          ))}
         </section>
       </div>
     </AppShell>
