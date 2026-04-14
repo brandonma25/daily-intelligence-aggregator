@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { bootstrapUserDefaults } from "@/lib/default-topics";
 import { env, isSupabaseConfigured } from "@/lib/env";
 import { errorContext, logServerEvent } from "@/lib/observability";
 
@@ -46,11 +47,7 @@ export async function GET(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (user) {
-      await supabase.from("user_profiles").upsert({
-        id: user.id,
-        email: user.email ?? "",
-        last_sign_in_at: new Date().toISOString(),
-      });
+      await bootstrapUserDefaults(supabase, user);
     }
 
     return response;

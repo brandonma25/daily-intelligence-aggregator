@@ -20,6 +20,9 @@ create table if not exists public.topics (
   created_at timestamptz not null default now()
 );
 
+create unique index if not exists topics_user_id_name_key
+on public.topics (user_id, name);
+
 create table if not exists public.sources (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null,

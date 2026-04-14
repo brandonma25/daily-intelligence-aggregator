@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { env, isSupabaseConfigured } from "@/lib/env";
+import { bootstrapUserDefaults, seedDefaultTopics } from "@/lib/default-topics";
 import { buildMatchedBriefing, persistRawArticles, syncTopicMatches } from "@/lib/data";
 import { errorContext, logServerEvent } from "@/lib/observability";
 import { parseKeywordList } from "@/lib/topic-matching";
@@ -47,11 +48,7 @@ async function syncUserProfile() {
     } = await supabase.auth.getUser();
 
     if (user) {
-      await supabase.from("user_profiles").upsert({
-        id: user.id,
-        email: user.email ?? "",
-        last_sign_in_at: new Date().toISOString(),
-      });
+      await bootstrapUserDefaults(supabase, user);
     }
 
     return { supabase, user };
@@ -94,6 +91,23 @@ async function ensureDefaultTopic(
   supabase: SupabaseServerClient,
   userId: string,
 ) {
+  await seedDefaultTopics(supabase, userId);
+
+  const preferredTopic = await supabase
+    .from("topics")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("name", "Tech")
+    .maybeSingle();
+
+  if (preferredTopic.error) {
+    throw preferredTopic.error;
+  }
+
+  if (preferredTopic.data?.id) {
+    return preferredTopic.data.id;
+  }
+
   const existingTopic = await supabase
     .from("topics")
     .select("id")
@@ -110,24 +124,7 @@ async function ensureDefaultTopic(
     return existingTopic.data.id;
   }
 
-  const insertedTopic = await supabase
-    .from("topics")
-    .insert({
-      user_id: userId,
-      name: "General",
-      description: "Starter topic for newly imported sources.",
-      color: "#1f4f46",
-      keywords: ["general"],
-      exclude_keywords: [],
-    })
-    .select("id")
-    .single();
-
-  if (insertedTopic.error || !insertedTopic.data?.id) {
-    throw insertedTopic.error ?? new Error("Default topic creation failed");
-  }
-
-  return insertedTopic.data.id;
+  throw new Error("Default topic creation failed");
 }
 
 export async function requestMagicLinkAction(formData: FormData) {
@@ -196,11 +193,7 @@ export async function signUpWithPasswordAction(formData: FormData) {
   }
 
   if (data.user) {
-    await supabase.from("user_profiles").upsert({
-      id: data.user.id,
-      email: data.user.email ?? email,
-      last_sign_in_at: new Date().toISOString(),
-    });
+    await bootstrapUserDefaults(supabase, data.user, email);
   }
 
   if (data.session) {
