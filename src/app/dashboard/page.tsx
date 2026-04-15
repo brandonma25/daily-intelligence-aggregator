@@ -103,7 +103,7 @@ export default async function DashboardPage({
                   </h2>
                   <p className="pb-1 text-sm font-medium text-[var(--muted)]">today</p>
                 </div>
-                <div className="mt-2 flex flex-wrap gap-2">
+                <div className="mt-2 flex max-w-full flex-wrap gap-2">
                   <Badge>{formatReadingDelta(readingMetrics.deltaVsYesterday)}</Badge>
                   <Badge>{readingMetrics.intensity} day</Badge>
                 </div>
@@ -257,7 +257,7 @@ export default async function DashboardPage({
                     <p className="text-sm text-[var(--muted)]">{topic.description}</p>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex max-w-full flex-wrap gap-2">
                   <Badge>{confirmed.length} confirmed events</Badge>
                   {early.length ? <Badge className="text-[#8a5a11]">{early.length} early signals</Badge> : null}
                 </div>
@@ -345,8 +345,8 @@ function DashboardEventCard({
   const displayStateLabel = getDisplayStateLabel(item.displayState);
 
   return (
-    <div className={cn("rounded-[22px] border bg-white/65 p-5", tone === "early" ? "border-[rgba(138,90,17,0.18)]" : "border-[var(--line)]")}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className={cn("overflow-hidden rounded-[22px] border bg-white/65 p-5", tone === "early" ? "border-[rgba(138,90,17,0.18)]" : "border-[var(--line)]")}>
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
           <div className="flex flex-wrap gap-2">
             <Badge>{item.topicName}</Badge>
@@ -368,13 +368,13 @@ function DashboardEventCard({
                 href={primarySourceUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-start gap-2 text-xl font-semibold tracking-tight text-[var(--foreground)] underline-offset-4 hover:underline"
+                className="inline-flex min-w-0 items-start gap-2 text-xl font-semibold tracking-tight text-[var(--foreground)] underline-offset-4 hover:underline"
               >
-                <span>{item.title}</span>
+                <span className="break-words">{item.title}</span>
                 <ExternalLink className="mt-1 h-4 w-4 shrink-0 text-[var(--muted)]" />
               </a>
             ) : (
-              <h3 className="text-xl font-semibold tracking-tight text-[var(--foreground)]">{item.title}</h3>
+              <h3 className="break-words text-xl font-semibold tracking-tight text-[var(--foreground)]">{item.title}</h3>
             )}
             <p className="mt-2 text-sm leading-7 text-[var(--muted)] line-clamp-3">{item.whatHappened}</p>
           </div>
@@ -435,11 +435,11 @@ function DashboardEventCard({
       {intelligence.keyEntities.length ? (
         <div className="mt-4">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">Key entities</p>
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="mt-2 flex max-w-full flex-wrap gap-2">
             {intelligence.keyEntities.map((entity) => (
               <span
                 key={entity}
-                className="inline-flex items-center rounded-full border border-[rgba(19,26,34,0.08)] bg-white/80 px-3 py-1.5 text-xs font-medium text-[var(--foreground)]"
+                className="inline-flex max-w-full items-center rounded-full border border-[rgba(19,26,34,0.08)] bg-white/80 px-3 py-1.5 text-xs font-medium text-[var(--foreground)] break-words"
               >
                 {entity}
               </span>
@@ -449,7 +449,7 @@ function DashboardEventCard({
       ) : null}
 
       <div className="mt-4 rounded-[18px] border border-[rgba(19,26,34,0.08)] bg-white/60 px-4 py-4">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
             Supporting coverage
           </p>
@@ -468,10 +468,10 @@ function DashboardEventCard({
                 href={article.url}
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-start justify-between gap-3 rounded-[16px] border border-[rgba(19,26,34,0.06)] bg-white/70 px-3 py-3 transition-colors hover:bg-white"
+                className="flex flex-col gap-2 rounded-[16px] border border-[rgba(19,26,34,0.06)] bg-white/70 px-3 py-3 transition-colors hover:bg-white sm:flex-row sm:items-start sm:justify-between"
               >
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold leading-6 text-[var(--foreground)]">{article.title}</p>
+                  <p className="break-words text-sm font-semibold leading-6 text-[var(--foreground)]">{article.title}</p>
                   <p className="mt-1 text-xs leading-5 text-[var(--muted)]">{article.sourceName}</p>
                 </div>
                 <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--muted)]" />

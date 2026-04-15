@@ -486,7 +486,7 @@ function EventCard({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="flex items-start gap-3">
           {rank ? (
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-[rgba(41,79,134,0.1)] text-[1.15rem] font-semibold text-[#294f86] lg:h-14 lg:w-14 lg:text-[1.35rem]">
@@ -497,7 +497,7 @@ function EventCard({
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
               {label}
             </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
+            <div className="mt-2 flex max-w-full flex-wrap items-center gap-2">
               <Badge>{event.topicName}</Badge>
               <Badge className={intelligence.isEarlySignal ? "text-[#8a5a11]" : "text-[#294f86]"}>
                 {intelligence.isEarlySignal ? "Early Signal" : "Confirmed Event"}
@@ -507,7 +507,7 @@ function EventCard({
             </div>
           </div>
         </div>
-        <div className="max-w-[220px] text-right">
+        <div className="rounded-[18px] border border-[rgba(19,26,34,0.08)] bg-white/65 px-3 py-3 text-left md:max-w-[220px] md:text-right">
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
             Ranking reason
           </p>
@@ -613,7 +613,7 @@ function EntityBlock({ entities }: { entities: string[] }) {
         {entities.map((entity) => (
           <span
             key={entity}
-            className="inline-flex items-center rounded-full border border-[rgba(19,26,34,0.08)] bg-white/80 px-3 py-1.5 text-xs font-medium text-[var(--foreground)]"
+            className="inline-flex max-w-full items-center rounded-full border border-[rgba(19,26,34,0.08)] bg-white/80 px-3 py-1.5 text-xs font-medium text-[var(--foreground)] break-words"
           >
             {entity}
           </span>
@@ -703,12 +703,12 @@ function RelatedArticlesList({
             href={article.url}
             target="_blank"
             rel="noreferrer"
-            className="flex items-start justify-between gap-3 rounded-[16px] border border-[rgba(19,26,34,0.06)] bg-white/70 px-3 py-3 transition-colors hover:bg-white"
+            className="flex flex-col gap-2 rounded-[16px] border border-[rgba(19,26,34,0.06)] bg-white/70 px-3 py-3 transition-colors hover:bg-white sm:flex-row sm:items-start sm:justify-between"
           >
             <div className="min-w-0">
               <p
                 className={cn(
-                  "font-semibold text-[var(--foreground)]",
+                  "break-words font-semibold text-[var(--foreground)]",
                   compact ? "text-sm leading-5" : "text-sm leading-6",
                 )}
               >
