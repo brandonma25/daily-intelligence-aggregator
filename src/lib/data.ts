@@ -2,13 +2,13 @@ import { createHash } from "crypto";
 import { formatISO } from "date-fns";
 
 import { demoDashboardData, demoHistory, demoSources, demoTopics } from "@/lib/demo-data";
+import { buildEventIntelligence } from "@/lib/event-intelligence";
 import { countSourcesByHomepageCategory } from "@/lib/homepage-taxonomy";
 import { logServerEvent } from "@/lib/observability";
 import { selectRelatedCoverage } from "@/lib/related-coverage";
 import { rankNewsClusters } from "@/lib/ranking";
 import { clusterArticles, fetchFeedArticles, type FeedArticle } from "@/lib/rss";
 import { withServerFallback } from "@/lib/server-safety";
-import { summarizeCluster } from "@/lib/summarizer";
 import { createSupabaseServerClient, safeGetUser } from "@/lib/supabase/server";
 import { matchTopicsForArticle } from "@/lib/topic-matching";
 import type {
@@ -20,6 +20,7 @@ import type {
   Topic,
   ViewerAccount,
 } from "@/lib/types";
+import { buildTrustLayerPresentation } from "@/lib/why-it-matters";
 
 type SupabaseServerClient = NonNullable<Awaited<ReturnType<typeof createSupabaseServerClient>>>;
 
@@ -319,35 +320,13 @@ export async function generateDailyBriefing(
         return null;
       }
 
-      const summaries = await Promise.all(
-        rankedClusters.map(async (cluster, clusterIndex) => {
-          const summary = await summarizeCluster(topic.name, cluster.sources);
-
-          return {
-            id: `generated-${topic.id}-${clusterIndex + 1}`,
-            topicId: topic.id,
-            topicName: topic.name,
-            title: summary.headline,
-            whatHappened: summary.whatHappened,
-            keyPoints: summary.keyPoints,
-            whyItMatters: summary.whyItMatters,
-            sources: cluster.sources.slice(0, 3).map((article) => ({
-              title: article.sourceName,
-              url: article.url,
-            })),
-            sourceCount: new Set(cluster.sources.map((article) => article.sourceName)).size,
-            relatedArticles: cluster.sources.slice(0, 5).map((article) => ({
-              title: article.title,
-              url: article.url,
-              sourceName: article.sourceName,
-            })),
-            estimatedMinutes: summary.estimatedMinutes,
-            read: false,
-            priority: index < 2 ? ("top" as const) : ("normal" as const),
-            importanceScore: cluster.importanceScore,
-            importanceLabel: cluster.importanceLabel,
-            rankingSignals: cluster.rankingSignals,
-          };
+      const summaries = rankedClusters.map((cluster, clusterIndex) =>
+        buildBriefingItemFromFeedCluster({
+          id: `generated-${topic.id}-${clusterIndex + 1}`,
+          topicId: topic.id,
+          topicName: topic.name,
+          cluster,
+          priority: index < 2 ? ("top" as const) : ("normal" as const),
         }),
       );
 
@@ -358,6 +337,7 @@ export async function generateDailyBriefing(
   const validItems = items
     .flat()
     .filter((item): item is NonNullable<typeof item> => item !== null)
+    .filter((item) => item.eventIntelligence?.isHighSignal ?? true)
     .sort((left, right) => (right.importanceScore ?? 0) - (left.importanceScore ?? 0))
     .map((item, index) => ({
       ...item,
@@ -555,15 +535,25 @@ export async function syncEventClusters(
 
     for (const cluster of clusters) {
       const feedArticles = cluster.sources.map(toFeedArticle);
-      const summary = await summarizeCluster(topic.name, feedArticles);
+      const intelligence = buildEventIntelligence(feedArticles, {
+        topicName: topic.name,
+        matchedKeywords: cluster.sources.flatMap((article) => article.matchedKeywords),
+        createdAt: cluster.representative.published_at ?? undefined,
+      });
+      const trustLayer = buildTrustLayerPresentation(intelligence, {
+        title: intelligence.title,
+        topicName: topic.name,
+        whyItMatters: intelligence.summary,
+        sourceCount: intelligence.signals.sourceDiversity,
+      });
       const insertEvent = await supabase
         .from("events")
         .insert({
           user_id: userId,
           topic_id: topic.id,
-          title: summary.headline,
-          summary: summary.whatHappened,
-          why_it_matters: summary.whyItMatters,
+          title: intelligence.title,
+          summary: intelligence.summary,
+          why_it_matters: trustLayer.body,
         })
         .select("id")
         .single();
@@ -698,21 +688,33 @@ export async function buildMatchedBriefing(
       const relatedArticles = buildRelatedArticles(eventArticles);
       const sourceCount = new Set(eventArticles.map((article) => article.sourceName)).size;
       const freshest = eventArticles[0];
+      const intelligence =
+        rankedCluster?.eventIntelligence ??
+        buildEventIntelligence(feedArticles, {
+          topicName: topic.name,
+          matchedKeywords,
+          createdAt: event.created_at,
+        });
+      const trustLayer = buildTrustLayerPresentation(intelligence, {
+        title: intelligence.title,
+        topicName: topic.name,
+        whyItMatters: event.why_it_matters,
+        sourceCount,
+        rankingSignals: rankedCluster?.rankingSignals,
+      });
+
+      if (!intelligence.isHighSignal) {
+        return null;
+      }
 
       return {
         id: `generated-event-${event.id}`,
         topicId: topic.id,
         topicName: topic.name,
-        title: event.title,
-        whatHappened: event.summary,
-        keyPoints: [
-          `${sourceCount} ${sourceCount === 1 ? "source is" : "sources are"} tracking this event.`,
-          `Latest signal: ${freshest.sourceName} on ${formatPublishedLabel(freshest.published_at)}.`,
-          matchedKeywords.length
-            ? `Matched signals: ${matchedKeywords.join(", ")}.`
-            : "Clustered using title similarity across related coverage.",
-        ] as [string, string, string],
-        whyItMatters: event.why_it_matters,
+        title: intelligence.title,
+        whatHappened: intelligence.summary,
+        keyPoints: buildKeyPoints(intelligence, freshest.sourceName, freshest.published_at, matchedKeywords),
+        whyItMatters: trustLayer.body,
         sources: relatedArticles.map((article) => ({
           title: article.sourceName,
           url: article.url,
@@ -725,9 +727,14 @@ export async function buildMatchedBriefing(
         matchedKeywords,
         matchScore: Math.max(...eventArticles.map((article) => article.matchScore), 0),
         publishedAt: freshest.published_at ?? undefined,
-        importanceScore: rankedCluster?.importanceScore,
-        importanceLabel: rankedCluster?.importanceLabel,
-        rankingSignals: rankedCluster?.rankingSignals ?? [],
+        importanceScore: intelligence.rankingScore,
+        importanceLabel: getImportanceLabel(intelligence.rankingScore),
+        rankingSignals: [
+          intelligence.rankingReason,
+          `Confidence ${intelligence.confidenceScore}/100.`,
+          ...buildSignalBreakdown(intelligence),
+        ],
+        eventIntelligence: intelligence,
       } satisfies BriefingItem;
     })
     .filter((item): item is NonNullable<typeof item> => Boolean(item))
@@ -987,6 +994,99 @@ function toFeedArticle(article: EventSeedArticle): FeedArticle {
     sourceName: article.sourceName,
     publishedAt: article.published_at ?? new Date().toISOString(),
   };
+}
+
+function buildBriefingItemFromFeedCluster(input: {
+  id: string;
+  topicId: string;
+  topicName: string;
+  cluster: {
+    representative: FeedArticle;
+    sources: FeedArticle[];
+    importanceScore: number;
+    importanceLabel: "Critical" | "High" | "Watch";
+    rankingSignals: string[];
+    eventIntelligence: BriefingItem["eventIntelligence"];
+  };
+  priority: "top" | "normal";
+}): BriefingItem {
+  const sourceCount = new Set(input.cluster.sources.map((article) => article.sourceName)).size;
+  const intelligence =
+    input.cluster.eventIntelligence ??
+    buildEventIntelligence(input.cluster.sources, {
+      topicName: input.topicName,
+      createdAt: input.cluster.representative.publishedAt,
+    });
+  const trustLayer = buildTrustLayerPresentation(intelligence, {
+    title: intelligence.title,
+    topicName: input.topicName,
+    whyItMatters: intelligence.summary,
+    sourceCount,
+    rankingSignals: input.cluster.rankingSignals,
+  });
+
+  return {
+    id: input.id,
+    topicId: input.topicId,
+    topicName: input.topicName,
+    title: intelligence.title,
+    whatHappened: intelligence.summary,
+    keyPoints: buildKeyPoints(intelligence, input.cluster.representative.sourceName, input.cluster.representative.publishedAt, []),
+    whyItMatters: trustLayer.body,
+    sources: input.cluster.sources.slice(0, 3).map((article) => ({
+      title: article.sourceName,
+      url: article.url,
+    })),
+    sourceCount,
+    relatedArticles: input.cluster.sources.slice(0, 5).map((article) => ({
+      title: article.title,
+      url: article.url,
+      sourceName: article.sourceName,
+    })),
+    estimatedMinutes: Math.min(6, Math.max(3, Math.ceil(input.cluster.sources.length * 1.5))),
+    read: false,
+    priority: input.priority,
+    importanceScore: intelligence.rankingScore,
+    importanceLabel: getImportanceLabel(intelligence.rankingScore),
+    rankingSignals: [
+      intelligence.rankingReason,
+      `Confidence ${intelligence.confidenceScore}/100.`,
+      ...buildSignalBreakdown(intelligence),
+    ],
+    eventIntelligence: intelligence,
+  };
+}
+
+function buildKeyPoints(
+  intelligence: NonNullable<BriefingItem["eventIntelligence"]>,
+  freshestSourceName: string,
+  freshestPublishedAt: string | null | undefined,
+  matchedKeywords: string[],
+): [string, string, string] {
+  const entityLabel = intelligence.keyEntities.length
+    ? `Key entities: ${intelligence.keyEntities.slice(0, 3).join(", ")}.`
+    : `Primary change: ${intelligence.primaryChange}.`;
+
+  return [
+    entityLabel,
+    `Latest confirmation: ${freshestSourceName} on ${formatPublishedLabel(freshestPublishedAt ?? null)}.`,
+    matchedKeywords.length
+      ? `Matched signals: ${matchedKeywords.slice(0, 3).join(", ")}.`
+      : intelligence.rankingReason,
+  ];
+}
+
+function buildSignalBreakdown(intelligence: NonNullable<BriefingItem["eventIntelligence"]>) {
+  return [
+    `${intelligence.signals.articleCount} ${intelligence.signals.articleCount === 1 ? "article" : "articles"} in cluster.`,
+    `${intelligence.signals.sourceDiversity} ${intelligence.signals.sourceDiversity === 1 ? "source" : "sources"} confirmed.`,
+  ];
+}
+
+function getImportanceLabel(score: number | undefined) {
+  if ((score ?? 0) >= 80) return "Critical" as const;
+  if ((score ?? 0) >= 65) return "High" as const;
+  return "Watch" as const;
 }
 
 function buildRelatedArticles(articles: EventSeedArticle[]): RelatedArticle[] {

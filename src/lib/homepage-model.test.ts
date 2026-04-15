@@ -27,6 +27,7 @@ function createItem(overrides: Partial<BriefingItem>): BriefingItem {
     importanceScore: overrides.importanceScore ?? 82,
     importanceLabel: overrides.importanceLabel ?? "High",
     rankingSignals: overrides.rankingSignals ?? ["Fresh reporting in the current cycle."],
+    eventIntelligence: overrides.eventIntelligence,
   };
 }
 

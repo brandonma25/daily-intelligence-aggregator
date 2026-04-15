@@ -1,4 +1,4 @@
-import type { DashboardData, BriefingItem } from "@/lib/types";
+import type { DashboardData, BriefingItem, EventIntelligence } from "@/lib/types";
 import {
   classifyHomepageCategory,
   countSourcesByHomepageCategory,
@@ -9,6 +9,7 @@ import {
   type HomepageCategoryClassification,
   type HomepageCategoryKey,
 } from "@/lib/homepage-taxonomy";
+import { buildTrustLayerPresentation, type TrustLayerPresentation } from "@/lib/why-it-matters";
 import { firstSentence } from "@/lib/utils";
 
 export type EventArticle = {
@@ -28,8 +29,7 @@ export type HomepageEvent = {
   topicName: string;
   title: string;
   summary: string;
-  whyItMatters: string;
-  whyThisIsHere: string;
+  trustLayer: TrustLayerPresentation;
   relatedArticles: EventArticle[];
   timeline: EventTimelineMilestone[];
   estimatedMinutes: number;
@@ -40,6 +40,7 @@ export type HomepageEvent = {
   rankScore: number;
   sourceCount: number;
   classification: HomepageCategoryClassification;
+  eventIntelligence?: EventIntelligence;
 };
 
 export type HomepageCategorySection = {
@@ -173,9 +174,14 @@ export function buildHomepageEvents(items: BriefingItem[]) {
         id: item.id,
         topicName: item.topicName,
         title: item.title,
-        summary: summarize(item.whatHappened, item.priority === "top" ? 2 : 1),
-        whyItMatters: sanitizeWhyItMatters(item.whyItMatters, item.title),
-        whyThisIsHere: buildWhyThisIsHere(item, classification, sourceCount),
+        summary: summarize(item.eventIntelligence?.summary ?? item.whatHappened, item.priority === "top" ? 2 : 1),
+        trustLayer: buildTrustLayerPresentation(item.eventIntelligence, {
+          title: item.title,
+          topicName: item.topicName,
+          whyItMatters: sanitizeWhyItMatters(item.whyItMatters, item.title),
+          sourceCount,
+          rankingSignals: item.rankingSignals,
+        }),
         relatedArticles: buildHomepageRelatedArticles(item),
         timeline: buildEventTimeline(item, siblingItems),
         estimatedMinutes: item.estimatedMinutes,
@@ -186,6 +192,7 @@ export function buildHomepageEvents(items: BriefingItem[]) {
         rankScore: getRankScore(item) - index * 0.01,
         sourceCount,
         classification,
+        eventIntelligence: item.eventIntelligence,
       };
     });
 }
@@ -252,26 +259,6 @@ function buildEventTimeline(item: BriefingItem, siblingItems: BriefingItem[]) {
     .slice(0, 3);
 }
 
-function buildWhyThisIsHere(
-  item: BriefingItem,
-  classification: HomepageCategoryClassification,
-  sourceCount: number,
-) {
-  const primaryCategory = classification.primaryCategory
-    ? getHomepageCategoryLabel(classification.primaryCategory)
-    : "General";
-  const leadingSignal = item.matchedKeywords?.[0];
-  const breadthLabel =
-    sourceCount > 1 ? `${sourceCount} sources grouped around the same event` : "an early single-source signal";
-  const rankLabel = item.importanceLabel ? `${item.importanceLabel.toLowerCase()} rank signal` : "current rank signal";
-
-  if (leadingSignal) {
-    return `${primaryCategory} match on "${leadingSignal}" with ${breadthLabel} and ${rankLabel}.`;
-  }
-
-  return `${primaryCategory} classification backed by topic fit, ${breadthLabel}, and ${rankLabel}.`;
-}
-
 function sanitizeWhyItMatters(value: string, title: string) {
   const trimmed = summarize(value, 1).replace(/\s+/g, " ").trim();
   if (!trimmed) {
@@ -311,7 +298,7 @@ function getExclusionReason(event: HomepageEvent, categoryKey: HomepageCategoryK
 }
 
 function getRankScore(item: BriefingItem) {
-  return (item.importanceScore ?? 0) + (item.matchScore ?? 0) + (item.priority === "top" ? 100 : 0);
+  return (item.eventIntelligence?.rankingScore ?? item.importanceScore ?? 0) + (item.matchScore ?? 0) + (item.priority === "top" ? 100 : 0);
 }
 
 function summarize(value: string, maxSentences: number) {

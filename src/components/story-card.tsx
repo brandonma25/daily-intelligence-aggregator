@@ -3,8 +3,8 @@ import { CheckCircle2, Circle, ExternalLink } from "lucide-react";
 import { toggleReadAction } from "@/app/actions";
 import { Badge } from "@/components/ui/badge";
 import { Panel } from "@/components/ui/panel";
-import { getArticleRationale } from "@/lib/article-rationale";
 import type { BriefingItem } from "@/lib/types";
+import { buildTrustLayerPresentation } from "@/lib/why-it-matters";
 import { cn } from "@/lib/utils";
 import { minutesToLabel } from "@/lib/utils";
 
@@ -12,7 +12,13 @@ export function StoryCard({ item }: { item: BriefingItem }) {
   const primarySourceUrl = item.sources.find((source) => isValidStoryUrl(source.url))?.url;
   const sourceCount = item.sourceCount ?? item.sources.length;
   const relatedCoverage = item.relatedArticles?.length ? item.relatedArticles : null;
-  const rationale = getArticleRationale(item);
+  const trustLayer = buildTrustLayerPresentation(item.eventIntelligence, {
+    title: item.title,
+    topicName: item.topicName,
+    whyItMatters: item.whyItMatters,
+    sourceCount,
+    rankingSignals: item.rankingSignals,
+  });
 
   return (
     <Panel className={cn("p-6 transition-opacity", item.read && "opacity-50 hover:opacity-80")}>
@@ -61,14 +67,6 @@ export function StoryCard({ item }: { item: BriefingItem }) {
               <p className="mt-1.5 text-sm font-medium text-[var(--muted)]">
                 {minutesToLabel(item.estimatedMinutes)}
               </p>
-              <p
-                className={cn(
-                  "mt-2 text-sm font-medium",
-                  rationale.kind === "keyword" ? "text-[var(--accent)]" : "text-[var(--muted)]",
-                )}
-              >
-                {rationale.text}
-              </p>
             </div>
           </div>
 
@@ -116,11 +114,36 @@ export function StoryCard({ item }: { item: BriefingItem }) {
           </ul>
         </section>
 
-        <section className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-            Why it matters
+        <section className="space-y-2" data-trust-tier={trustLayer.tier}>
+          <p
+            className={cn(
+              "text-xs font-semibold uppercase tracking-[0.18em]",
+              trustLayer.tier === "high" ? "text-[var(--accent)]" : "text-[var(--muted)]",
+            )}
+          >
+            {trustLayer.heading}
           </p>
-          <p className="text-sm leading-7 text-[var(--foreground)]">{item.whyItMatters}</p>
+          <p
+            className={cn(
+              trustLayer.tier === "low"
+                ? "text-xs font-medium uppercase tracking-[0.14em] text-[var(--muted)]"
+                : "text-sm leading-7 text-[var(--foreground)]",
+            )}
+          >
+            {trustLayer.body}
+          </p>
+          {trustLayer.supportingSignals.length ? (
+            <div className="flex flex-wrap gap-2">
+              {trustLayer.supportingSignals.map((signal) => (
+                <span
+                  key={signal}
+                  className="inline-flex items-center rounded-full border border-[var(--line)] bg-white/70 px-2.5 py-1 text-xs font-medium text-[var(--muted)]"
+                >
+                  {signal}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </section>
 
         <section className="space-y-3">
