@@ -17,7 +17,7 @@ import type { DashboardData, ViewerAccount } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
-import { getArticleRationale } from "@/lib/article-rationale";
+import type { WhyItMattersPresentation } from "@/lib/why-it-matters";
 import { cn, formatBriefingDate, minutesToLabel } from "@/lib/utils";
 
 type LandingHomepageProps = {
@@ -454,7 +454,6 @@ function EventCard({
   const emphatic = variant === "featured" || variant === "ranked-featured";
   const compact = variant === "compact";
   const list = variant === "list";
-  const rationale = getArticleRationale(event);
 
   return (
     <div className="space-y-4">
@@ -503,21 +502,9 @@ function EventCard({
         >
           {event.summary}
         </p>
-        <p
-          className={cn(
-            "mt-2 text-sm font-medium",
-            rationale.kind === "keyword" ? "text-[#294f86]" : "text-[var(--muted)]",
-          )}
-        >
-          {rationale.text}
-        </p>
       </div>
 
-      <WhyItMattersBlock
-        text={event.whyItMatters}
-        whyThisIsHere={event.whyThisIsHere}
-        emphatic={emphatic}
-      />
+      <WhyItMattersBlock presentation={event.trustLayer} emphatic={emphatic} />
 
       {showTimeline && event.timeline.length ? <TimelineBlock timeline={event.timeline} /> : null}
 
@@ -535,28 +522,59 @@ function EventCard({
 }
 
 function WhyItMattersBlock({
-  text,
-  whyThisIsHere,
+  presentation,
   emphatic = false,
 }: {
-  text: string;
-  whyThisIsHere: string;
+  presentation: WhyItMattersPresentation;
   emphatic?: boolean;
 }) {
+  const tierStyles = {
+    high: "border border-[rgba(41,79,134,0.14)] bg-[linear-gradient(180deg,rgba(41,79,134,0.08),rgba(41,79,134,0.03))]",
+    medium: "border border-[rgba(19,26,34,0.08)] bg-[rgba(255,255,255,0.62)]",
+    low: "border border-dashed border-[rgba(19,26,34,0.12)] bg-[rgba(255,255,255,0.36)]",
+  } satisfies Record<WhyItMattersPresentation["tier"], string>;
+
   return (
     <div
+      data-why-tier={presentation.tier}
       className={cn(
-        "rounded-[22px] border-l-2 border-[#294f86] bg-[rgba(41,79,134,0.05)] px-4 py-3",
-        emphatic &&
-          "border border-[rgba(41,79,134,0.14)] bg-[linear-gradient(180deg,rgba(41,79,134,0.08),rgba(41,79,134,0.03))]",
+        "rounded-[22px] px-4 py-3",
+        tierStyles[presentation.tier],
+        emphatic && presentation.tier === "high" && "shadow-[0_14px_40px_rgba(41,79,134,0.08)]",
       )}
     >
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#294f86]">Why it matters</p>
-      <p className="mt-2 text-sm leading-7 text-[var(--foreground)]">{text}</p>
-      <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-        Why this is here
+      <p
+        className={cn(
+          "text-xs font-semibold uppercase tracking-[0.18em]",
+          presentation.tier === "high" ? "text-[#294f86]" : "text-[var(--muted)]",
+        )}
+      >
+        {presentation.heading}
       </p>
-      <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{whyThisIsHere}</p>
+      <p
+        className={cn(
+          "mt-2",
+          presentation.tier === "high"
+            ? "text-sm leading-7 text-[var(--foreground)]"
+            : presentation.tier === "medium"
+              ? "text-sm leading-6 text-[var(--foreground)]"
+              : "text-xs font-medium uppercase tracking-[0.14em] text-[var(--muted)]",
+        )}
+      >
+        {presentation.body}
+      </p>
+      {presentation.supportingSignals.length ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {presentation.supportingSignals.map((signal) => (
+            <span
+              key={signal}
+              className="inline-flex items-center rounded-full border border-[rgba(19,26,34,0.08)] bg-white/70 px-2.5 py-1 text-xs font-medium text-[var(--muted)]"
+            >
+              {signal}
+            </span>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

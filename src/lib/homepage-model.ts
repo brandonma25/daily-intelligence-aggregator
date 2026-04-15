@@ -9,6 +9,7 @@ import {
   type HomepageCategoryClassification,
   type HomepageCategoryKey,
 } from "@/lib/homepage-taxonomy";
+import { buildWhyItMattersContent, type WhyItMattersPresentation } from "@/lib/why-it-matters";
 import { firstSentence } from "@/lib/utils";
 
 export type EventArticle = {
@@ -28,8 +29,7 @@ export type HomepageEvent = {
   topicName: string;
   title: string;
   summary: string;
-  whyItMatters: string;
-  whyThisIsHere: string;
+  trustLayer: WhyItMattersPresentation;
   relatedArticles: EventArticle[];
   timeline: EventTimelineMilestone[];
   estimatedMinutes: number;
@@ -174,8 +174,18 @@ export function buildHomepageEvents(items: BriefingItem[]) {
         topicName: item.topicName,
         title: item.title,
         summary: summarize(item.whatHappened, item.priority === "top" ? 2 : 1),
-        whyItMatters: sanitizeWhyItMatters(item.whyItMatters, item.title),
-        whyThisIsHere: buildWhyThisIsHere(item, classification, sourceCount),
+        trustLayer: buildWhyItMattersContent({
+          id: item.id,
+          title: item.title,
+          topicName: item.topicName,
+          summary: item.whatHappened,
+          whyItMatters: sanitizeWhyItMatters(item.whyItMatters, item.title),
+          matchedKeywords: item.matchedKeywords,
+          rankingSignals: item.rankingSignals,
+          sourceCount,
+          importanceLabel: item.importanceLabel,
+          primaryCategory: classification.primaryCategory,
+        }),
         relatedArticles: buildHomepageRelatedArticles(item),
         timeline: buildEventTimeline(item, siblingItems),
         estimatedMinutes: item.estimatedMinutes,
@@ -250,26 +260,6 @@ function buildEventTimeline(item: BriefingItem, siblingItems: BriefingItem[]) {
   return [keywordMilestone, ...keyPointMilestones, ...siblingMilestones]
     .filter((milestone): milestone is EventTimelineMilestone => Boolean(milestone))
     .slice(0, 3);
-}
-
-function buildWhyThisIsHere(
-  item: BriefingItem,
-  classification: HomepageCategoryClassification,
-  sourceCount: number,
-) {
-  const primaryCategory = classification.primaryCategory
-    ? getHomepageCategoryLabel(classification.primaryCategory)
-    : "General";
-  const leadingSignal = item.matchedKeywords?.[0];
-  const breadthLabel =
-    sourceCount > 1 ? `${sourceCount} sources grouped around the same event` : "an early single-source signal";
-  const rankLabel = item.importanceLabel ? `${item.importanceLabel.toLowerCase()} rank signal` : "current rank signal";
-
-  if (leadingSignal) {
-    return `${primaryCategory} match on "${leadingSignal}" with ${breadthLabel} and ${rankLabel}.`;
-  }
-
-  return `${primaryCategory} classification backed by topic fit, ${breadthLabel}, and ${rankLabel}.`;
 }
 
 function sanitizeWhyItMatters(value: string, title: string) {

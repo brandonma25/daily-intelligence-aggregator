@@ -68,6 +68,12 @@ describe("buildHomepageViewModel", () => {
       whyItMatters: "It changes funding expectations across the market.",
       matchedKeywords: ["fed", "markets", "rates"],
       rankingSignals: ["Covered by 3 sources, which boosts confidence."],
+      sourceCount: 3,
+      sources: [
+        { title: "Reuters", url: "https://www.reuters.com/world/example" },
+        { title: "AP", url: "https://apnews.com/example" },
+        { title: "Bloomberg", url: "https://www.bloomberg.com/example" },
+      ],
       importanceScore: 95,
       importanceLabel: "Critical",
     });
@@ -78,6 +84,7 @@ describe("buildHomepageViewModel", () => {
     expect(model.topRanked.map((event) => event.id)).toContain("finance-1");
     expect(financeSection?.events.map((event) => event.id)).toContain("finance-1");
     expect(financeSection?.state).toBe("sparse");
+    expect(financeSection?.events[0]?.trustLayer.tier).toBe("high");
   });
 
   it("maps geopolitics coverage into the politics category", () => {

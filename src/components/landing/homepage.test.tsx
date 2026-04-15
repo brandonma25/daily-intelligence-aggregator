@@ -99,6 +99,27 @@ describe("LandingHomepage", () => {
     expect(screen.getAllByText(/More Finance coverage is on the way/i).length).toBeGreaterThan(0);
   });
 
+  it("renders a subdued low-confidence trust layer instead of boilerplate rationale", () => {
+    const data = createData([
+      createItem({
+        id: "low-1",
+        topicId: "general",
+        topicName: "General Briefing",
+        title: "General update",
+        whatHappened: "A development happened.",
+        whyItMatters: "",
+        matchedKeywords: [],
+        rankingSignals: [],
+        sourceCount: 1,
+      }),
+    ]);
+
+    render(<LandingHomepage data={data} viewer={null} />);
+
+    expect(screen.getAllByText("Connect AI for analysis").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Matched on:/i)).not.toBeInTheDocument();
+  });
+
   it("renders debug visibility for QA when enabled", () => {
     const data = createData([
       createItem({
