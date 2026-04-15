@@ -140,7 +140,7 @@ export default function PersonalizedDashboard({
                 </h2>
                 <p className="mt-2 max-w-2xl text-sm leading-7 text-[var(--muted)]">
                   {personalizationActive
-                    ? `${personalizationSummary}. Personalized weighting can move strong matching events higher, but confirmed multi-source quality still decides what belongs in Top Events.`
+                    ? `${personalizationSummary}. Matching confirmed events can surface earlier for you, but confirmed multi-source quality still decides what belongs in Top Events.`
                     : "Track a few topics or entities and the dashboard will shift strong matching events upward without flooding the briefing with weak coverage."}
                 </p>
               </div>
@@ -493,7 +493,7 @@ function DashboardEventCard({
               {intelligence.confidenceLabel}
             </Badge>
             {personalizationEnabled && personalization?.active ? (
-              <Badge className="text-[#294f86]">Personalized match</Badge>
+              <Badge className="text-[#294f86]">Higher for you</Badge>
             ) : null}
             {item.read ? <Badge className="text-[var(--muted)]">Read</Badge> : null}
           </div>
@@ -553,8 +553,8 @@ function DashboardEventCard({
         {item.rankingSignals?.[0] ? (
           <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{item.rankingSignals[0]}</p>
         ) : null}
-        {personalizationEnabled && personalization?.active && personalization.reason ? (
-          <p className="mt-2 text-sm leading-6 text-[#294f86]">{personalization.reason}</p>
+        {personalizationEnabled && personalization?.active && personalization.shortReason ? (
+          <p className="mt-2 text-sm leading-6 text-[#294f86]">Higher for you: {personalization.shortReason}</p>
         ) : null}
       </div>
 

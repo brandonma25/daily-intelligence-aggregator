@@ -7,8 +7,9 @@ import { Panel } from "@/components/ui/panel";
 import {
   buildPersonalizationSummary,
   createDefaultPersonalizationProfile,
-  parsePersonalizationProfile,
+  formatSavedAtLabel,
   persistPersonalizationProfile,
+  readStoredPersonalizationState,
   type BriefingPersonalizationProfile,
   type PersonalizationTopicOption,
 } from "@/lib/personalization";
@@ -30,26 +31,41 @@ export function SettingsPreferences({
     () => createDefaultPersonalizationProfile(defaultEmail),
     [defaultEmail],
   );
-  const [preferences, setPreferences] = useState<BriefingPersonalizationProfile>(() => {
-    const stored = typeof window === "undefined" ? null : window.localStorage.getItem("daily-intel-preferences");
-    return parsePersonalizationProfile(stored, defaultEmail);
-  });
-  const [savedMessage, setSavedMessage] = useState(() => {
+  const storedState = useMemo(() => {
     if (typeof window === "undefined") {
-      return "No changes saved yet.";
+      return {
+        profile: defaultState,
+        savedAt: null,
+        version: 1,
+      };
     }
 
-    return window.localStorage.getItem("daily-intel-preferences")
-      ? "Preferences loaded from this browser."
-      : "No changes saved yet.";
-  });
+    return readStoredPersonalizationState(
+      window.localStorage.getItem("daily-intel-preferences"),
+      defaultEmail,
+    );
+  }, [defaultEmail, defaultState]);
+  const [preferences, setPreferences] = useState<BriefingPersonalizationProfile>(storedState.profile);
+  const [savedAt, setSavedAt] = useState<string | null>(storedState.savedAt);
+  const [statusMessage, setStatusMessage] = useState(
+    storedState.savedAt ? formatSavedAtLabel(storedState.savedAt) : "Not saved on this browser yet.",
+  );
   const [entityInput, setEntityInput] = useState("");
+
+  const personalizationSummary = buildPersonalizationSummary(preferences);
+  const hasUnsavedChanges = JSON.stringify(preferences) !== JSON.stringify(storedState.profile);
+  const trackedTopicCount = dedupeStrings([
+    ...preferences.followedTopicIds,
+    ...preferences.followedTopicNames,
+  ]).length;
+  const followedEntityCount = preferences.followedEntities.length;
 
   function updatePreference<K extends keyof BriefingPersonalizationProfile>(
     key: K,
     value: BriefingPersonalizationProfile[K],
   ) {
     setPreferences((current) => ({ ...current, [key]: value }));
+    setStatusMessage("Changes not saved yet.");
   }
 
   function toggleTopic(option: PersonalizationTopicOption) {
@@ -72,6 +88,7 @@ export function SettingsPreferences({
         followedTopicNames: [...nameSet],
       };
     });
+    setStatusMessage("Changes not saved yet.");
   }
 
   function addEntity(value: string) {
@@ -85,6 +102,7 @@ export function SettingsPreferences({
       followedEntities: dedupeStrings([...current.followedEntities, trimmed]),
     }));
     setEntityInput("");
+    setStatusMessage("Changes not saved yet.");
   }
 
   function removeEntity(value: string) {
@@ -94,22 +112,20 @@ export function SettingsPreferences({
         (entity) => entity.toLowerCase() !== value.toLowerCase(),
       ),
     }));
+    setStatusMessage("Changes not saved yet.");
   }
 
   function savePreferences() {
-    persistPersonalizationProfile(preferences);
-    setSavedMessage(
-      `Saved to this browser at ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`,
-    );
+    const result = persistPersonalizationProfile(preferences);
+    setSavedAt(result?.savedAt ?? null);
+    setStatusMessage(formatSavedAtLabel(result?.savedAt ?? null));
   }
 
   function resetPreferences() {
     setPreferences(defaultState);
     setEntityInput("");
-    setSavedMessage("Reset to default settings. Save to apply the reset.");
+    setStatusMessage("Reset locally. Save to apply these defaults on this browser.");
   }
-
-  const personalizationSummary = buildPersonalizationSummary(preferences);
 
   return (
     <Panel className="p-6">
@@ -123,12 +139,46 @@ export function SettingsPreferences({
           </h3>
           <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
             {signedIn
-              ? "These controls shape which topics and entities pull harder in your ranked briefing without overriding the product’s quality gates."
-              : "Sign in to apply these controls across your full briefing workflow. Preferences save in this browser for now."}
+              ? "Set the topics and entities that should pull strong events a little higher, while the confirmed-event quality floor stays intact."
+              : "These preferences save on this browser for now. Sign in to use them across the full briefing flow."}
           </p>
         </div>
         <div className="rounded-[20px] border border-[var(--line)] bg-[var(--panel)]/60 px-4 py-3 text-sm text-[var(--foreground)]">
-          {savedMessage}
+          {statusMessage}
+        </div>
+      </div>
+
+      <div className="mt-6 grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+        <div className="rounded-[24px] border border-[var(--line)] bg-white/70 p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+            Personalization status
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <StatusBadge label={preferences.personalizationEnabled ? "Ranking on" : "Ranking off"} active={preferences.personalizationEnabled} />
+            <StatusBadge label={`${trackedTopicCount} ${trackedTopicCount === 1 ? "topic" : "topics"}`} active={trackedTopicCount > 0} />
+            <StatusBadge label={`${followedEntityCount} ${followedEntityCount === 1 ? "entity" : "entities"}`} active={followedEntityCount > 0} />
+            <StatusBadge label={hasUnsavedChanges ? "Unsaved changes" : "Saved state"} active={!hasUnsavedChanges} />
+          </div>
+          <div className="mt-4 rounded-[20px] border border-[var(--line)] bg-[var(--panel)]/45 p-4 text-sm leading-6 text-[var(--muted)]">
+            <p>
+              {personalizationSummary
+                ? `${personalizationSummary}. Strong matching events can move up, but weak or single-source items still stay constrained.`
+                : "No active priorities yet. Add a few focused preferences to make the briefing feel more tailored."}
+            </p>
+            <p className="mt-2">{savedAt ? formatSavedAtLabel(savedAt) : "Nothing has been saved on this browser yet."}</p>
+          </div>
+        </div>
+
+        <div className="rounded-[24px] border border-[var(--line)] bg-white/70 p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+            Briefing effect
+          </p>
+          <h4 className="mt-2 text-lg font-semibold text-[var(--foreground)]">How the ranking changes</h4>
+          <div className="mt-4 space-y-2 rounded-[20px] border border-[var(--line)] bg-[var(--panel)]/45 p-4 text-sm leading-6 text-[var(--muted)]">
+            <p>Confirmed multi-source events still dominate Top Events.</p>
+            <p>Matching priorities can move strong events higher for you.</p>
+            <p>Early Signals stay separate even when they match your interests.</p>
+          </div>
         </div>
       </div>
 
@@ -177,7 +227,7 @@ export function SettingsPreferences({
             <div>
               <p className="text-sm font-medium text-[var(--foreground)]">Personalized ranking</p>
               <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
-                Keep objective event quality first, then shift the order toward your tracked priorities.
+                Keep event quality first, then let your priorities shape the order.
               </p>
             </div>
             <button
@@ -255,7 +305,7 @@ export function SettingsPreferences({
           </p>
           <h4 className="mt-2 text-lg font-semibold text-[var(--foreground)]">Choose what should pull harder</h4>
           <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-            Topics stay visible and editable here so the product feels like an intelligence briefing you can steer.
+            Keep this list tight. A few focused priorities produce the clearest personalization.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             {availableTopics.map((topic) => {
@@ -283,18 +333,15 @@ export function SettingsPreferences({
 
         <div className="rounded-[24px] border border-[var(--line)] bg-white/70 p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-            Briefing effect
+            Save behavior
           </p>
-          <h4 className="mt-2 text-lg font-semibold text-[var(--foreground)]">What changes when this is on</h4>
+          <h4 className="mt-2 text-lg font-semibold text-[var(--foreground)]">Local for now, explicit by design</h4>
           <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-            {personalizationSummary
-              ? `${personalizationSummary}. Confirmed events can move higher when they match your priorities, but weak items still stay weak.`
-              : "No topics or entities are active yet. Pick a few priorities to make the briefing feel tailored without becoming noisy."}
+            Preferences currently save to this browser. That keeps the foundation safe and predictable while account-backed persistence stays a follow-up.
           </p>
-          <div className="mt-4 space-y-2 rounded-[20px] border border-[var(--line)] bg-[var(--panel)]/45 p-4 text-sm leading-6 text-[var(--muted)]">
-            <p>Confirmed multi-source events still dominate Top Events.</p>
-            <p>Early Signals stay separated even when they match your interests.</p>
-            <p>Visible ranking logic remains intact on every event card.</p>
+          <div className="mt-4 rounded-[20px] border border-[var(--line)] bg-[var(--panel)]/45 p-4 text-sm leading-6 text-[var(--muted)]">
+            <p>{hasUnsavedChanges ? "You have unsaved changes on this device." : "Your saved browser state matches the current selections."}</p>
+            <p className="mt-2">{savedAt ? formatSavedAtLabel(savedAt) : "Nothing has been saved on this browser yet."}</p>
           </div>
         </div>
       </div>
@@ -363,13 +410,30 @@ export function SettingsPreferences({
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
         <Button type="button" onClick={savePreferences}>
-          Save preferences
+          {hasUnsavedChanges ? "Save preferences" : "Saved on this browser"}
         </Button>
         <Button type="button" variant="secondary" onClick={resetPreferences}>
           Reset
         </Button>
+        {hasUnsavedChanges ? (
+          <p className="text-sm text-[var(--muted)]">Save to apply these changes on this browser.</p>
+        ) : null}
       </div>
     </Panel>
+  );
+}
+
+function StatusBadge({ label, active }: { label: string; active: boolean }) {
+  return (
+    <span
+      className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+        active
+          ? "border-[rgba(41,79,134,0.18)] bg-[rgba(41,79,134,0.08)] text-[#294f86]"
+          : "border-[var(--line)] bg-white text-[var(--muted)]"
+      }`}
+    >
+      {label}
+    </span>
   );
 }
 

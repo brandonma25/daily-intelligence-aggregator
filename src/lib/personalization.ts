@@ -3,6 +3,7 @@ import type { BriefingItem, Topic } from "@/lib/types";
 
 export const PERSONALIZATION_STORAGE_KEY = "daily-intel-preferences";
 const PERSONALIZATION_EVENT = "daily-intel-preferences-updated";
+const PERSONALIZATION_STORAGE_VERSION = 1;
 
 export type BriefingPersonalizationProfile = {
   displayName: string;
@@ -16,6 +17,12 @@ export type BriefingPersonalizationProfile = {
   followedEntities: string[];
 };
 
+export type StoredPersonalizationState = {
+  profile: BriefingPersonalizationProfile;
+  savedAt: string | null;
+  version: number;
+};
+
 export type PersonalizationTopicOption = {
   id: string;
   label: string;
@@ -27,6 +34,7 @@ export type PersonalizationMatch = {
   matchedTopics: string[];
   matchedEntities: string[];
   reason: string | null;
+  shortReason: string | null;
 };
 
 export function createDefaultPersonalizationProfile(
@@ -45,27 +53,60 @@ export function createDefaultPersonalizationProfile(
   };
 }
 
+export function readStoredPersonalizationState(
+  storedPayload: string | null | undefined,
+  defaultEmail?: string,
+): StoredPersonalizationState {
+  const defaults = createDefaultPersonalizationProfile(defaultEmail);
+  if (!storedPayload) {
+    return {
+      profile: defaults,
+      savedAt: null,
+      version: PERSONALIZATION_STORAGE_VERSION,
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(storedPayload) as
+      | Partial<StoredPersonalizationState>
+      | Partial<BriefingPersonalizationProfile>;
+
+    const hasWrappedProfile = parsed && typeof parsed === "object" && "profile" in parsed;
+    const rawProfile = hasWrappedProfile
+      ? (parsed as Partial<StoredPersonalizationState>).profile
+      : (parsed as Partial<BriefingPersonalizationProfile>);
+
+    return {
+      profile: {
+        ...defaults,
+        ...rawProfile,
+        followedTopicIds: dedupeStrings(rawProfile?.followedTopicIds ?? []),
+        followedTopicNames: dedupeStrings(rawProfile?.followedTopicNames ?? []),
+        followedEntities: dedupeStrings(rawProfile?.followedEntities ?? []),
+      },
+      savedAt:
+        hasWrappedProfile && typeof (parsed as Partial<StoredPersonalizationState>).savedAt === "string"
+          ? (parsed as Partial<StoredPersonalizationState>).savedAt ?? null
+          : null,
+      version:
+        hasWrappedProfile && typeof (parsed as Partial<StoredPersonalizationState>).version === "number"
+          ? (parsed as Partial<StoredPersonalizationState>).version ?? PERSONALIZATION_STORAGE_VERSION
+          : PERSONALIZATION_STORAGE_VERSION,
+    };
+  } catch {
+    return {
+      profile: defaults,
+      savedAt: null,
+      version: PERSONALIZATION_STORAGE_VERSION,
+    };
+  }
+}
+
 export function parsePersonalizationProfile(
   storedPayload: string | null | undefined,
   defaultEmail?: string,
 ): BriefingPersonalizationProfile {
-  const defaults = createDefaultPersonalizationProfile(defaultEmail);
-  if (!storedPayload) {
-    return defaults;
-  }
-
-  try {
-    const parsed = JSON.parse(storedPayload) as Partial<BriefingPersonalizationProfile>;
-    return {
-      ...defaults,
-      ...parsed,
-      followedTopicIds: dedupeStrings(parsed.followedTopicIds ?? []),
-      followedTopicNames: dedupeStrings(parsed.followedTopicNames ?? []),
-      followedEntities: dedupeStrings(parsed.followedEntities ?? []),
-    };
-  } catch {
-    return defaults;
-  }
+  return readStoredPersonalizationState(storedPayload, defaultEmail).profile;
 }
 
 export function hasActivePersonalization(profile: BriefingPersonalizationProfile | null | undefined) {
@@ -109,11 +150,35 @@ export function subscribeToPersonalizationStore(onStoreChange: () => void) {
 
 export function persistPersonalizationProfile(profile: BriefingPersonalizationProfile) {
   if (typeof window === "undefined") {
-    return;
+    return null;
   }
 
-  window.localStorage.setItem(PERSONALIZATION_STORAGE_KEY, JSON.stringify(profile));
+  const savedAt = new Date().toISOString();
+  const payload: StoredPersonalizationState = {
+    profile,
+    savedAt,
+    version: PERSONALIZATION_STORAGE_VERSION,
+  };
+
+  window.localStorage.setItem(PERSONALIZATION_STORAGE_KEY, JSON.stringify(payload));
   window.dispatchEvent(new Event(PERSONALIZATION_EVENT));
+  return payload;
+}
+
+export function formatSavedAtLabel(savedAt: string | null | undefined) {
+  if (!savedAt) {
+    return "Not saved on this browser yet.";
+  }
+
+  const date = new Date(savedAt);
+  if (Number.isNaN(date.getTime())) {
+    return "Saved on this browser.";
+  }
+
+  return `Saved on this browser at ${date.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  })}.`;
 }
 
 export function buildPersonalizationTopicOptions(
@@ -161,6 +226,7 @@ export function buildPersonalizationMatch(
       matchedTopics: [],
       matchedEntities: [],
       reason: null,
+      shortReason: null,
     };
   }
 
@@ -199,6 +265,7 @@ export function buildPersonalizationMatch(
       matchedTopics: [],
       matchedEntities: [],
       reason: null,
+      shortReason: null,
     };
   }
 
@@ -208,6 +275,10 @@ export function buildPersonalizationMatch(
     matchedTopics: dedupeStrings(matchedTopics),
     matchedEntities: dedupeStrings(matchedEntities).slice(0, 2),
     reason: buildPersonalizationReason({
+      matchedTopics,
+      matchedEntities,
+    }),
+    shortReason: buildPersonalizationShortReason({
       matchedTopics,
       matchedEntities,
     }),
@@ -292,15 +363,37 @@ function buildPersonalizationReason(input: {
   const entity = dedupeStrings(input.matchedEntities)[0];
 
   if (topic && entity) {
-    return `Personalized higher because you track ${topic} and follow ${entity}.`;
+    return `Higher for you because you track ${topic} and follow ${entity}.`;
   }
 
   if (topic) {
-    return `Personalized higher because you track ${topic}.`;
+    return `Higher for you because you track ${topic}.`;
   }
 
   if (entity) {
-    return `Personalized higher because you follow ${entity}.`;
+    return `Higher for you because you follow ${entity}.`;
+  }
+
+  return null;
+}
+
+function buildPersonalizationShortReason(input: {
+  matchedTopics: string[];
+  matchedEntities: string[];
+}) {
+  const topic = dedupeStrings(input.matchedTopics)[0];
+  const entity = dedupeStrings(input.matchedEntities)[0];
+
+  if (topic && entity) {
+    return `${topic} + ${entity}`;
+  }
+
+  if (topic) {
+    return topic;
+  }
+
+  if (entity) {
+    return entity;
   }
 
   return null;

@@ -124,7 +124,7 @@ export default function LandingHomepage({
                     This homepage is tuned to your tracked priorities
                   </h2>
                   <p className="mt-2 max-w-2xl text-sm leading-7 text-[var(--muted)]">
-                    {personalizationSummary}. Strong matching events can move higher here, but confirmed multi-source quality still controls what qualifies for the lead briefing layer.
+                    {personalizationSummary}. Matching confirmed events can surface a little earlier for you, while the core quality floor remains unchanged.
                   </p>
                 </div>
                 <Link
@@ -571,7 +571,7 @@ function EventCard({
             </p>
             <div className="mt-2 flex max-w-full flex-wrap items-center gap-2">
               <Badge>{event.topicName}</Badge>
-              {event.personalization.active ? <Badge className="text-[#294f86]">Personalized match</Badge> : null}
+              {event.personalization.active ? <Badge className="text-[#294f86]">Higher for you</Badge> : null}
               <Badge className={intelligence.isEarlySignal ? "text-[#8a5a11]" : "text-[#294f86]"}>
                 {intelligence.isEarlySignal ? "Early Signal" : "Confirmed Event"}
               </Badge>
@@ -587,8 +587,8 @@ function EventCard({
           <p className="mt-1 text-xs font-medium leading-5 text-[var(--foreground)]">
             {intelligence.rankingReason}
           </p>
-          {event.personalization.active && event.personalization.reason ? (
-            <p className="mt-2 text-xs leading-5 text-[#294f86]">{event.personalization.reason}</p>
+          {event.personalization.active && event.personalization.shortReason ? (
+            <p className="mt-2 text-xs leading-5 text-[#294f86]">Higher for you: {event.personalization.shortReason}</p>
           ) : null}
         </div>
       </div>
