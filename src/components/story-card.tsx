@@ -179,8 +179,59 @@ export function StoryCard({ item }: { item: BriefingItem }) {
             )}
           </div>
         </section>
+
+        <section className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+            Timeline
+          </p>
+          <TimelineBlock timeline={item.timeline} />
+        </section>
       </div>
     </Panel>
+  );
+}
+
+function TimelineBlock({ timeline }: { timeline: BriefingItem["timeline"] }) {
+  if (!timeline?.length) {
+    return (
+      <div className="rounded-[20px] border border-dashed border-[var(--line)] bg-white/40 px-4 py-4 text-sm text-[var(--muted)]">
+        No timeline available yet
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-[20px] border border-[var(--line)] bg-white/55 px-4 py-4">
+      <div className="space-y-4">
+        {timeline.map((group) => (
+          <div key={group.dateKey} className="grid gap-3 md:grid-cols-[84px_minmax(0,1fr)]">
+            <div className="flex items-start gap-2">
+              <span className="mt-2 h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--accent)]" />
+              <p className="text-sm font-semibold text-[var(--foreground)]">{group.dateLabel}</p>
+            </div>
+            <div className="space-y-3">
+              {group.entries.map((entry) => (
+                <div
+                  key={`${group.dateKey}-${entry.source}-${entry.title}`}
+                  className="rounded-[16px] border border-[var(--line)] bg-white/70 px-3 py-3"
+                >
+                  <p className="text-sm font-semibold leading-6 text-[var(--foreground)]">{entry.title}</p>
+                  <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{entry.summary}</p>
+                  <p className="mt-1 text-xs font-medium uppercase tracking-[0.14em] text-[var(--muted)]">
+                    {entry.source}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      {timeline.reduce((count, group) => count + group.entries.length, 0) === 1 ? (
+        <p className="mt-4 text-sm font-medium text-[var(--muted)]">
+          Developing story — more updates coming
+        </p>
+      ) : null}
+    </div>
   );
 }
 
