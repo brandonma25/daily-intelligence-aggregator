@@ -30,6 +30,7 @@ function createItem(overrides: Partial<BriefingItem>): BriefingItem {
     importanceScore: overrides.importanceScore ?? 82,
     importanceLabel: overrides.importanceLabel ?? "High",
     rankingSignals: overrides.rankingSignals ?? ["Fresh reporting in the current cycle."],
+    eventIntelligence: overrides.eventIntelligence,
   };
 }
 
@@ -118,6 +119,46 @@ describe("LandingHomepage", () => {
     expect(screen.getByText("Homepage debug")).toBeInTheDocument();
     expect(screen.getByText("Uncategorized events")).toBeInTheDocument();
     expect(screen.getAllByText("1").length).toBeGreaterThan(0);
+  });
+
+  it("renders a low-confidence trust prompt without boilerplate rationale text", () => {
+    const data = createData([
+      createItem({
+        id: "low-1",
+        topicId: "general",
+        topicName: "General Briefing",
+        title: "General update",
+        whatHappened: "A development happened.",
+        whyItMatters: "",
+        matchedKeywords: [],
+        rankingSignals: [],
+        sourceCount: 1,
+        eventIntelligence: {
+          id: "intel-low",
+          title: "General update",
+          summary: "A development happened.",
+          primaryChange: "General update",
+          keyEntities: [],
+          topics: ["general"],
+          signals: {
+            articleCount: 1,
+            sourceDiversity: 1,
+            recencyScore: 30,
+            velocityScore: 10,
+          },
+          rankingScore: 20,
+          rankingReason: "Thin early coverage with limited corroboration.",
+          confidenceScore: 20,
+          isHighSignal: true,
+          createdAt: "2026-04-15T09:00:00.000Z",
+        },
+      }),
+    ]);
+
+    render(<LandingHomepage data={data} viewer={null} />);
+
+    expect(document.querySelectorAll('[data-trust-tier="low"]').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Matched on:/i)).not.toBeInTheDocument();
   });
 
   it("renders no-data state when no ranked events are available", () => {

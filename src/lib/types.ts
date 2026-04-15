@@ -38,6 +38,28 @@ export type RelatedArticle = {
   sourceName: string;
 };
 
+export type EventIntelligenceSignals = {
+  articleCount: number;
+  sourceDiversity: number;
+  recencyScore: number;
+  velocityScore: number;
+};
+
+export type EventIntelligence = {
+  id: string;
+  title: string;
+  summary: string;
+  primaryChange: string;
+  keyEntities: string[];
+  topics: string[];
+  signals: EventIntelligenceSignals;
+  rankingScore: number;
+  rankingReason: string;
+  confidenceScore: number;
+  isHighSignal: boolean;
+  createdAt: string;
+};
+
 export type BriefingItem = {
   id: string;
   topicId: string;
@@ -58,6 +80,7 @@ export type BriefingItem = {
   importanceScore?: number;
   importanceLabel?: "Critical" | "High" | "Watch";
   rankingSignals?: string[];
+  eventIntelligence?: EventIntelligence;
 };
 
 export type DailyBriefing = {
