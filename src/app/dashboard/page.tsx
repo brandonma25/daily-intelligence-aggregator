@@ -3,6 +3,7 @@ import { CheckCheck } from "lucide-react";
 
 import { markAllReadAction } from "@/app/actions";
 import { PageHeader } from "@/components/page-header";
+import { GuestValuePreview } from "@/components/guest-value-preview";
 import { StoryCard } from "@/components/story-card";
 import { AppShell } from "@/components/app-shell";
 import { ManualRefreshTrigger } from "@/components/dashboard/manual-refresh-trigger";
@@ -25,6 +26,7 @@ export default async function DashboardPage({
   const params = await searchParams;
   const data = await getDashboardData();
   const viewer = await getViewerAccount();
+  const isSignedIn = Boolean(viewer);
   const rankedItems = data.briefing.items.slice().sort(compareBriefingItemsByRanking);
 
   // Keep dashboard ordering tied to the same ranking activation logic used by the homepage.
@@ -43,10 +45,15 @@ export default async function DashboardPage({
   return (
     <AppShell currentPath="/dashboard" mode={data.mode} account={viewer}>
       <div className="space-y-5 py-2">
+        {!isSignedIn ? <GuestValuePreview ctaLabel="Unlock full briefing" /> : null}
         <PageHeader
           eyebrow={formatBriefingDate(data.briefing.briefingDate)}
-          title="Full briefing workspace"
-          description="This is the complete Daily Intelligence product experience: the full ranked briefing, deeper event cards, topic navigation, and the place where personalization-ready workflow lives."
+          title={isSignedIn ? "Full briefing workspace" : "Today's public briefing"}
+          description={
+            isSignedIn
+              ? "This is the complete Daily Intelligence product experience: the full ranked briefing, deeper event cards, topic navigation, and the place where personalization-ready workflow lives."
+              : "You're viewing the public briefing. Sign in to personalize your intelligence and unlock the complete ranked workspace."
+          }
           aside={
             <ManualRefreshTrigger
               readingWindow={data.briefing.readingWindow}
@@ -58,13 +65,15 @@ export default async function DashboardPage({
         <section className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(280px,0.9fr)]">
           <Panel className="p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-              Unlocked view
+              {isSignedIn ? "Unlocked view" : "Public briefing"}
             </p>
             <h2 className="mt-2 text-xl font-semibold text-[var(--foreground)]">
-              The full ranked briefing starts here
+              {isSignedIn ? "The full ranked briefing starts here" : "What signing in unlocks"}
             </h2>
             <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
-              Unlike the public homepage preview, the dashboard carries the complete ranked event stack, full cards, topic sections, and briefing utilities in one working environment.
+              {isSignedIn
+                ? "Unlike the public homepage preview, the dashboard carries the complete ranked event stack, full cards, topic sections, and briefing utilities in one working environment."
+                : "Preview the ranked public briefing here, then sign in to unlock personalized topics, saved history, custom alerts, and the full workspace workflow."}
             </p>
           </Panel>
           <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">

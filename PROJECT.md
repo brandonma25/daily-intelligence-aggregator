@@ -126,6 +126,74 @@ When updating this file:
 - Ensure all AI agents consistently read and update this file
 - Begin logging all future changes using defined structure
 
+### [2026-04-16 00:04] — PRD 5 Daily Habit Loop
+
+**Agent:**
+- Codex
+
+**Problem addressed:**
+- The dashboard feed had no continuity across sessions, no deterministic notion of what changed since a user’s last pass, and no reliable completion moment once a session was finished.
+
+**Root cause:**
+- Event rows are regenerated during clustering, so the previous implementation had no stable per-event identity for retention logic.
+- Existing read state lived on `briefing_items`, but the live dashboard renders generated event clusters directly and did not consume persistent read/view state.
+
+**Change made:**
+- Added a lightweight habit-loop continuity layer based on stable event keys and change fingerprints derived from clustered article signals.
+- Introduced `user_event_state` persistence in the Supabase schema for `last_viewed_at`, last seen fingerprint, and prior importance score.
+- Updated live dashboard briefing construction to classify each event as `new`, `changed`, `escalated`, or `unchanged`, and to derive read state from the persisted event-state snapshot.
+- Added dashboard UI for “Since your last pass” metrics, event badges, and an end-of-feed “You’re caught up” closure panel.
+- Updated read actions so marking one event or the whole dashboard as read writes to the new event-state store instead of depending on ephemeral event ids.
+- Added unit tests covering continuity-key stability, fingerprint change detection, display-state classification, and session summary counts.
+
+**Files modified:**
+- `src/lib/types.ts`
+- `src/lib/habit-loop.ts`
+- `src/lib/habit-loop.test.ts`
+- `src/lib/data.ts`
+- `src/app/actions.ts`
+- `src/app/dashboard/page.tsx`
+- `src/components/story-card.tsx`
+- `supabase/schema.sql`
+- `PROJECT.md`
+
+**Remaining risks / next steps:**
+- The new `user_event_state` table must exist in the target Supabase database before live persistence will activate; the code degrades safely if the table is missing, but continuity will not persist server-side until the schema is applied.
+- Repository-wide `npm run lint` still reports pre-existing React hook lint errors in `src/components/app-shell.tsx` and `src/components/settings-preferences.tsx`, which are unrelated to this PRD work.
+- Public/demo mode still lacks a localStorage-backed continuity implementation; live/authenticated mode is the completed path in this branch.
+
+### [2026-04-16 00:11] — PRD 6 Reading Window Anchor
+
+**Agent:**
+- Codex
+
+**Problem addressed:**
+- The dashboard showed a raw reading window string, but not as a behavioral anchor. Users could not clearly see daily load, completion progress, or how today compared with yesterday.
+
+**Root cause:**
+- Reading time existed only as per-item `estimatedMinutes` and a simple briefing-level string.
+- There was no shared metric layer converting PRD 5 read state into a progress-oriented reading window model.
+
+**Change made:**
+- Added a shared `reading-window` helper that deterministically computes per-event reading time from content length with a stable fallback, aggregates total/completed/remaining minutes, calculates progress ratio, parses prior reading-window history, and interprets day load as `Light`, `Normal`, or `Heavy` using configurable constants.
+- Wired the dashboard data layer to compute reading metrics from existing PRD 5 `read` state and compare the current briefing against the latest prior saved briefing without introducing any new tracking system.
+- Updated the dashboard UI so reading time is shown as a top anchor metric with total minutes, delta vs yesterday, day intensity, progress text, and a progress bar, while leaving PRD 5 completion messaging unchanged.
+- Extended the refresh card to echo progress in the compact reading-window module.
+- Added unit tests for deterministic time calculation, progress aggregation, delta formatting, parsing, and intensity thresholds.
+
+**Files modified:**
+- `src/lib/types.ts`
+- `src/lib/reading-window.ts`
+- `src/lib/reading-window.test.ts`
+- `src/lib/data.ts`
+- `src/app/dashboard/page.tsx`
+- `src/components/dashboard/manual-refresh-trigger.tsx`
+- `PROJECT.md`
+
+**Remaining risks / next steps:**
+- Public/demo mode compares against sample history only; live accuracy for day-over-day comparison still depends on users having at least one prior saved briefing.
+- Repository-wide `npm run lint` still includes unrelated pre-existing React hook lint errors outside this PRD scope.
+
 ---
 
 ## 8. NEXT ACTION (FOCUS)

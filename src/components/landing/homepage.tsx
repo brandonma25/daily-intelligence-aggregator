@@ -5,6 +5,7 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import { ArrowRight, ExternalLink } from "lucide-react";
 
 import AuthModal from "@/components/auth/auth-modal";
+import { GuestValuePreview } from "@/components/guest-value-preview";
 import { isHomepageDebugConfigured } from "@/lib/env";
 import {
   buildHomepageViewModel,
@@ -181,10 +182,15 @@ function HomepageNav({
               <p className="text-sm font-semibold text-[var(--foreground)]">{viewer.displayName}</p>
               <p className="text-xs text-[var(--muted)]">Signed in</p>
             </div>
-          ) : null}
+          ) : (
+            <div className="hidden text-right sm:block">
+              <p className="text-sm font-semibold text-[var(--foreground)]">You&apos;re viewing the public briefing</p>
+              <p className="text-xs text-[var(--muted)]">Sign in to personalize your intelligence</p>
+            </div>
+          )}
           {signedIn ? (
             <Link href="/dashboard">
-              <Button className="px-5">Get Briefing</Button>
+              <Button className="px-5">Open Briefing</Button>
             </Link>
           ) : (
             <>
@@ -196,7 +202,7 @@ function HomepageNav({
                 Sign in
               </button>
               <Button className="px-5" onClick={onSignIn}>
-                Get Briefing
+                Personalize briefing
               </Button>
             </>
           )}
@@ -230,7 +236,7 @@ function HeroIntelligenceBlock({
             <Badge className="border-[rgba(41,79,134,0.16)] bg-[rgba(41,79,134,0.08)] text-[#294f86]">
               Daily Intelligence Briefing
             </Badge>
-            <Badge>{mode === "live" ? "Live mode" : mode === "public" ? "Public mode" : "Demo mode"}</Badge>
+            <Badge>{signedIn ? (mode === "live" ? "Personalized briefing" : "Briefing preview") : "Public briefing"}</Badge>
             <Badge>{formatBriefingDate(briefingDate)}</Badge>
           </div>
           <h1 className="display-font mt-6 max-w-3xl text-[2.35rem] leading-[1.04] text-[var(--foreground)] sm:text-[3rem] lg:text-[3.45rem]">
@@ -248,17 +254,15 @@ function HeroIntelligenceBlock({
             <SignalPill title="Full dashboard" detail="Unlock the complete ranked briefing, deeper cards, and topic navigation." />
           </div>
           {!signedIn ? (
-            <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Button className="px-5" onClick={onPrimaryAction}>
-                Unlock full briefing
-              </Button>
+            <div className="mt-8 space-y-4">
+              <GuestValuePreview compact ctaLabel="Unlock full briefing" />
               <p className="text-sm text-[var(--muted)]">
-                Start with this public preview, then move into the full dashboard when you are ready.
+                Start with this public briefing, then move into the full dashboard when you are ready to personalize it.
               </p>
             </div>
           ) : (
             <div className="mt-8 text-sm text-[var(--muted)]">
-              You are viewing the public preview. Open the dashboard for the fuller working briefing.
+              Open the dashboard for the fuller working briefing.
             </div>
           )}
         </div>

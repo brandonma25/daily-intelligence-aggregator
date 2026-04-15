@@ -74,6 +74,8 @@ export type EventIntelligence = {
   createdAt: string;
 };
 
+export type EventDisplayState = "new" | "changed" | "escalated" | "unchanged";
+
 export type BriefingItem = {
   id: string;
   topicId: string;
@@ -96,6 +98,22 @@ export type BriefingItem = {
   importanceLabel?: "Critical" | "High" | "Watch";
   rankingSignals?: string[];
   eventIntelligence?: EventIntelligence;
+  displayState?: EventDisplayState;
+  continuityKey?: string;
+  continuityFingerprint?: string;
+  lastViewedAt?: string;
+};
+
+export type ReadingWindowIntensity = "Light" | "Normal" | "Heavy";
+
+export type ReadingWindowMetrics = {
+  totalMinutes: number;
+  completedMinutes: number;
+  remainingMinutes: number;
+  progressRatio: number;
+  progressLabel: string;
+  deltaVsYesterday: number | null;
+  intensity: ReadingWindowIntensity;
 };
 
 export type DailyBriefing = {
@@ -105,6 +123,13 @@ export type DailyBriefing = {
   intro: string;
   readingWindow: string;
   items: BriefingItem[];
+  sessionSummary?: {
+    reviewedCount: number;
+    newCount: number;
+    changedCount: number;
+    escalatedCount: number;
+  };
+  readingMetrics?: ReadingWindowMetrics;
 };
 
 export type DashboardData = {
