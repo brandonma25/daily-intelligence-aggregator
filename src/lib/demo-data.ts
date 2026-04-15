@@ -67,16 +67,6 @@ export const demoSources: Source[] = [
     status: "active",
   },
   {
-    id: "source-gdelt-finance",
-    name: "GDELT Finance Monitor",
-    feedUrl:
-      "https://api.gdeltproject.org/api/v2/doc/doc?query=(market%20OR%20stocks%20OR%20fed%20OR%20inflation%20OR%20earnings)&mode=artlist&maxrecords=25&timespan=1day&sort=datedesc&format=rss",
-    homepageUrl: "https://www.gdeltproject.org",
-    topicId: "topic-finance",
-    topicName: "Finance",
-    status: "active",
-  },
-  {
     id: "source-marketwatch",
     name: "MarketWatch",
     feedUrl: "https://www.marketwatch.com/rss/topstories",

@@ -71,6 +71,9 @@ type SourceFetchAttempt = {
   label: string;
   feedUrl: string;
   kind: "primary" | "fallback";
+  timeoutMs?: number;
+  retryCount?: number;
+  maxAgeHours?: number;
 };
 
 type SourceFetchFailure = SourceFetchAttempt & {
@@ -844,18 +847,27 @@ export async function persistRawArticles(
   );
 
   fetchedResults.forEach((result) => {
-    result.failures.forEach((failure, index) => {
-      logServerEvent("warn", "Source fetch attempt failed during raw article persistence", {
+    if (!result.failures.length) {
+      return;
+    }
+
+    const failureDetails = result.failures.map((failure, index) => ({
+      failureIndex: index,
+      feedLabel: failure.label,
+      feedKind: failure.kind,
+      feedUrl: failure.feedUrl,
+      errorMessage: failure.errorMessage,
+    }));
+
+    if (result.articles.length === 0) {
+      logServerEvent("warn", "Source remained unavailable after fallback attempts", {
         route,
         userId,
         sourceName: result.source.name,
-        failureIndex: index,
-        feedLabel: failure.label,
-        feedKind: failure.kind,
-        feedUrl: failure.feedUrl,
-        errorMessage: failure.errorMessage,
+        failures: failureDetails,
       });
-    });
+      return;
+    }
 
     if (result.usedFallback && result.successfulAttempt) {
       logServerEvent("info", "Fallback feed used during raw article persistence", {
@@ -864,6 +876,8 @@ export async function persistRawArticles(
         sourceName: result.source.name,
         fallbackLabel: result.successfulAttempt.label,
         fallbackFeedUrl: result.successfulAttempt.feedUrl,
+        recoveredArticleCount: result.articles.length,
+        failures: failureDetails,
       });
     }
   });
@@ -1308,7 +1322,13 @@ async function fetchSourceArticlesWithFallback(source: Source): Promise<SourceFe
 
   for (const attempt of attempts) {
     try {
-      const articles = await fetchFeedArticles(attempt.feedUrl, source.name);
+      const articles = filterAttemptArticles(
+        await fetchFeedArticles(attempt.feedUrl, source.name, {
+          timeoutMs: attempt.timeoutMs,
+          retryCount: attempt.retryCount,
+        }),
+        attempt,
+      );
 
       if (articles.length > 0) {
         return {
@@ -1346,6 +1366,8 @@ function buildSourceFetchAttempts(source: Source): SourceFetchAttempt[] {
       label: source.name,
       feedUrl: source.feedUrl,
       kind: "primary",
+      timeoutMs: isGdeltSource(source) ? 4_500 : 8_000,
+      retryCount: isGdeltSource(source) ? 0 : 1,
     },
   ];
 
@@ -1380,23 +1402,71 @@ function getGdeltFallbackFeeds(source: Source) {
 
   if (/finance|market|business/.test(topic)) {
     return [
-      { label: "Reuters Business fallback", feedUrl: "https://feeds.reuters.com/reuters/businessNews" },
-      { label: "MarketWatch fallback", feedUrl: "https://www.marketwatch.com/rss/topstories" },
+      {
+        label: "Reuters Business fallback",
+        feedUrl: "https://feeds.reuters.com/reuters/businessNews",
+        timeoutMs: 4_500,
+        retryCount: 0,
+        maxAgeHours: 72,
+      },
     ];
   }
 
   if (/politic|geopolit|world/.test(topic)) {
     return [
-      { label: "Reuters Top News fallback", feedUrl: "https://feeds.reuters.com/reuters/topNews" },
-      { label: "AP Top News fallback", feedUrl: "https://apnews.com/hub/apf-topnews?output=rss" },
+      {
+        label: "AP Top News fallback",
+        feedUrl: "https://apnews.com/hub/apf-topnews?output=rss",
+        timeoutMs: 4_500,
+        retryCount: 0,
+        maxAgeHours: 72,
+      },
     ];
   }
 
   return [
-    { label: "Reuters Technology fallback", feedUrl: "https://feeds.reuters.com/reuters/technologyNews" },
-    { label: "TechCrunch fallback", feedUrl: "https://techcrunch.com/feed/" },
+    {
+      label: "TechCrunch fallback",
+      feedUrl: "https://techcrunch.com/feed/",
+      timeoutMs: 4_500,
+      retryCount: 0,
+      maxAgeHours: 72,
+    },
   ];
 }
+
+function filterAttemptArticles(articles: FeedArticle[], attempt: SourceFetchAttempt) {
+  const deduped = dedupeFeedArticles(articles);
+
+  if (!attempt.maxAgeHours) {
+    return deduped;
+  }
+
+  const freshestAllowedAt = Date.now() - attempt.maxAgeHours * 60 * 60 * 1000;
+  return deduped.filter((article) => {
+    const publishedAt = new Date(article.publishedAt).getTime();
+    return Number.isFinite(publishedAt) && publishedAt >= freshestAllowedAt;
+  });
+}
+
+function dedupeFeedArticles(articles: FeedArticle[]) {
+  const seen = new Set<string>();
+
+  return articles.filter((article) => {
+    const key = canonicalizeArticleUrl(article.url).toLowerCase();
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
+export const __testing__ = {
+  buildSourceFetchAttempts,
+  fetchSourceArticlesWithFallback,
+};
 
 function normalizeSignal(value: string) {
   return value

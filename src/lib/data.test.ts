@@ -1,7 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { syncEventClusters, syncTopicMatches } from "@/lib/data";
-import type { Topic } from "@/lib/types";
+import { __testing__, syncEventClusters, syncTopicMatches } from "@/lib/data";
+import * as rssModule from "@/lib/rss";
+import type { FeedArticle } from "@/lib/rss";
+import type { Source, Topic } from "@/lib/types";
 
 type QueryResult<T> = Promise<{ data: T; error: null }>;
 
@@ -158,5 +160,81 @@ describe("syncEventClusters", () => {
 
     expect(operations).not.toContain("articles.update.eq");
     expect(operations).not.toContain("events.delete.eq");
+  });
+});
+
+describe("fetchSourceArticlesWithFallback", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("uses a curated fallback when a GDELT source hard-fails", async () => {
+    const fetchSpy = vi.spyOn(rssModule, "fetchFeedArticles");
+    const fallbackArticles: FeedArticle[] = [
+      {
+        title: "Recovered story",
+        url: "https://example.com/recovered",
+        summaryText: "Recovered summary",
+        sourceName: "AP",
+        publishedAt: new Date().toISOString(),
+      },
+    ];
+
+    fetchSpy
+      .mockRejectedValueOnce(new Error("Feed request timed out for GDELT Finance Monitor after 4500ms"))
+      .mockResolvedValueOnce(fallbackArticles);
+
+    const source: Source = {
+      id: "source-1",
+      name: "GDELT Finance Monitor",
+      feedUrl: "https://api.gdeltproject.org/api/v2/doc/doc?query=finance",
+      topicName: "Finance",
+      status: "active",
+    };
+
+    const result = await __testing__.fetchSourceArticlesWithFallback(source);
+
+    expect(result.usedFallback).toBe(true);
+    expect(result.articles).toHaveLength(1);
+    expect(fetchSpy).toHaveBeenNthCalledWith(
+      1,
+      source.feedUrl,
+      source.name,
+      expect.objectContaining({ timeoutMs: 4500, retryCount: 0 }),
+    );
+    expect(fetchSpy).toHaveBeenNthCalledWith(
+      2,
+      "https://feeds.reuters.com/reuters/businessNews",
+      source.name,
+      expect.objectContaining({ timeoutMs: 4500, retryCount: 0 }),
+    );
+  });
+
+  it("drops stale fallback articles instead of surfacing misleading recovery cards", async () => {
+    const fetchSpy = vi.spyOn(rssModule, "fetchFeedArticles");
+    const staleArticle: FeedArticle = {
+      title: "Old fallback story",
+      url: "https://example.com/old-story",
+      summaryText: "Old summary",
+      sourceName: "TechCrunch",
+      publishedAt: "2026-01-01T00:00:00.000Z",
+    };
+
+    fetchSpy
+      .mockRejectedValueOnce(new Error("Feed request failed"))
+      .mockResolvedValueOnce([staleArticle]);
+
+    const source: Source = {
+      id: "source-2",
+      name: "GDELT AI Monitor",
+      feedUrl: "https://api.gdeltproject.org/api/v2/doc/doc?query=ai",
+      topicName: "AI",
+      status: "active",
+    };
+
+    const result = await __testing__.fetchSourceArticlesWithFallback(source);
+
+    expect(result.articles).toHaveLength(0);
+    expect(result.failures.at(-1)?.errorMessage).toBe("Feed returned zero articles");
   });
 });

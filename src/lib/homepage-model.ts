@@ -110,18 +110,11 @@ export function buildHomepageViewModel(
   const earlySignals = events.filter((event) => event.intelligence.isEarlySignal);
   const featured = confirmedEvents[0] ?? events[0] ?? null;
   const topRanked = confirmedEvents.slice(0, TOP_EVENTS_LIMIT);
-
-  const categorySections = HOMEPAGE_CATEGORY_CONFIG.map((category) => {
+  const reservedFallbackIds = new Set(topRanked.map((event) => event.id));
+  const sectionDrafts = HOMEPAGE_CATEGORY_CONFIG.map((category) => {
     const eligibleEvents = events.filter((event) => event.classification.primaryCategory === category.key);
     const displayEvents = eligibleEvents.slice(0, CATEGORY_EVENT_LIMIT);
     const heldBackEvents = eligibleEvents.slice(CATEGORY_EVENT_LIMIT);
-    const fallbackEvents =
-      displayEvents.length === 0
-        ? events
-            .filter((event) => event.classification.primaryCategory !== category.key)
-            .slice(0, 2)
-        : [];
-
     const placeholderCount =
       displayEvents.length > 0 ? Math.max(0, CATEGORY_EVENT_LIMIT - displayEvents.length) : 0;
 
@@ -139,7 +132,7 @@ export function buildHomepageViewModel(
       label: category.label,
       description: getHomepageCategoryDescription(category.key),
       events: displayEvents,
-      fallbackEvents,
+      fallbackEvents: [],
       placeholderCount,
       state:
         displayEvents.length >= CATEGORY_EVENT_LIMIT
@@ -147,9 +140,21 @@ export function buildHomepageViewModel(
           : displayEvents.length > 0
             ? "sparse"
             : "empty",
-      emptyReason: getEmptyReason(category.key, eligibleEvents.length, fallbackEvents.length),
+      emptyReason: "",
       excludedReasons: dedupeStrings(excludedReasons).slice(0, 6),
     } satisfies HomepageCategorySection;
+  });
+  const categorySections = sectionDrafts.map((section) => {
+    const fallbackEvents =
+      section.events.length === 0
+        ? allocateFallbackEvents(section.key, confirmedEvents, earlySignals, reservedFallbackIds)
+        : [];
+
+    return {
+      ...section,
+      fallbackEvents,
+      emptyReason: getEmptyReason(section.key, section.events.length, fallbackEvents.length),
+    };
   });
 
   const reservedIds = new Set(topRanked.map((event) => event.id));
@@ -343,11 +348,11 @@ function sanitizeWhyItMatters(value: string, title: string) {
     .trim();
 }
 
-function getEmptyReason(categoryKey: HomepageCategoryKey, eligibleCount: number, fallbackCount: number) {
+function getEmptyReason(categoryKey: HomepageCategoryKey, visibleCount: number, fallbackCount: number) {
   const label = getHomepageCategoryLabel(categoryKey);
 
-  if (eligibleCount > 0) {
-    return `${label} has ${eligibleCount} eligible event${eligibleCount === 1 ? "" : "s"}, so placeholders keep the section calm while more clustered coverage builds.`;
+  if (visibleCount > 0) {
+    return `${label} has ${visibleCount} eligible event${visibleCount === 1 ? "" : "s"}, so placeholders keep the section calm while more clustered coverage builds.`;
   }
 
   if (fallbackCount > 0) {
@@ -394,6 +399,26 @@ function isValidStoryUrl(url: string) {
 
 function dedupeStrings(values: string[]) {
   return values.filter((value, index) => values.indexOf(value) === index);
+}
+
+function allocateFallbackEvents(
+  categoryKey: HomepageCategoryKey,
+  confirmedEvents: HomepageEvent[],
+  earlySignals: HomepageEvent[],
+  reservedIds: Set<string>,
+) {
+  const rankedCandidates = confirmedEvents.filter(
+    (event) =>
+      event.classification.primaryCategory !== categoryKey && !reservedIds.has(event.id),
+  );
+  const earlyCandidates = earlySignals.filter(
+    (event) =>
+      event.classification.primaryCategory !== categoryKey && !reservedIds.has(event.id),
+  );
+  const selected = [...rankedCandidates, ...earlyCandidates].slice(0, 2);
+
+  selected.forEach((event) => reservedIds.add(event.id));
+  return selected;
 }
 
 export function buildOverallNoDataMessage(itemCount: number) {

@@ -115,7 +115,7 @@ describe("buildHomepageViewModel", () => {
 
     expect(financeSection?.events).toHaveLength(0);
     expect(financeSection?.state).toBe("empty");
-    expect(financeSection?.emptyReason).toContain("No finance events qualified yet");
+    expect(financeSection?.emptyReason).toContain("No eligible finance events qualified");
   });
 
   it("renders sparse fallback behavior when a category has thin data", () => {
@@ -154,6 +154,42 @@ describe("buildHomepageViewModel", () => {
 
     expect(financeSection?.fallbackEvents.map((event) => event.id)).toContain("early-tech");
     expect(financeSection?.emptyReason).toContain("best available ranked coverage");
+  });
+
+  it("does not repeat the same fallback card across multiple empty rails or reuse top-ranked cards", () => {
+    const financeEvent = createItem({
+      id: "finance-fallback",
+      topicId: "finance",
+      topicName: "Finance",
+      title: "Markets absorb a rates surprise",
+      whatHappened: "A finance event moved through the market.",
+      whyItMatters: "It changes rate expectations.",
+      matchedKeywords: ["rates", "markets", "fed"],
+      sourceCount: 3,
+    });
+    const politicsEarly = createItem({
+      id: "politics-early",
+      topicId: "politics",
+      topicName: "Geopolitics",
+      title: "Single-source diplomatic update",
+      whatHappened: "A single source reported a diplomatic move.",
+      whyItMatters: "It may affect geopolitics.",
+      matchedKeywords: ["diplomacy"],
+      sourceCount: 1,
+      sources: [{ title: "Reuters", url: "https://reuters.com/diplomacy" }],
+    });
+
+    const model = buildHomepageViewModel(createData([financeEvent, politicsEarly]));
+    const techSection = model.categorySections.find((section) => section.key === "tech");
+    const politicsSection = model.categorySections.find((section) => section.key === "politics");
+    const fallbackIds = [
+      ...(techSection?.fallbackEvents.map((event) => event.id) ?? []),
+      ...(politicsSection?.fallbackEvents.map((event) => event.id) ?? []),
+    ];
+
+    expect(new Set(fallbackIds).size).toBe(fallbackIds.length);
+    expect(fallbackIds).not.toContain("finance-fallback");
+    expect(fallbackIds).toContain("politics-early");
   });
 
   it("keeps single-source items out of the top-ranked event rail", () => {

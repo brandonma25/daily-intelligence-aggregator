@@ -17,27 +17,31 @@ const DEFAULT_FEED_TIMEOUT_MS = 8_000;
 const DEFAULT_FEED_RETRY_COUNT = 1;
 
 type FeedRequestOptions = {
-  sourceName: string;
   timeoutMs?: number;
   retryCount?: number;
   headers?: HeadersInit;
 };
 
-export async function fetchFeedArticles(feedUrl: string, sourceName: string) {
+export async function fetchFeedArticles(
+  feedUrl: string,
+  sourceName: string,
+  requestOptions: FeedRequestOptions = {},
+) {
   if (feedUrl.startsWith("thenewsapi://")) {
-    return fetchApiArticles(feedUrl, sourceName);
+    return fetchApiArticles(feedUrl, sourceName, requestOptions);
   }
 
   if (feedUrl.startsWith("newsapi://")) {
-    return fetchLegacyNewsApiArticles(feedUrl, sourceName);
+    return fetchLegacyNewsApiArticles(feedUrl, sourceName, requestOptions);
   }
 
   const response = await requestFeed(feedUrl, {
-    sourceName,
+    ...requestOptions,
     headers: {
       "User-Agent": "Daily-Intelligence-Aggregator/1.0",
+      ...requestOptions.headers,
     },
-  });
+  }, sourceName);
 
   const xml = await response.text();
   let feed;
@@ -62,7 +66,11 @@ export async function fetchFeedArticles(feedUrl: string, sourceName: string) {
   }));
 }
 
-export async function fetchApiArticles(feedUrl: string, sourceName: string) {
+export async function fetchApiArticles(
+  feedUrl: string,
+  sourceName: string,
+  requestOptions: FeedRequestOptions = {},
+) {
   if (!env.theNewsApiKey) {
     throw new Error(`TheNewsAPI key is not configured for ${sourceName}`);
   }
@@ -75,11 +83,12 @@ export async function fetchApiArticles(feedUrl: string, sourceName: string) {
   url.searchParams.set("limit", url.searchParams.get("limit") ?? "15");
 
   const response = await requestFeed(url.toString(), {
-    sourceName,
+    ...requestOptions,
     headers: {
       "User-Agent": "Daily-Intelligence-Aggregator/1.0",
+      ...requestOptions.headers,
     },
-  });
+  }, sourceName);
 
   const payload = await response.json();
 
@@ -102,7 +111,11 @@ export async function fetchApiArticles(feedUrl: string, sourceName: string) {
     }));
 }
 
-async function fetchLegacyNewsApiArticles(feedUrl: string, sourceName: string) {
+async function fetchLegacyNewsApiArticles(
+  feedUrl: string,
+  sourceName: string,
+  requestOptions: FeedRequestOptions = {},
+) {
   if (!env.newsApiKey) {
     throw new Error(`NewsAPI key is not configured for ${sourceName}`);
   }
@@ -113,12 +126,13 @@ async function fetchLegacyNewsApiArticles(feedUrl: string, sourceName: string) {
   url.searchParams.set("language", url.searchParams.get("language") ?? "en");
 
   const response = await requestFeed(url.toString(), {
-    sourceName,
+    ...requestOptions,
     headers: {
       "X-Api-Key": env.newsApiKey,
       "User-Agent": "Daily-Intelligence-Aggregator/1.0",
+      ...requestOptions.headers,
     },
-  });
+  }, sourceName);
 
   const payload = await response.json();
 
@@ -190,7 +204,7 @@ function similarity(left: string[], right: string[]) {
   return union === 0 ? 0 : overlap / union;
 }
 
-async function requestFeed(url: string, options: FeedRequestOptions) {
+async function requestFeed(url: string, options: FeedRequestOptions, sourceName: string) {
   const timeoutMs = options.timeoutMs ?? DEFAULT_FEED_TIMEOUT_MS;
   const retryCount = options.retryCount ?? DEFAULT_FEED_RETRY_COUNT;
   let lastError: Error | null = null;
@@ -208,7 +222,7 @@ async function requestFeed(url: string, options: FeedRequestOptions) {
 
       if (!response.ok) {
         const error = new Error(
-          `Feed request failed for ${options.sourceName} with status ${response.status}`,
+          `Feed request failed for ${sourceName} with status ${response.status}`,
         );
 
         if (attempt < retryCount && isRetryableStatus(response.status)) {
@@ -221,7 +235,7 @@ async function requestFeed(url: string, options: FeedRequestOptions) {
 
       return response;
     } catch (error) {
-      const normalized = normalizeFeedRequestError(error, options.sourceName, timeoutMs);
+      const normalized = normalizeFeedRequestError(error, sourceName, timeoutMs);
       lastError = normalized;
 
       if (attempt < retryCount && isRetryableFetchError(error)) {
@@ -232,7 +246,7 @@ async function requestFeed(url: string, options: FeedRequestOptions) {
     }
   }
 
-  throw lastError ?? new Error(`Feed request failed for ${options.sourceName}`);
+  throw lastError ?? new Error(`Feed request failed for ${sourceName}`);
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number) {
