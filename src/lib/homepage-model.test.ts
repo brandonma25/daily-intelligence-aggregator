@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildHomepageViewModel } from "@/lib/homepage-model";
+import { createDefaultPersonalizationProfile } from "@/lib/personalization";
 import type { DashboardData, BriefingItem } from "@/lib/types";
 
 function createItem(overrides: Partial<BriefingItem>): BriefingItem {
@@ -242,4 +243,93 @@ describe("buildHomepageViewModel", () => {
       "weak-top",
     ]);
   });
+  it("applies controlled personalization to homepage ordering without promoting weak items into Top Events", () => {
+    const financeItem = createItem({
+      id: "finance-personalization",
+      topicId: "finance",
+      topicName: "Finance",
+      title: "Finance event",
+      importanceScore: 84,
+      sourceCount: 4,
+      eventIntelligence: {
+        id: "intel-finance-personalization",
+        title: "Finance event",
+        summary: "Finance event",
+        primaryChange: "Finance event",
+        keyEntities: ["Federal Reserve"],
+        topics: ["finance"],
+        signals: { articleCount: 4, sourceDiversity: 4, recencyScore: 72, velocityScore: 58 },
+        rankingScore: 84,
+        rankingReason: "High impact • 4 sources • last 6 hours",
+        confidenceScore: 78,
+        isHighSignal: true,
+        createdAt: "2026-04-15T08:00:00.000Z",
+      },
+    });
+    const techItem = createItem({
+      id: "tech-personalization",
+      topicId: "tech",
+      topicName: "Tech",
+      title: "Tech event",
+      importanceScore: 74,
+      sourceCount: 3,
+      matchedKeywords: ["nvidia", "ai"],
+      eventIntelligence: {
+        id: "intel-tech-personalization",
+        title: "Tech event",
+        summary: "Tech event",
+        primaryChange: "Tech event",
+        keyEntities: ["Nvidia"],
+        topics: ["tech"],
+        signals: { articleCount: 3, sourceDiversity: 3, recencyScore: 76, velocityScore: 69 },
+        rankingScore: 74,
+        rankingReason: "Meaningful impact • 3 sources • last 6 hours",
+        confidenceScore: 73,
+        isHighSignal: true,
+        createdAt: "2026-04-15T08:00:00.000Z",
+      },
+    });
+    const weakEarly = createItem({
+      id: "weak-early-personalization",
+      topicId: "tech",
+      topicName: "Tech",
+      title: "Weak early signal",
+      sourceCount: 1,
+      sources: [{ title: "Reuters", url: "https://www.reuters.com/world/example" }],
+      importanceScore: 46,
+      importanceLabel: "Watch",
+      matchedKeywords: ["nvidia"],
+      eventIntelligence: {
+        id: "intel-weak-early-personalization",
+        title: "Weak early signal",
+        summary: "Weak early signal",
+        primaryChange: "Weak early signal",
+        keyEntities: ["Nvidia"],
+        topics: ["tech"],
+        signals: { articleCount: 1, sourceDiversity: 1, recencyScore: 78, velocityScore: 20 },
+        rankingScore: 46,
+        rankingReason: "Watch impact • 1 source • last 6 hours",
+        confidenceScore: 36,
+        isHighSignal: false,
+        createdAt: "2026-04-15T08:00:00.000Z",
+      },
+    });
+
+    const profile = {
+      ...createDefaultPersonalizationProfile("reader@example.com"),
+      followedTopicIds: ["tech"],
+      followedTopicNames: ["Tech"],
+      followedEntities: ["Nvidia"],
+    };
+
+    const model = buildHomepageViewModel(createData([financeItem, techItem, weakEarly]), profile);
+
+    expect(model.topRanked.map((event) => event.id).slice(0, 2)).toEqual([
+      "tech-personalization",
+      "finance-personalization",
+    ]);
+    expect(model.topRanked.map((event) => event.id)).not.toContain("weak-early-personalization");
+    expect(model.earlySignals.map((event) => event.id)).toContain("weak-early-personalization");
+  });
+
 });

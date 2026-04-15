@@ -14,12 +14,14 @@ import {
   type EventDisplaySignals,
 } from "@/lib/event-intelligence";
 import { buildTrustLayerPresentation, type TrustLayerPresentation } from "@/lib/why-it-matters";
-import {
-  buildRankingDisplaySignals,
-  compareBriefingItemsByRanking,
-  getBriefingRankSnapshot,
-} from "@/lib/ranking";
+import { buildRankingDisplaySignals, getBriefingRankSnapshot } from "@/lib/ranking";
 import { firstSentence } from "@/lib/utils";
+import {
+  buildPersonalizationMatch,
+  compareBriefingItemsByPersonalization,
+  type BriefingPersonalizationProfile,
+  type PersonalizationMatch,
+} from "@/lib/personalization";
 
 export type EventArticle = {
   title: string;
@@ -54,6 +56,7 @@ export type HomepageEvent = {
   classification: HomepageCategoryClassification;
   eventIntelligence?: EventIntelligence;
   intelligence: EventDisplaySignals;
+  personalization: PersonalizationMatch;
 };
 
 export type HomepageCategorySection = {
@@ -95,8 +98,11 @@ const CATEGORY_EVENT_LIMIT = 2;
 const TRENDING_EVENT_LIMIT = 3;
 const EARLY_SIGNAL_LIMIT = 3;
 
-export function buildHomepageViewModel(data: DashboardData): HomepageViewModel {
-  const events = buildHomepageEvents(data.briefing.items);
+export function buildHomepageViewModel(
+  data: DashboardData,
+  profile?: BriefingPersonalizationProfile | null,
+): HomepageViewModel {
+  const events = buildHomepageEvents(data.briefing.items, profile);
   const confirmedEvents = events.filter((event) => !event.intelligence.isEarlySignal);
   const earlySignals = events.filter((event) => event.intelligence.isEarlySignal);
   const featured = confirmedEvents[0] ?? events[0] ?? null;
@@ -179,10 +185,13 @@ export function buildHomepageViewModel(data: DashboardData): HomepageViewModel {
   };
 }
 
-export function buildHomepageEvents(items: BriefingItem[]) {
+export function buildHomepageEvents(
+  items: BriefingItem[],
+  profile?: BriefingPersonalizationProfile | null,
+) {
   return items
     .slice()
-    .sort(compareBriefingItemsByRanking)
+    .sort((left, right) => compareBriefingItemsByPersonalization(left, right, profile))
     .map((item, index, sortedItems) => {
       const intelligence = buildEventIntelligenceSignals(item);
       const classification = classifyHomepageCategory({
@@ -199,6 +208,8 @@ export function buildHomepageEvents(items: BriefingItem[]) {
       );
       const sourceCount = intelligence.sourceCount;
       const whyItMatters = sanitizeWhyItMatters(item.whyItMatters, item.title);
+
+      const personalization = buildPersonalizationMatch(item, profile);
 
       return {
         id: item.id,
@@ -227,6 +238,7 @@ export function buildHomepageEvents(items: BriefingItem[]) {
         classification,
         eventIntelligence: item.eventIntelligence,
         intelligence,
+        personalization,
       } satisfies HomepageEvent;
     });
 }

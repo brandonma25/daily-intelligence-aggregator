@@ -19,6 +19,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { cn, formatBriefingDate, minutesToLabel } from "@/lib/utils";
+import {
+  buildPersonalizationSummary,
+  buildPersonalizationTopicOptions,
+  getStoredPersonalizationPayload,
+  hasActivePersonalization,
+  parsePersonalizationProfile,
+  subscribeToPersonalizationStore,
+} from "@/lib/personalization";
 
 type LandingHomepageProps = {
   data: DashboardData;
@@ -38,11 +46,35 @@ export default function LandingHomepage({
   const signedIn = Boolean(viewer);
   const currentHash = useHashValue();
   const showDebug = debugEnabled || isHomepageDebugConfigured;
+  const personalizationPayload = useSyncExternalStore(
+    subscribeToPersonalizationStore,
+    getStoredPersonalizationPayload,
+    () => "",
+  );
+  const personalizationProfile = useMemo(
+    () => (signedIn ? parsePersonalizationProfile(personalizationPayload, viewer?.email) : null),
+    [personalizationPayload, signedIn, viewer?.email],
+  );
+  const personalizationActive = signedIn && hasActivePersonalization(personalizationProfile);
 
   const { featured, topRanked, categorySections, trending, earlySignals, debug } = useMemo(
-    () => buildHomepageViewModel(data),
-    [data],
+    () => buildHomepageViewModel(data, personalizationProfile),
+    [data, personalizationProfile],
   );
+  const personalizationSummary = buildPersonalizationSummary(personalizationProfile);
+  const trackedTopics = personalizationActive
+    ? buildPersonalizationTopicOptions(data.topics, data.briefing.items)
+        .filter(
+          (topic) =>
+            personalizationProfile?.followedTopicIds.includes(topic.id) ||
+            personalizationProfile?.followedTopicNames.includes(topic.label),
+        )
+        .map((topic) => topic.label)
+        .slice(0, 4)
+    : [];
+  const followedEntities = personalizationActive
+    ? (personalizationProfile?.followedEntities ?? []).slice(0, 4)
+    : [];
 
   const authMessage = getHomepageAuthMessage(authState);
   const authStateRequestsModal = Boolean(
@@ -80,6 +112,42 @@ export default function LandingHomepage({
             onPrimaryAction={() => setAuthModalManuallyOpen(true)}
             signedIn={signedIn}
           />
+
+          {personalizationActive ? (
+            <Panel className="border-[rgba(19,26,34,0.08)] bg-[rgba(255,255,255,0.68)] p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+                    Personalized ranking
+                  </p>
+                  <h2 className="mt-2 text-xl font-semibold text-[var(--foreground)]">
+                    This homepage is tuned to your tracked priorities
+                  </h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-7 text-[var(--muted)]">
+                    {personalizationSummary}. Strong matching events can move higher here, but confirmed multi-source quality still controls what qualifies for the lead briefing layer.
+                  </p>
+                </div>
+                <Link
+                  href="/settings#account-settings"
+                  className="inline-flex items-center justify-center rounded-full border border-[var(--line)] bg-white/70 px-4 py-2 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-white"
+                >
+                  Adjust preferences
+                </Link>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {trackedTopics.map((topic) => (
+                  <Badge key={topic} className="text-[#294f86]">
+                    Tracking {topic}
+                  </Badge>
+                ))}
+                {followedEntities.map((entity) => (
+                  <Badge key={entity} className="text-[#294f86]">
+                    Following {entity}
+                  </Badge>
+                ))}
+              </div>
+            </Panel>
+          ) : null}
 
           <TopRankedEventsSection events={topRanked} />
 
@@ -185,7 +253,7 @@ function HomepageNav({
             </div>
           ) : (
             <div className="hidden text-right sm:block">
-              <p className="text-sm font-semibold text-[var(--foreground)]">You're viewing the public briefing</p>
+              <p className="text-sm font-semibold text-[var(--foreground)]">You&apos;re viewing the public briefing</p>
               <p className="text-xs text-[var(--muted)]">Sign in to personalize your intelligence</p>
             </div>
           )}
@@ -503,6 +571,7 @@ function EventCard({
             </p>
             <div className="mt-2 flex max-w-full flex-wrap items-center gap-2">
               <Badge>{event.topicName}</Badge>
+              {event.personalization.active ? <Badge className="text-[#294f86]">Personalized match</Badge> : null}
               <Badge className={intelligence.isEarlySignal ? "text-[#8a5a11]" : "text-[#294f86]"}>
                 {intelligence.isEarlySignal ? "Early Signal" : "Confirmed Event"}
               </Badge>
@@ -518,6 +587,9 @@ function EventCard({
           <p className="mt-1 text-xs font-medium leading-5 text-[var(--foreground)]">
             {intelligence.rankingReason}
           </p>
+          {event.personalization.active && event.personalization.reason ? (
+            <p className="mt-2 text-xs leading-5 text-[#294f86]">{event.personalization.reason}</p>
+          ) : null}
         </div>
       </div>
 
