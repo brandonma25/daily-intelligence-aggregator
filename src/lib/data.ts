@@ -10,6 +10,7 @@ import { rankNewsClusters } from "@/lib/ranking";
 import { clusterArticles, fetchFeedArticles, type FeedArticle } from "@/lib/rss";
 import { withServerFallback } from "@/lib/server-safety";
 import { createSupabaseServerClient, safeGetUser } from "@/lib/supabase/server";
+import { buildTimelineGroups } from "@/lib/timeline-builder";
 import { matchTopicsForArticle } from "@/lib/topic-matching";
 import type {
   BriefingItem,
@@ -686,6 +687,15 @@ export async function buildMatchedBriefing(
       ])[0];
       const matchedKeywords = [...new Set(eventArticles.flatMap((article) => article.matchedKeywords))];
       const relatedArticles = buildRelatedArticles(eventArticles);
+      const timeline = buildTimelineGroups(
+        eventArticles.map((article) => ({
+          title: article.title,
+          url: article.url,
+          sourceName: article.sourceName,
+          summaryText: article.summary_text,
+          publishedAt: article.published_at,
+        })),
+      );
       const sourceCount = new Set(eventArticles.map((article) => article.sourceName)).size;
       const freshest = eventArticles[0];
       const intelligence =
@@ -720,6 +730,7 @@ export async function buildMatchedBriefing(
           url: article.url,
         })),
         relatedArticles,
+        timeline,
         sourceCount,
         estimatedMinutes: Math.min(6, Math.max(3, Math.ceil(eventArticles.length * 1.5))),
         read: false,
@@ -1043,6 +1054,15 @@ function buildBriefingItemFromFeedCluster(input: {
       url: article.url,
       sourceName: article.sourceName,
     })),
+    timeline: buildTimelineGroups(
+      input.cluster.sources.map((article) => ({
+        title: article.title,
+        url: article.url,
+        sourceName: article.sourceName,
+        summaryText: article.summaryText,
+        publishedAt: article.publishedAt,
+      })),
+    ),
     estimatedMinutes: Math.min(6, Math.max(3, Math.ceil(input.cluster.sources.length * 1.5))),
     read: false,
     priority: input.priority,

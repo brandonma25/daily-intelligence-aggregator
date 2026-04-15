@@ -38,6 +38,20 @@ export type RelatedArticle = {
   sourceName: string;
 };
 
+export type TimelineEntry = {
+  title: string;
+  summary: string;
+  source: string;
+  publishedAt?: string;
+  url?: string;
+};
+
+export type TimelineGroup = {
+  dateKey: string;
+  dateLabel: string;
+  entries: TimelineEntry[];
+};
+
 export type EventIntelligenceSignals = {
   articleCount: number;
   sourceDiversity: number;
@@ -77,6 +91,7 @@ export type BriefingItem = {
   publishedAt?: string;
   sourceCount?: number;
   relatedArticles?: RelatedArticle[];
+  timeline?: TimelineGroup[];
   importanceScore?: number;
   importanceLabel?: "Critical" | "High" | "Watch";
   rankingSignals?: string[];
