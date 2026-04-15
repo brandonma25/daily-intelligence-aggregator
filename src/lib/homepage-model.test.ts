@@ -131,7 +131,21 @@ describe("buildHomepageViewModel", () => {
     const financeSection = model.categorySections.find((section) => section.key === "finance");
 
     expect(financeSection?.state).toBe("sparse");
-    expect(financeSection?.placeholderCount).toBe(2);
+    expect(financeSection?.placeholderCount).toBe(1);
+  });
+
+  it("keeps single-source items out of the top-ranked event rail", () => {
+    const earlySignal = createItem({
+      id: "early-1",
+      sourceCount: 1,
+      sources: [{ title: "Reuters", url: "https://www.reuters.com/world/example" }],
+      title: "Single-source report surfaces ahead of broader pickup",
+    });
+
+    const model = buildHomepageViewModel(createData([earlySignal]));
+
+    expect(model.topRanked).toHaveLength(0);
+    expect(model.earlySignals.map((event) => event.id)).toContain("early-1");
   });
 
   it("counts uncategorized events in debug mode", () => {

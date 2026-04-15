@@ -77,7 +77,7 @@ describe("LandingHomepage", () => {
     render(<LandingHomepage data={data} viewer={null} />);
 
     expect(screen.getByText("No Finance events yet")).toBeInTheDocument();
-    expect(screen.getAllByText("Top stories while this category fills in").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Other confirmed events while this category fills in").length).toBeGreaterThan(0);
   });
 
   it("shows sparse-state messaging when only one category event exists", () => {
@@ -95,7 +95,7 @@ describe("LandingHomepage", () => {
 
     render(<LandingHomepage data={data} viewer={null} />);
 
-    expect(screen.getAllByText(/Coverage is still building here/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/intentionally capped so the briefing stays calm/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/More Finance coverage is on the way/i).length).toBeGreaterThan(0);
   });
 

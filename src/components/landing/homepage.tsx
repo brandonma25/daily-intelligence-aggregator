@@ -38,7 +38,7 @@ export default function LandingHomepage({
   const currentHash = useHashValue();
   const showDebug = debugEnabled || isHomepageDebugConfigured;
 
-  const { featured, topRanked, categorySections, trending, debug } = useMemo(
+  const { featured, topRanked, categorySections, trending, earlySignals, debug } = useMemo(
     () => buildHomepageViewModel(data),
     [data],
   );
@@ -89,6 +89,8 @@ export default function LandingHomepage({
           </section>
 
           <TrendingSection events={trending} />
+
+          <EarlySignalsSection events={earlySignals} />
 
           {showDebug ? <HomepageDebugPanel debug={debug} /> : null}
 
@@ -234,15 +236,15 @@ function HeroIntelligenceBlock({
             Understand what matters today and why.
           </h1>
           <p className="mt-5 max-w-xl text-[15px] leading-7 text-[var(--muted)] sm:text-[17px] sm:leading-8">
-            Daily Intelligence Aggregator ranks the most important developments, groups related coverage into events, and gives you the context needed to interpret impact fast.
+            Daily Intelligence Aggregator turns scattered coverage into a structured intelligence briefing with confirmed events, visible ranking logic, and clearly separated early signals.
           </p>
           <p className="mt-5 text-sm font-medium text-[var(--foreground)]/88">
             Less article chasing. More signal, context, and meaning.
           </p>
           <div className="mt-8 grid gap-3 text-sm text-[var(--muted)] sm:grid-cols-3">
-            <SignalPill title="Event-first" detail="Coverage is grouped into developments, not dumped as isolated links." />
-            <SignalPill title="Context-led" detail="Why it matters and why it ranked stay visible." />
-            <SignalPill title="Ranked by signal" detail="The homepage emphasizes importance, not just recency." />
+            <SignalPill title="Event-first" detail="Coverage is grouped into shared developments, not dumped as standalone articles." />
+            <SignalPill title="Transparent ranking" detail="Impact, source breadth, and recency stay visible on every event." />
+            <SignalPill title="Noise controlled" detail="Single-source items are separated into Early Signals instead of crowding Top Events." />
           </div>
           {!signedIn ? (
             <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -335,9 +337,9 @@ function TopRankedEventsSection({ events }: { events: HomepageEvent[] }) {
   return (
     <section id="top-events" className="space-y-5 lg:space-y-6">
       <SectionHeader
-        eyebrow="Top Ranked Events"
-        title="The developments most worth your attention right now"
-        description="This ranked layer favors importance over chronology, with grouped supporting coverage under each event."
+        eyebrow="Top Events"
+        title="Confirmed developments, ranked with transparent logic"
+        description="Only multi-source event clusters qualify here. Each card shows impact, recency, source breadth, confidence, and why it made the briefing."
       />
       {events.length ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-12">
@@ -353,7 +355,7 @@ function TopRankedEventsSection({ events }: { events: HomepageEvent[] }) {
                   event={event}
                   rank={index + 1}
                   variant={index === 0 ? "ranked-featured" : "ranked"}
-                  label="Ranked event"
+                  label="Confirmed event"
                   showTimeline={index === 0}
                   showRelatedArticles
                 />
@@ -381,10 +383,10 @@ function CategorySection({ section }: { section: HomepageCategorySection }) {
         <>
           {section.state === "sparse" ? (
             <p className="text-sm text-[var(--muted)]">
-              Coverage is still building here, so confirmed {section.label.toLowerCase()} events share space with clear placeholders.
+              This category is intentionally capped so the briefing stays calm. Confirmed events appear first, while single-source developments stay visibly labeled as early signals.
             </p>
           ) : null}
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
             {section.events.map((event) => (
               <Panel
                 key={event.id}
@@ -409,9 +411,9 @@ function TrendingSection({ events }: { events: HomepageEvent[] }) {
   return (
     <section className="space-y-4">
       <SectionHeader
-        eyebrow="Trending / Important"
-        title="Other developments worth keeping in view"
-        description="A lower-priority tail section for breadth once the top-ranked events are clear."
+        eyebrow="Watchlist"
+        title="Other confirmed events worth keeping in view"
+        description="This is the lower-priority watchlist once the top event layer is clear. It stays compact on purpose."
         compact
       />
       {events.length ? (
@@ -421,16 +423,43 @@ function TrendingSection({ events }: { events: HomepageEvent[] }) {
               key={event.id}
               className={cn("px-5 py-5", index !== events.length - 1 && "border-b border-[var(--line)]")}
             >
-              <EventCard event={event} variant="list" label="Event" showRelatedArticles />
+              <EventCard event={event} variant="list" label="Confirmed event" showRelatedArticles />
             </div>
           ))}
         </Panel>
       ) : (
         <StatusPanel
-          title="No additional developments yet"
-          body="Once more stories are available, lower-priority events will collect here in a compact scan."
+          title="No additional confirmed events yet"
+          body="Once more multi-source clusters qualify, they will collect here in a compact watchlist."
         />
       )}
+    </section>
+  );
+}
+
+function EarlySignalsSection({ events }: { events: HomepageEvent[] }) {
+  if (!events.length) {
+    return null;
+  }
+
+  return (
+    <section className="space-y-4">
+      <SectionHeader
+        eyebrow="Early Signals"
+        title="Single-source developments kept separate from Top Events"
+        description="These items stay visible for awareness, but they do not qualify for the lead ranking until more coverage confirms the event cluster."
+        compact
+      />
+      <div className="grid gap-4 md:grid-cols-3">
+        {events.map((event) => (
+          <Panel
+            key={event.id}
+            className="border-[rgba(19,26,34,0.08)] bg-[rgba(255,255,255,0.62)] p-5"
+          >
+            <EventCard event={event} variant="compact" label="Early signal" showRelatedArticles />
+          </Panel>
+        ))}
+      </div>
     </section>
   );
 }
@@ -453,6 +482,7 @@ function EventCard({
   const emphatic = variant === "featured" || variant === "ranked-featured";
   const compact = variant === "compact";
   const list = variant === "list";
+  const intelligence = event.intelligence;
 
   return (
     <div className="space-y-4">
@@ -469,16 +499,22 @@ function EventCard({
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <Badge>{event.topicName}</Badge>
-              {event.importanceLabel ? <Badge className="text-[#294f86]">{event.importanceLabel}</Badge> : null}
-              {event.matchedKeywords[0] ? <Badge>Matched on {event.matchedKeywords[0]}</Badge> : null}
+              <Badge className={intelligence.isEarlySignal ? "text-[#8a5a11]" : "text-[#294f86]"}>
+                {intelligence.isEarlySignal ? "Early Signal" : "Confirmed Event"}
+              </Badge>
+              <Badge>{intelligence.timelineIndicator}</Badge>
+              <ConfidenceBadge tone={intelligence.confidenceTone} label={intelligence.confidenceLabel} />
             </div>
           </div>
         </div>
-        {!list && event.rankingSignals[0] ? (
-          <span className="max-w-[190px] text-right text-xs font-medium leading-5 text-[var(--muted)]">
-            {event.rankingSignals[0]}
-          </span>
-        ) : null}
+        <div className="max-w-[220px] text-right">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+            Ranking reason
+          </p>
+          <p className="mt-1 text-xs font-medium leading-5 text-[var(--foreground)]">
+            {intelligence.rankingReason}
+          </p>
+        </div>
       </div>
 
       <div>
@@ -503,22 +539,85 @@ function EventCard({
         </p>
       </div>
 
+      <SignalStrip event={event} />
+
       <WhyItMattersBlock
         text={event.whyItMatters}
         whyThisIsHere={event.whyThisIsHere}
         emphatic={emphatic}
       />
 
+      {event.intelligence.keyEntities.length ? (
+        <EntityBlock entities={event.intelligence.keyEntities} />
+      ) : null}
+
       {showTimeline && event.timeline.length ? <TimelineBlock timeline={event.timeline} /> : null}
 
       {showRelatedArticles ? (
-        <RelatedArticlesList articles={event.relatedArticles} compact={compact || list} />
+        <RelatedArticlesList
+          articles={event.relatedArticles}
+          compact={compact || list}
+          sourceLabel={event.intelligence.sourceLabel}
+        />
       ) : null}
 
       <div className="flex flex-wrap gap-2 text-xs font-medium text-[var(--muted)]">
         <MetaPill>{minutesToLabel(event.estimatedMinutes)} read</MetaPill>
-        <MetaPill>{event.sourceCount} related sources</MetaPill>
-        {event.rankingSignals[1] ? <MetaPill>{event.rankingSignals[1]}</MetaPill> : null}
+        <MetaPill>{event.intelligence.sourceLabel}</MetaPill>
+        <MetaPill>{event.intelligence.impactLabel}</MetaPill>
+        <MetaPill>{event.intelligence.recencyLabel}</MetaPill>
+      </div>
+    </div>
+  );
+}
+
+function SignalStrip({ event }: { event: HomepageEvent }) {
+  return (
+    <div className="rounded-[22px] border border-[rgba(19,26,34,0.08)] bg-[rgba(255,255,255,0.58)] px-4 py-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <MetaPill>{event.intelligence.impactLabel}</MetaPill>
+        <MetaPill>{event.intelligence.sourceLabel}</MetaPill>
+        <MetaPill>{event.intelligence.recencyLabel}</MetaPill>
+      </div>
+      {event.rankingSignals.length ? (
+        <p className="mt-3 text-sm leading-6 text-[var(--muted)]">{event.rankingSignals[0]}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function ConfidenceBadge({
+  tone,
+  label,
+}: {
+  tone: HomepageEvent["intelligence"]["confidenceTone"];
+  label: string;
+}) {
+  const className =
+    tone === "high"
+      ? "text-[var(--accent)]"
+      : tone === "medium"
+        ? "text-[#294f86]"
+        : "text-[#8a5a11]";
+
+  return <Badge className={className}>{label}</Badge>;
+}
+
+function EntityBlock({ entities }: { entities: string[] }) {
+  return (
+    <div className="rounded-[22px] border border-[rgba(19,26,34,0.08)] bg-[rgba(255,255,255,0.52)] px-4 py-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+        Key entities
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {entities.map((entity) => (
+          <span
+            key={entity}
+            className="inline-flex items-center rounded-full border border-[rgba(19,26,34,0.08)] bg-white/80 px-3 py-1.5 text-xs font-medium text-[var(--foreground)]"
+          >
+            {entity}
+          </span>
+        ))}
       </div>
     </div>
   );
@@ -544,7 +643,7 @@ function WhyItMattersBlock({
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#294f86]">Why it matters</p>
       <p className="mt-2 text-sm leading-7 text-[var(--foreground)]">{text}</p>
       <p className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-        Why this is here
+        Why this ranks here
       </p>
       <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{whyThisIsHere}</p>
     </div>
@@ -559,7 +658,7 @@ function TimelineBlock({
   return (
     <div className="rounded-[22px] border border-[rgba(19,26,34,0.08)] bg-[rgba(255,255,255,0.58)] px-4 py-4">
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-        What led to today
+        Timeline signal
       </p>
       <div className="mt-4 space-y-3">
         {timeline.map((milestone) => (
@@ -581,17 +680,22 @@ function TimelineBlock({
 function RelatedArticlesList({
   articles,
   compact = false,
+  sourceLabel,
 }: {
   articles: Array<{ title: string; url: string; sourceName: string; note?: string }>;
   compact?: boolean;
+  sourceLabel: string;
 }) {
   if (!articles.length) return null;
 
   return (
     <div className="rounded-[22px] border border-[rgba(19,26,34,0.08)] bg-[rgba(255,255,255,0.52)] px-4 py-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-        Related coverage
-      </p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+          Supporting coverage
+        </p>
+        <p className="text-xs font-medium text-[var(--muted)]">{sourceLabel}</p>
+      </div>
       <div className="mt-3 space-y-2.5">
         {articles.map((article) => (
           <a
@@ -749,7 +853,7 @@ function EmptyCategoryState({ section }: { section: HomepageCategorySection }) {
       {section.fallbackEvents.length ? (
         <Panel className="rounded-[28px] border-[rgba(19,26,34,0.08)] bg-[rgba(255,255,255,0.5)] p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-            Top stories while this category fills in
+            Other confirmed events while this category fills in
           </p>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             {section.fallbackEvents.map((event) => (

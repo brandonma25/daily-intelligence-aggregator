@@ -5,10 +5,14 @@ import {
   getHomepageCategoryDescription,
   getHomepageCategoryLabel,
   HOMEPAGE_CATEGORY_CONFIG,
-  HOMEPAGE_CATEGORY_TARGET,
   type HomepageCategoryClassification,
   type HomepageCategoryKey,
 } from "@/lib/homepage-taxonomy";
+import {
+  buildEventIntelligenceSignals,
+  TOP_EVENT_SOURCE_THRESHOLD,
+  type EventIntelligenceSignals,
+} from "@/lib/event-intelligence";
 import { firstSentence } from "@/lib/utils";
 
 export type EventArticle = {
@@ -40,6 +44,7 @@ export type HomepageEvent = {
   rankScore: number;
   sourceCount: number;
   classification: HomepageCategoryClassification;
+  intelligence: EventIntelligenceSignals;
 };
 
 export type HomepageCategorySection = {
@@ -72,33 +77,44 @@ export type HomepageViewModel = {
   topRanked: HomepageEvent[];
   categorySections: HomepageCategorySection[];
   trending: HomepageEvent[];
+  earlySignals: HomepageEvent[];
   debug: HomepageDebugModel;
 };
 
+const TOP_EVENTS_LIMIT = 4;
+const CATEGORY_EVENT_LIMIT = 2;
+const TRENDING_EVENT_LIMIT = 3;
+const EARLY_SIGNAL_LIMIT = 3;
+
 export function buildHomepageViewModel(data: DashboardData): HomepageViewModel {
   const events = buildHomepageEvents(data.briefing.items);
-  const featured = events[0] ?? null;
-  const topRanked = events.slice(0, 5);
+  const confirmedEvents = events.filter((event) => !event.intelligence.isEarlySignal);
+  const earlySignals = events.filter((event) => event.intelligence.isEarlySignal);
+  const featured = confirmedEvents[0] ?? events[0] ?? null;
+  const topRanked = confirmedEvents.slice(0, TOP_EVENTS_LIMIT);
 
   const categorySections = HOMEPAGE_CATEGORY_CONFIG.map((category) => {
     const eligibleEvents = events.filter((event) => event.classification.primaryCategory === category.key);
-    const displayEvents = eligibleEvents.slice(0, HOMEPAGE_CATEGORY_TARGET);
-    const heldBackEvents = eligibleEvents.slice(HOMEPAGE_CATEGORY_TARGET);
+    const displayEvents = eligibleEvents.slice(0, CATEGORY_EVENT_LIMIT);
+    const heldBackEvents = eligibleEvents.slice(CATEGORY_EVENT_LIMIT);
     const fallbackEvents =
-      eligibleEvents.length === 0
-        ? events
+      displayEvents.length === 0
+        ? confirmedEvents
             .filter((event) => event.classification.primaryCategory !== category.key)
             .slice(0, 2)
         : [];
 
     const placeholderCount =
-      eligibleEvents.length > 0 ? Math.max(0, HOMEPAGE_CATEGORY_TARGET - displayEvents.length) : 0;
+      displayEvents.length > 0 ? Math.max(0, CATEGORY_EVENT_LIMIT - displayEvents.length) : 0;
 
     const excludedReasons = [
       ...events
         .filter((event) => event.classification.primaryCategory !== category.key)
         .map((event) => getExclusionReason(event, category.key)),
-      ...heldBackEvents.map(() => `Held back because ${getHomepageCategoryLabel(category.key)} is capped at ${HOMEPAGE_CATEGORY_TARGET} cards.`),
+      ...heldBackEvents.map(
+        () =>
+          `Held back because ${getHomepageCategoryLabel(category.key)} is capped at ${CATEGORY_EVENT_LIMIT} event cards.`,
+      ),
     ];
 
     return {
@@ -109,7 +125,7 @@ export function buildHomepageViewModel(data: DashboardData): HomepageViewModel {
       fallbackEvents,
       placeholderCount,
       state:
-        displayEvents.length >= HOMEPAGE_CATEGORY_TARGET
+        displayEvents.length >= CATEGORY_EVENT_LIMIT
           ? "populated"
           : displayEvents.length > 0
             ? "sparse"
@@ -120,7 +136,9 @@ export function buildHomepageViewModel(data: DashboardData): HomepageViewModel {
   });
 
   const reservedIds = new Set(topRanked.map((event) => event.id));
-  const trending = events.filter((event) => !reservedIds.has(event.id)).slice(0, 4);
+  const trending = confirmedEvents
+    .filter((event) => !reservedIds.has(event.id))
+    .slice(0, TRENDING_EVENT_LIMIT);
   const sourceCountsByCategory =
     data.homepageDiagnostics?.sourceCountsByCategory ?? countSourcesByHomepageCategory(data.sources);
 
@@ -129,6 +147,7 @@ export function buildHomepageViewModel(data: DashboardData): HomepageViewModel {
     topRanked,
     categorySections,
     trending,
+    earlySignals: earlySignals.slice(0, EARLY_SIGNAL_LIMIT),
     debug: {
       totalArticlesFetched: data.homepageDiagnostics?.totalArticlesFetched ?? null,
       totalCandidateEvents: data.homepageDiagnostics?.totalCandidateEvents ?? null,
@@ -157,6 +176,7 @@ export function buildHomepageEvents(items: BriefingItem[]) {
     .slice()
     .sort((left, right) => getRankScore(right) - getRankScore(left))
     .map((item, index, sortedItems) => {
+      const intelligence = buildEventIntelligenceSignals(item);
       const classification = classifyHomepageCategory({
         topicName: item.topicName,
         title: item.title,
@@ -166,16 +186,17 @@ export function buildHomepageEvents(items: BriefingItem[]) {
         rankingSignals: item.rankingSignals,
         sourceNames: item.sources.map((source) => source.title),
       });
-      const siblingItems = sortedItems.filter((candidate) => candidate.id !== item.id && candidate.topicId === item.topicId);
-      const sourceCount = item.sourceCount ?? new Set(item.sources.map((source) => source.title)).size;
+      const siblingItems = sortedItems.filter(
+        (candidate) => candidate.id !== item.id && candidate.topicId === item.topicId,
+      );
 
       return {
         id: item.id,
         topicName: item.topicName,
         title: item.title,
-        summary: summarize(item.whatHappened, item.priority === "top" ? 2 : 1),
+        summary: summarize(item.whatHappened, 2),
         whyItMatters: sanitizeWhyItMatters(item.whyItMatters, item.title),
-        whyThisIsHere: buildWhyThisIsHere(item, classification, sourceCount),
+        whyThisIsHere: buildWhyThisIsHere(item, classification, intelligence),
         relatedArticles: buildHomepageRelatedArticles(item),
         timeline: buildEventTimeline(item, siblingItems),
         estimatedMinutes: item.estimatedMinutes,
@@ -184,18 +205,21 @@ export function buildHomepageEvents(items: BriefingItem[]) {
         matchedKeywords: item.matchedKeywords ?? [],
         priority: item.priority,
         rankScore: getRankScore(item) - index * 0.01,
-        sourceCount,
+        sourceCount: intelligence.sourceCount,
         classification,
-      };
+        intelligence,
+      } satisfies HomepageEvent;
     });
 }
 
 function buildHomepageRelatedArticles(item: BriefingItem) {
-  const candidates = (item.relatedArticles?.length ? item.relatedArticles : undefined) ?? item.sources.map((source) => ({
-    title: source.title,
-    url: source.url,
-    sourceName: source.title,
-  }));
+  const candidates =
+    (item.relatedArticles?.length ? item.relatedArticles : undefined) ??
+    item.sources.map((source) => ({
+      title: source.title,
+      url: source.url,
+      sourceName: source.title,
+    }));
 
   const seenSources = new Set<string>();
   const seenTitles = new Set<string>();
@@ -255,21 +279,19 @@ function buildEventTimeline(item: BriefingItem, siblingItems: BriefingItem[]) {
 function buildWhyThisIsHere(
   item: BriefingItem,
   classification: HomepageCategoryClassification,
-  sourceCount: number,
+  intelligence: EventIntelligenceSignals,
 ) {
   const primaryCategory = classification.primaryCategory
     ? getHomepageCategoryLabel(classification.primaryCategory)
     : "General";
   const leadingSignal = item.matchedKeywords?.[0];
-  const breadthLabel =
-    sourceCount > 1 ? `${sourceCount} sources grouped around the same event` : "an early single-source signal";
-  const rankLabel = item.importanceLabel ? `${item.importanceLabel.toLowerCase()} rank signal` : "current rank signal";
+  const signalContext = leadingSignal ? `triggered by \"${leadingSignal}\"` : "matched your tracked topics";
 
-  if (leadingSignal) {
-    return `${primaryCategory} match on "${leadingSignal}" with ${breadthLabel} and ${rankLabel}.`;
+  if (intelligence.isEarlySignal) {
+    return `${primaryCategory} ${signalContext}, but only ${intelligence.sourceCount} source has picked it up so far. It stays visible as an early signal rather than a top-ranked event until more coverage confirms the cluster.`;
   }
 
-  return `${primaryCategory} classification backed by topic fit, ${breadthLabel}, and ${rankLabel}.`;
+  return `${primaryCategory} ${signalContext} and ranked because ${intelligence.rankingReason.toLowerCase()} with ${intelligence.confidenceLabel.toLowerCase()}.`;
 }
 
 function sanitizeWhyItMatters(value: string, title: string) {
@@ -288,11 +310,11 @@ function getEmptyReason(categoryKey: HomepageCategoryKey, eligibleCount: number,
   const label = getHomepageCategoryLabel(categoryKey);
 
   if (eligibleCount > 0) {
-    return `${label} has ${eligibleCount} eligible event${eligibleCount === 1 ? "" : "s"}, so placeholders fill the rest of the rail while coverage builds.`;
+    return `${label} has ${eligibleCount} eligible event${eligibleCount === 1 ? "" : "s"}, so placeholders keep the section calm while more clustered coverage builds.`;
   }
 
   if (fallbackCount > 0) {
-    return `No ranked ${label.toLowerCase()} events qualified yet, so the section falls back to clearly labeled top stories instead of collapsing.`;
+    return `No ${label.toLowerCase()} events qualified yet, so the section borrows other confirmed multi-source events instead of falling back to loose article cards.`;
   }
 
   return `No eligible ${label.toLowerCase()} events qualified in the current ranked briefing.`;
@@ -300,14 +322,14 @@ function getEmptyReason(categoryKey: HomepageCategoryKey, eligibleCount: number,
 
 function getExclusionReason(event: HomepageEvent, categoryKey: HomepageCategoryKey) {
   if (!event.classification.primaryCategory) {
-    return `"${event.title}" stayed out because it never cleared the category confidence threshold.`;
+    return `\"${event.title}\" stayed out because it never cleared the category confidence threshold.`;
   }
 
   if (event.classification.primaryCategory === categoryKey) {
-    return `"${event.title}" is eligible for ${getHomepageCategoryLabel(categoryKey)}.`;
+    return `\"${event.title}\" is eligible for ${getHomepageCategoryLabel(categoryKey)}.`;
   }
 
-  return `"${event.title}" was classified as ${getHomepageCategoryLabel(event.classification.primaryCategory)}, not ${getHomepageCategoryLabel(categoryKey)}.`;
+  return `\"${event.title}\" was classified as ${getHomepageCategoryLabel(event.classification.primaryCategory)}, not ${getHomepageCategoryLabel(categoryKey)}.`;
 }
 
 function getRankScore(item: BriefingItem) {
@@ -340,7 +362,7 @@ export function buildOverallNoDataMessage(itemCount: number) {
   if (itemCount > 0) {
     return {
       title: "Coverage is loading normally",
-      body: "Ranked events are available below.",
+      body: `Ranked events are available below once they clear the ${TOP_EVENT_SOURCE_THRESHOLD}-source confirmation threshold.`,
     };
   }
 
