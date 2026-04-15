@@ -17,12 +17,14 @@ import {
 } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
+import { SettingsPreferences } from "@/components/settings-preferences";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
-import { getViewerAccount } from "@/lib/data";
+import { getDashboardData, getViewerAccount } from "@/lib/data";
 import { env, isAiConfigured, isSupabaseConfigured } from "@/lib/env";
+import { buildPersonalizationTopicOptions, buildSuggestedEntities } from "@/lib/personalization";
 
 export const metadata: Metadata = {
   title: "Settings — Daily Intelligence",
@@ -103,7 +105,10 @@ const accountManagementFeatures = [
 
 export default async function SettingsPage() {
   const viewer = await getViewerAccount();
+  const data = await getDashboardData();
   const allConnected = isSupabaseConfigured && isAiConfigured;
+  const personalizationTopics = buildPersonalizationTopicOptions(data.topics, data.briefing.items);
+  const suggestedEntities = buildSuggestedEntities(data.briefing.items);
 
   return (
     <AppShell currentPath="/settings" mode={isSupabaseConfigured ? "live" : "demo"} account={viewer}>
@@ -275,6 +280,13 @@ export default async function SettingsPage() {
             })}
           </div>
         </Panel>
+
+        <SettingsPreferences
+          defaultEmail={viewer?.email}
+          availableTopics={personalizationTopics}
+          suggestedEntities={suggestedEntities}
+          signedIn={Boolean(viewer)}
+        />
 
         {/* Account Management */}
         <Panel id="account-management" className="scroll-mt-24 p-5">

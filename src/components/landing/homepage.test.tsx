@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import ErrorBoundaryPage from "@/app/error";
 import Loading from "@/app/loading";
@@ -68,6 +68,19 @@ function createData(items: BriefingItem[]): DashboardData {
 }
 
 describe("LandingHomepage", () => {
+  beforeEach(() => {
+    const storage = new Map<string, string>();
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => storage.set(key, value),
+        removeItem: (key: string) => storage.delete(key),
+        clear: () => storage.clear(),
+      },
+    });
+  });
+
   it("renders confirmed events separately from early signals", () => {
     const data = createData([
       createItem({
@@ -165,6 +178,43 @@ describe("LandingHomepage", () => {
 
     expect(screen.queryByText("You're viewing the public briefing")).not.toBeInTheDocument();
     expect(screen.queryByText("Sign in to personalize your intelligence")).not.toBeInTheDocument();
+  });
+
+  it("shows a personalization summary for signed-in viewers with saved preferences", () => {
+    window.localStorage.setItem(
+      "daily-intel-preferences",
+      JSON.stringify({
+        personalizationEnabled: true,
+        followedTopicIds: ["tech"],
+        followedTopicNames: ["Tech"],
+        followedEntities: ["Nvidia"],
+      }),
+    );
+
+    render(
+      <LandingHomepage
+        data={createData([
+          createItem({
+            id: "tech-1",
+            topicId: "tech",
+            topicName: "Tech",
+            title: "AI chip demand keeps climbing",
+            matchedKeywords: ["nvidia", "ai"],
+            sourceCount: 3,
+          }),
+        ])}
+        viewer={{
+          id: "viewer-1",
+          email: "analyst@example.com",
+          displayName: "Alex Analyst",
+          initials: "AA",
+        }}
+      />,
+    );
+
+    expect(screen.getByText(/This homepage is tuned to your tracked priorities/i)).toBeInTheDocument();
+    expect(screen.getByText(/Tracking Tech/i)).toBeInTheDocument();
+    expect(screen.getByText(/Following Nvidia/i)).toBeInTheDocument();
   });
 
   it("renders no-data state when no ranked events are available", () => {
