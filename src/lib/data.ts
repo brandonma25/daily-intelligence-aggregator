@@ -11,6 +11,12 @@ import {
   rankNewsClusters,
 } from "@/lib/ranking";
 import { clusterArticles, fetchFeedArticles, type FeedArticle } from "@/lib/rss";
+import {
+  buildDailyReadingMetric,
+  calculateReadingWindow,
+  formatReadingWindow,
+  parseReadingWindowMinutes,
+} from "@/lib/reading-window";
 import { withServerFallback } from "@/lib/server-safety";
 import { createSupabaseServerClient, safeGetUser } from "@/lib/supabase/server";
 import { buildTimelineGroups } from "@/lib/timeline-builder";
@@ -73,7 +79,7 @@ function createEmptyBriefing(): DailyBriefing {
     briefingDate: formatISO(new Date()),
     title: "Today's Briefing",
     intro: "No clustered events yet for your current topics. Try adjusting keywords or refreshing your briefing.",
-    readingWindow: "0 minutes",
+    readingWindow: formatReadingWindow(0),
     items: [],
   };
 }
@@ -200,12 +206,14 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   const briefing = await buildMatchedBriefing(supabase, user.id, topics, sources);
   const homepageDiagnostics = await buildHomepageDiagnostics(supabase, user.id, sources);
+  const readingWindowMetric = await buildReadingWindowMetric(supabase, user.id, briefing);
 
   return {
     mode: "live",
     topics,
     sources,
     briefing,
+    readingWindowMetric,
     homepageDiagnostics,
   };
 }
@@ -218,6 +226,13 @@ async function getPublicDashboardData(): Promise<DashboardData> {
     briefing,
     topics: demoTopics,
     sources: demoSources,
+    readingWindowMetric: {
+      today: buildDailyReadingMetric(
+        briefing.briefingDate,
+        calculateReadingWindow(briefing.items).totalMinutes,
+      ),
+      previous: null,
+    },
     homepageDiagnostics: {
       totalArticlesFetched: null,
       totalCandidateEvents: briefing.items.length,
@@ -362,7 +377,7 @@ export async function generateDailyBriefing(
     briefingDate: formatISO(new Date()),
     title: "Daily Executive Briefing",
     intro: "A concise scan of the events most likely to affect decisions today.",
-    readingWindow: `${totalMinutes} minutes`,
+    readingWindow: formatReadingWindow(totalMinutes),
     items: validItems,
   };
 }
@@ -769,7 +784,7 @@ export async function buildMatchedBriefing(
     briefingDate: formatISO(new Date()),
     title: "Today's Briefing",
     intro: "Related reporting is clustered into events so you can scan developments instead of isolated articles.",
-    readingWindow: `${items.reduce((sum, item) => sum + item.estimatedMinutes, 0)} minutes`,
+    readingWindow: formatReadingWindow(items.reduce((sum, item) => sum + item.estimatedMinutes, 0)),
     items,
   };
 }
@@ -1278,5 +1293,50 @@ function createArticleDedupeKey(title: string, url: string) {
 
 function deriveReadingWindow(estimatedMinutes: number[], fallback: string) {
   const totalMinutes = estimatedMinutes.reduce((sum, minutes) => sum + minutes, 0);
-  return totalMinutes > 0 ? `${totalMinutes} minutes` : fallback;
+  return totalMinutes > 0 ? formatReadingWindow(totalMinutes) : fallback;
+}
+
+async function buildReadingWindowMetric(
+  supabase: SupabaseServerClient,
+  userId: string,
+  briefing: DailyBriefing,
+) {
+  const today = buildDailyReadingMetric(
+    briefing.briefingDate,
+    calculateReadingWindow(briefing.items).totalMinutes,
+  );
+
+  const previousResult = await supabase
+    .from("daily_briefings")
+    .select("briefing_date, reading_window")
+    .eq("user_id", userId)
+    .lt("briefing_date", today.date)
+    .order("briefing_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (previousResult.error) {
+    logServerEvent("warn", "Previous reading window lookup failed", {
+      route: "/dashboard",
+      userId,
+      errorMessage: previousResult.error.message,
+    });
+
+    return {
+      today,
+      previous: null,
+    };
+  }
+
+  const previous = previousResult.data
+    ? buildDailyReadingMetric(
+        previousResult.data.briefing_date,
+        parseReadingWindowMinutes(previousResult.data.reading_window),
+      )
+    : null;
+
+  return {
+    today,
+    previous,
+  };
 }

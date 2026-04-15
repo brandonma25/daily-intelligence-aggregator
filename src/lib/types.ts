@@ -107,11 +107,26 @@ export type DailyBriefing = {
   items: BriefingItem[];
 };
 
+export type DailyReadingMetric = {
+  date: string;
+  totalMinutes: number;
+};
+
+export type ReadingWindowContext = {
+  comparisonLabel: string;
+  deltaMinutes: number | null;
+  interpretation: "Light" | "Normal" | "Heavy";
+};
+
 export type DashboardData = {
   mode: "demo" | "live" | "public";
   briefing: DailyBriefing;
   topics: Topic[];
   sources: Source[];
+  readingWindowMetric?: {
+    today: DailyReadingMetric;
+    previous: DailyReadingMetric | null;
+  };
   homepageDiagnostics?: {
     totalArticlesFetched: number | null;
     totalCandidateEvents: number | null;

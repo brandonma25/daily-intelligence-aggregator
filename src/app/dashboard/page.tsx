@@ -6,11 +6,13 @@ import { PageHeader } from "@/components/page-header";
 import { StoryCard } from "@/components/story-card";
 import { AppShell } from "@/components/app-shell";
 import { ManualRefreshTrigger } from "@/components/dashboard/manual-refresh-trigger";
+import { ReadingWindowAnchor } from "@/components/dashboard/reading-window-anchor";
 import { Badge } from "@/components/ui/badge";
 import { Panel } from "@/components/ui/panel";
 import { getDashboardData, getViewerAccount } from "@/lib/data";
 import { isAiConfigured } from "@/lib/env";
 import { compareBriefingItemsByRanking } from "@/lib/ranking";
+import { calculateReadingWindow } from "@/lib/reading-window";
 import { formatBriefingDate } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -26,6 +28,8 @@ export default async function DashboardPage({
   const data = await getDashboardData();
   const viewer = await getViewerAccount();
   const rankedItems = data.briefing.items.slice().sort(compareBriefingItemsByRanking);
+  const todayReadingMinutes =
+    data.readingWindowMetric?.today.totalMinutes ?? calculateReadingWindow(data.briefing.items).totalMinutes;
 
   // Keep dashboard ordering tied to the same ranking activation logic used by the homepage.
   const topEvents = rankedItems.slice(0, 5);
@@ -53,6 +57,12 @@ export default async function DashboardPage({
               isAiConfigured={isAiConfigured}
             />
           }
+        />
+
+        <ReadingWindowAnchor
+          briefingDate={data.briefing.briefingDate}
+          totalMinutes={todayReadingMinutes}
+          previousMetric={data.readingWindowMetric?.previous ?? null}
         />
 
         <section className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(280px,0.9fr)]">
