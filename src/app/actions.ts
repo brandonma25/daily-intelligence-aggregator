@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { env, isSupabaseConfigured } from "@/lib/env";
 import { bootstrapUserDefaults, seedDefaultTopics } from "@/lib/default-topics";
-import { buildMatchedBriefing, persistRawArticles, syncTopicMatches } from "@/lib/data";
+import { buildMatchedBriefing, persistRawArticles, syncEventClusters, syncTopicMatches } from "@/lib/data";
 import { errorContext, logServerEvent } from "@/lib/observability";
 import { parseKeywordList } from "@/lib/topic-matching";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -440,6 +440,7 @@ export async function generateBriefingAction() {
   }));
 
   await syncTopicMatches(supabase, user.id, normalizedTopics);
+  await syncEventClusters(supabase, user.id, normalizedTopics, normalizedSources);
 
   const briefing = await buildMatchedBriefing(supabase, user.id, normalizedTopics, normalizedSources);
 

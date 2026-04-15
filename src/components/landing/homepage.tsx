@@ -685,9 +685,6 @@ function organizeHomepageContent(items: BriefingItem[], sources: Source[]) {
 }
 
 function buildHomepageEvents(items: BriefingItem[], sources: Source[]): HomepageEvent[] {
-  // Temporary frontend adapter: this creates event-shaped homepage objects from the
-  // current briefing items until backend event clustering and ranking can supply
-  // richer grouped events, article sets, and historical timelines directly.
   return items
     .slice()
     .sort((left, right) => getRankScore(right) - getRankScore(left))
@@ -713,6 +710,15 @@ function buildHomepageEvents(items: BriefingItem[], sources: Source[]): Homepage
 }
 
 function buildRelatedArticles(item: BriefingItem, siblingItems: BriefingItem[], sources: Source[]) {
+  if (item.relatedArticles?.length) {
+    return item.relatedArticles.slice(0, 5).map((article) => ({
+      title: article.title,
+      url: article.url,
+      sourceName: article.sourceName,
+      note: "Primary coverage",
+    }));
+  }
+
   const supportCoverage = [
     ...item.sources.map((source) => ({
       title: source.title === item.title ? source.title : `${source.title} coverage`,
