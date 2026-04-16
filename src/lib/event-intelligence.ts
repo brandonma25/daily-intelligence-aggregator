@@ -132,6 +132,9 @@ export function buildEventIntelligence(
     articleCount,
     rankingScore,
     topics,
+    sourceNames: sorted.map((article) => article.sourceName),
+    recencyScore,
+    velocityScore,
   });
   const isHighSignal = evaluateHighSignal({
     title: representative?.title ?? primaryChange,
@@ -151,6 +154,7 @@ export function buildEventIntelligence(
     summary,
     primaryChange,
     entities: keyEntities,
+    sourceNames: sorted.map((article) => article.sourceName),
     eventType,
     primaryImpact,
     affectedMarkets,
@@ -179,34 +183,43 @@ export function getSignalStrength(input: {
   articleCount: number;
   rankingScore: number;
   topics: string[];
+  sourceNames?: string[];
+  recencyScore?: number;
+  velocityScore?: number;
 }): EventSignalStrength {
   let score = 0;
 
-  if (["macro", "regulation", "geopolitical"].includes(input.eventType)) {
-    score += 3;
-  } else if (["earnings", "m&a"].includes(input.eventType)) {
+  score += getEventTypeSignalWeight(input.eventType);
+  score += getSourceTierSignalWeight(input.sourceNames ?? []);
+
+  if (input.sourceDiversity >= 3) {
     score += 2;
-  } else {
+  } else if (input.sourceDiversity >= 2) {
     score += 1;
   }
 
-  if (input.affectedMarkets.length >= 2) {
+  if (input.articleCount >= 4) {
     score += 1;
   }
 
-  if (input.sourceDiversity >= 3 || input.articleCount >= 4) {
+  if (input.affectedMarkets.length >= 2 || input.topics.includes("finance")) {
     score += 1;
   }
 
-  if (input.rankingScore >= 70 || input.topics.includes("finance")) {
+  const noveltyScore = Math.max(input.recencyScore ?? 0, input.velocityScore ?? 0);
+  if (noveltyScore >= 75) {
     score += 1;
   }
 
-  if (score >= 5) {
+  if (input.rankingScore >= 78) {
+    score += 1;
+  }
+
+  if (score >= 7) {
     return "strong";
   }
 
-  if (score >= 3) {
+  if (score >= 4) {
     return "moderate";
   }
 
@@ -301,15 +314,17 @@ function inferEventType(
   );
 
   const rules: Array<[string, string[]]> = [
-    ["earnings", ["earnings", "guidance", "revenue", "profit", "quarter", "results"]],
-    ["regulation", ["regulation", "regulatory", "antitrust", "rule", "rules", "senate", "congress", "policy", "ban", "approval", "approved"]],
-    ["macro", ["inflation", "fed", "federal reserve", "rates", "treasury", "jobs", "gdp", "economy", "economic", "tariff", "trade"]],
-    ["m&a", ["acquisition", "acquire", "merger", "buyout", "takeover", "stake", "deal"]],
-    ["geopolitical", ["sanctions", "war", "military", "export restrictions", "diplomacy", "china", "russia", "ukraine", "taiwan", "middle east"]],
+    ["earnings_financials", ["earnings", "guidance", "revenue", "profit", "quarter", "results"]],
+    ["legal_investigation", ["lawsuit", "probe", "investigation", "charges", "doj", "sec", "antitrust case"]],
+    ["policy_regulation", ["regulation", "regulatory", "antitrust", "rule", "rules", "senate", "congress", "policy", "ban", "approval", "approved", "export restrictions", "tariff"]],
+    ["macro_market_move", ["inflation", "fed", "federal reserve", "rates", "treasury", "jobs", "gdp", "economy", "economic", "trade"]],
+    ["mna_funding", ["acquisition", "acquire", "merger", "buyout", "takeover", "stake", "deal", "funding", "raises", "series a", "series b"]],
+    ["product_launch_major", ["launch", "launched", "unveiled", "release", "released", "rollout", "debuts", "adds"]],
+    ["geopolitics", ["sanctions", "war", "military", "diplomacy", "china", "russia", "ukraine", "taiwan", "middle east", "border"]],
   ];
 
   const matchedRule = rules.find(([, keywords]) => keywords.some((keyword) => matchesKeyword(corpus, keyword)));
-  return matchedRule?.[0] ?? "company-update";
+  return matchedRule?.[0] ?? "company_update";
 }
 
 function inferPrimaryImpact(input: {
@@ -323,16 +338,20 @@ function inferPrimaryImpact(input: {
   const marketLabel = input.affectedMarkets[0] ?? "investor expectations";
 
   switch (input.eventType) {
-    case "earnings":
+    case "earnings_financials":
       return `${entityLabel} is resetting near-term expectations for pricing, margins, or guidance in ${marketLabel}.`;
-    case "regulation":
+    case "policy_regulation":
       return `${entityLabel} could alter operating rules, compliance costs, or market access across ${marketLabel}.`;
-    case "macro":
+    case "macro_market_move":
       return `${entityLabel} changes the rate, demand, or liquidity backdrop feeding into ${marketLabel}.`;
-    case "m&a":
+    case "mna_funding":
       return `${entityLabel} can shift competitive positioning, capital allocation, and consolidation expectations in ${marketLabel}.`;
-    case "geopolitical":
+    case "geopolitics":
       return `${entityLabel} may disrupt supply chains, policy alignment, or risk premiums tied to ${marketLabel}.`;
+    case "product_launch_major":
+      return `${entityLabel} could change adoption curves, platform choice, or buyer expectations in ${marketLabel}.`;
+    case "legal_investigation":
+      return `${entityLabel} may raise liability, operating constraints, or reputational risk across ${marketLabel}.`;
     default:
       if (input.topics.includes("tech")) {
         return `${entityLabel} could change execution risk and platform positioning across ${marketLabel}.`;
@@ -353,22 +372,27 @@ function inferAffectedMarkets(
   );
   const affected = new Set<string>();
 
-  if (eventType === "macro") {
+  if (eventType === "macro_market_move") {
     affected.add("rates");
     affected.add("equities");
   }
 
-  if (eventType === "earnings" || corpus.includes("guidance") || corpus.includes("revenue")) {
+  if (eventType === "earnings_financials" || corpus.includes("guidance") || corpus.includes("revenue")) {
     affected.add("equities");
     affected.add("sector sentiment");
   }
 
-  if (eventType === "regulation" || eventType === "geopolitical") {
+  if (eventType === "policy_regulation" || eventType === "geopolitics" || eventType === "legal_investigation") {
     affected.add("policy-sensitive sectors");
   }
 
-  if (eventType === "m&a") {
+  if (eventType === "mna_funding") {
     affected.add("corporate valuations");
+  }
+
+  if (eventType === "product_launch_major") {
+    affected.add("technology");
+    affected.add("platform competition");
   }
 
   if (corpus.includes("chip") || corpus.includes("semiconductor")) {
@@ -404,15 +428,20 @@ function inferTimeHorizon(eventType: string, articles: FeedArticle[]): EventTime
   );
 
   if (
-    eventType === "regulation" ||
-    eventType === "geopolitical" ||
+    eventType === "policy_regulation" ||
+    eventType === "geopolitics" ||
     corpus.includes("multi-year") ||
     corpus.includes("long term")
   ) {
     return "long";
   }
 
-  if (eventType === "macro" || eventType === "m&a" || corpus.includes("guidance")) {
+  if (
+    eventType === "macro_market_move" ||
+    eventType === "mna_funding" ||
+    eventType === "legal_investigation" ||
+    corpus.includes("guidance")
+  ) {
     return "medium";
   }
 
@@ -530,6 +559,51 @@ function buildRankingReason(input: {
   }
 
   return `${anchor} ranked on current coverage breadth, freshness, and clear topic fit.`;
+}
+
+function getEventTypeSignalWeight(eventType: string) {
+  switch (eventType) {
+    case "policy_regulation":
+    case "earnings_financials":
+    case "macro_market_move":
+      return 3;
+    case "mna_funding":
+    case "geopolitics":
+    case "legal_investigation":
+      return 2;
+    case "product_launch_major":
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function getSourceTierSignalWeight(sourceNames: string[]) {
+  const tier = getBestSourceTier(sourceNames);
+  if (tier === "tier1") return 2;
+  if (tier === "tier2") return 1;
+  return 0;
+}
+
+function getBestSourceTier(sourceNames: string[]) {
+  let best = 0;
+
+  for (const name of sourceNames) {
+    const normalized = name.toLowerCase();
+    if (/(reuters|financial times|bloomberg|associated press|ap news|bbc|wall street journal)/.test(normalized)) {
+      best = Math.max(best, 3);
+      continue;
+    }
+
+    if (/(techcrunch|the verge|axios|cnbc|semafor|ars technica)/.test(normalized)) {
+      best = Math.max(best, 2);
+      continue;
+    }
+
+    best = Math.max(best, 1);
+  }
+
+  return best >= 3 ? "tier1" : best === 2 ? "tier2" : "unknown";
 }
 
 function computeConfidenceScore(input: {

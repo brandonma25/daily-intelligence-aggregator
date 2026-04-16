@@ -141,7 +141,9 @@ export function summarizeHeuristically(topicName: string, articles: FeedArticle[
         : `Treat this as an early signal until more independent sources confirm it.`,
   ];
 
-  const whyItMatters = `${generateWhyThisMattersHeuristically(intelligence)} (Signal: ${intelligence.signalStrength.charAt(0).toUpperCase()}${intelligence.signalStrength.slice(1)})`;
+  const whyItMatters = truncateWhyThisMatters(
+    `${generateWhyThisMattersHeuristically(intelligence)} (Signal: ${intelligence.signalStrength.charAt(0).toUpperCase()}${intelligence.signalStrength.slice(1)})`,
+  );
 
   return {
     headline: lead.title,
@@ -150,4 +152,18 @@ export function summarizeHeuristically(topicName: string, articles: FeedArticle[
     whyItMatters,
     estimatedMinutes: Math.min(6, Math.max(3, Math.ceil(articles.length * 1.5))),
   };
+}
+
+function truncateWhyThisMatters(value: string, maxLength = 179) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  const trimmed = value.slice(0, maxLength - 1);
+  const sentenceEnd = Math.max(trimmed.lastIndexOf("."), trimmed.lastIndexOf(";"), trimmed.lastIndexOf(","));
+  if (sentenceEnd > 100) {
+    return `${trimmed.slice(0, sentenceEnd).trim()}…`;
+  }
+
+  return `${trimmed.trim()}…`;
 }

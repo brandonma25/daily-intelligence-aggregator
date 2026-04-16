@@ -39,7 +39,7 @@ describe("buildEventIntelligence", () => {
 
     expect(intelligence.summary.length).toBeGreaterThan(20);
     expect(intelligence.entities.length).toBeGreaterThan(0);
-    expect(intelligence.eventType).toBe("macro");
+    expect(intelligence.eventType).toBe("macro_market_move");
     expect(intelligence.primaryImpact.length).toBeGreaterThan(20);
     expect(intelligence.affectedMarkets).toContain("rates");
     expect(intelligence.timeHorizon).toBe("medium");
@@ -76,25 +76,58 @@ describe("buildEventIntelligence", () => {
   it("scores signal strength with simple event heuristics", () => {
     expect(
       getSignalStrength({
-        eventType: "regulation",
+        eventType: "policy_regulation",
         affectedMarkets: ["equities", "semiconductors"],
         sourceDiversity: 3,
         articleCount: 4,
         rankingScore: 80,
         topics: ["tech", "finance"],
+        sourceNames: ["Reuters", "Financial Times"],
+        recencyScore: 88,
+        velocityScore: 82,
       }),
     ).toBe("strong");
 
     expect(
       getSignalStrength({
-        eventType: "company-update",
+        eventType: "company_update",
         affectedMarkets: ["technology"],
         sourceDiversity: 1,
         articleCount: 1,
         rankingScore: 35,
         topics: ["tech"],
+        sourceNames: ["TechCrunch"],
+        recencyScore: 55,
+        velocityScore: 20,
       }),
     ).toBe("weak");
+  });
+
+  it("covers product launches and legal investigations with explicit event typing", () => {
+    const product = buildEventIntelligence(
+      [
+        createArticle({
+          title: "Google launches Gemini feature for enterprise buyers",
+          summaryText: "The release adds new image generation and workflow tools for paid users.",
+          sourceName: "TechCrunch",
+        }),
+      ],
+      { topicName: "Tech" },
+    );
+
+    const legal = buildEventIntelligence(
+      [
+        createArticle({
+          title: "DOJ opens investigation into chipmaker pricing practices",
+          summaryText: "The probe could widen antitrust pressure on the company.",
+          sourceName: "Reuters",
+        }),
+      ],
+      { topicName: "Tech" },
+    );
+
+    expect(product.eventType).toBe("product_launch_major");
+    expect(legal.eventType).toBe("legal_investigation");
   });
 });
 

@@ -68,6 +68,7 @@ export type EventIntelligence = {
   summary: string;
   primaryChange: string;
   entities: string[];
+  sourceNames?: string[];
   eventType: string;
   primaryImpact: string;
   affectedMarkets: string[];
