@@ -54,6 +54,7 @@
 ## 6. Validation Sequence
 - Validation order is `Local -> Vercel Preview -> Production`.
 - Local is for code correctness, rendering checks, and fast debugging.
+- Playwright is the default automated E2E and functional testing layer for UI flows, smoke coverage, and regression coverage.
 - Preview is the real deployment-like truth layer.
 - Production is for final sanity checks only.
 - If auth, cookies, redirects, SSR, or environment logic has not been tested in preview, it is not validated.
@@ -66,11 +67,13 @@
 - `npm run build`
 - the Dev Server Rule
 - `npm run dev`
+- `npx playwright test` when UI, routing, SSR, or auth-adjacent flows are affected and local execution is technically possible
 - basic smoke validation
 - a concise test report
 - a repo-safe docs update
 - Build failure is blocking.
 - Lint and test failures must be reported explicitly.
+- Codex must report the exact commands run, pass/fail status, and remaining human-only validation.
 
 ## 8. Human Validation Requirements
 - The user must validate in preview when relevant:
@@ -81,6 +84,8 @@
 - SSR behavior
 - env-dependent behavior
 - After merge to `main`, the user must perform a concise production sanity check.
+- Preview remains the source of truth for auth, cookies, redirects, SSR, and environment-specific behavior.
+- Production is not a debugging ground.
 
 ## 9. Git and Branch Discipline
 - One feature or fix per branch.
