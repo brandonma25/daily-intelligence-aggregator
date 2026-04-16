@@ -49,16 +49,6 @@ export async function GET(request: NextRequest) {
     } else {
       return NextResponse.redirect(new URL("/?auth=callback-error", request.url));
     }
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (user) {
-      await bootstrapUserDefaults(supabase, user);
-    }
-
-    return response;
   } catch (error) {
     logServerEvent("error", "Auth callback failed", {
       route: "/auth/callback",
@@ -70,4 +60,24 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.redirect(new URL("/?auth=callback-error", request.url));
   }
+
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      await bootstrapUserDefaults(supabase, user);
+    }
+  } catch (error) {
+    logServerEvent("warn", "Auth callback completed but post-login bootstrap failed", {
+      route: "/auth/callback",
+      hasCode: Boolean(code),
+      hasTokenHash: Boolean(tokenHash),
+      otpType: type,
+      ...errorContext(error),
+    });
+  }
+
+  return response;
 }
