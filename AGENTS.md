@@ -12,13 +12,22 @@ Before ANY substantial implementation work, you MUST read:
 - Keep one feature or fix per branch.
 - Do not mix unrelated changes.
 - Do not modify unrelated files.
+- Permanent workflow, protocol, agent-policy, testing-foundation, or repo-operating-system changes must live on a dedicated `docs/`, `ops/`, or testing-protocol branch unless they are intentionally part of the scoped feature being developed.
 
-## 3. Validation Order
+## 3. Branch Hygiene
+- Codex must not leave local copies of docs-only or protocol-only changes in unrelated feature branch working trees after branch switching or after making a branch-scoped commit elsewhere.
+- After creating a docs-only commit on a dedicated branch, verify whether the same files remain modified in the previous working tree and clean them if they are not intended to remain there.
+- Before finishing any task involving branch switches or docs-only changes, run:
+- `git status`
+- `git branch --show-current`
+- Confirm the working tree is clean of unintended modified files and that any staged or unstaged files belong to the intended scope of the current branch.
+
+## 4. Validation Order
 - Follow `Local -> Vercel Preview -> Production`.
 - Treat Vercel preview as the source of truth for auth, cookies, redirects, SSR, and environment variables.
 - Never use production as first-pass debugging.
 
-## 4. Required Automated Checks
+## 5. Required Automated Checks
 - Run `npm install`.
 - Run `npm run lint || true`.
 - Run `npm run test || true`.
@@ -28,7 +37,7 @@ Before ANY substantial implementation work, you MUST read:
 - Verify the app loads.
 - If build fails, stop.
 
-## 5. Preview Playwright Enforcement
+## 6. Preview Playwright Enforcement
 - For any UI-affecting, auth-affecting, routing-affecting, SSR-affecting, dashboard-affecting, or data-rendering change, evaluate whether Playwright coverage must be added or updated.
 - After implementation is complete and a preview deployment URL is available, run the relevant automated test suite when technically possible.
 - Always report:
@@ -42,15 +51,15 @@ Before ANY substantial implementation work, you MUST read:
 - If automatic post-preview execution is not wired through CI/CD yet, treat test execution as a required workflow step and state explicitly that repo instruction files can require Codex to run tests, but cannot themselves trigger execution on deployment events.
 - `AGENTS.md` and engineering protocol files are workflow rules only; they do not auto-run tests or trigger deployment hooks.
 
-## 6. Human Validation Required
+## 7. Human Validation Required
 - Request user validation for OAuth or login flows.
 - Request user validation for session persistence.
 - Request user validation for preview environment behavior.
 - Request user validation for auth, SSR, or env-sensitive changes.
 
-## 7. Documentation & Security
+## 8. Documentation & Security
 - Update repo-safe documentation for every serious feature or fix.
 - Never commit or expose API keys, tokens, secrets, auth vulnerabilities, exploit steps, cookies, headers, or sensitive logs.
 
-## 8. Merge Conditions
+## 9. Merge Conditions
 - Do not recommend merge unless build passes, local validation is complete, preview validation is confirmed, and docs are updated.

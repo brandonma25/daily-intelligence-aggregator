@@ -105,21 +105,36 @@
 - No unrelated changes in the same branch.
 - No direct experimentation in `main`.
 - Merge only after validation and docs updates are complete.
+- If a change is policy-level, testing-foundation-level, or repo-operating-system-level, Codex must default to a dedicated docs, ops, or testing-protocol branch rather than a product feature branch unless the user explicitly scopes it otherwise.
 
-## 12. Merge Checklist
+## 12. Branch Hygiene Check
+- Permanent workflow, protocol, or agent-policy changes must be isolated on a dedicated docs, ops, or testing-protocol branch unless they are intentionally part of the scoped feature being developed.
+- Codex must not leave local copies of docs-only or protocol-only changes in unrelated feature branch working trees after branch switching or branch-scoped commits.
+- After creating a docs-only commit on a dedicated branch, Codex must verify whether the same files remain modified in the previous working tree and clean them if they are not intended to remain there.
+- Before finishing work, Codex must run a branch hygiene check covering:
+- current branch
+- working tree status
+- staged versus unstaged changes
+- whether modified files belong to the intended scope of that branch
+- Before ending any task involving branch switches or docs-only changes, Codex must run:
+- `git status`
+- `git branch --show-current`
+- Confirm that no unintended modified files remain in the wrong branch working tree.
+
+## 13. Merge Checklist
 - Branch is correct and isolated.
 - Local validation passed.
 - Preview validation passed.
 - Docs updated.
 - No blockers remain.
 
-## 13. Debugging Protocol
+## 14. Debugging Protocol
 - Classify the environment first.
 - Classify the issue type next.
 - Fix the issue at the lowest valid layer.
 - Retest upward from local to preview to production sanity.
 
-## 14. Documentation Security Policy
+## 15. Documentation Security Policy
 - Allowed:
 - PRD summaries
 - feature briefs
@@ -138,19 +153,19 @@
 - infrastructure weaknesses
 - Decision rule: "Does this help a future maintainer more than an attacker?"
 
-## 15. Future State
+## 16. Future State
 - Intended end state:
 - preview deployment completes
 - automated Playwright suite runs automatically via CI
 - results are attached to the PR or branch workflow
 - Until CI-based preview test automation is enabled and validated, Codex must run the required post-preview suite as part of the workflow and report the results explicitly.
 
-## 16. Expected Docs Structure
+## 17. Expected Docs Structure
 - `docs/prd-summaries/`
 - `docs/bug-fixes/`
 - `docs/testing/`
 
-## 17. Enforcement Behavior
+## 18. Enforcement Behavior
 - Do not recommend merge when:
 - preview validation is missing for env, auth, cookies, redirects, or SSR work
 - scope is mixed
