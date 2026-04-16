@@ -393,24 +393,54 @@ function isDefenseGeopoliticalCluster(
   const normalizedKeywords = normalizeText((matchedKeywords ?? []).join(" "));
   const combined = `${corpus} ${normalizedTopic} ${normalizedKeywords}`;
 
-  const coreConflictTerms = [
+  const conflictKeywords = [
     "iran",
     "israel",
     "gaza",
     "war",
-    "missile",
-    "strike",
-    "talks",
-    "ceasefire",
     "defense",
     "military",
-    "congressional vote",
-    "congress vote",
-    "resolution",
+    "talks",
+    "missile",
+    "strike",
+    "ceasefire",
   ];
-  const overlapCount = coreConflictTerms.filter((term) => combined.includes(term)).length;
+  const geopoliticalActors = [
+    "us",
+    "u s",
+    "u.s",
+    "congress",
+    "congressional",
+    "government",
+    "state",
+    "white house",
+    "pentagon",
+    "ministry",
+    "minister",
+  ];
+  const companyIndicators = [
+    "live nation",
+    "ticketmaster",
+    "adobe",
+    "google",
+    "meta",
+    "microsoft",
+    "apple",
+    "company",
+    "antitrust",
+    "lawsuit",
+    "probe",
+  ];
 
-  return overlapCount >= 2;
+  const hasConflictKeyword = conflictKeywords.some((term) => combined.includes(term));
+  const hasGeopoliticalActor = geopoliticalActors.some((term) => combined.includes(term));
+  const hasCompanyIndicator = companyIndicators.some((term) => combined.includes(term));
+
+  if (hasCompanyIndicator && !hasGeopoliticalActor) {
+    return false;
+  }
+
+  return hasConflictKeyword && hasGeopoliticalActor;
 }
 
 function inferPrimaryImpact(input: {

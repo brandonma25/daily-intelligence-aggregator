@@ -542,6 +542,25 @@ describe("why-it-matters", () => {
     );
   });
 
+  it("falls back from malformed headline fragments like House Effort", async () => {
+    const text = await generateWhyThisMatters(
+      createIntelligence({
+        title: "House Effort to tighten chip export rules advances",
+        summary: "Lawmakers are moving a new policy effort tied to export controls.",
+        entities: ["House Effort"],
+        keyEntities: ["House Effort"],
+        eventType: "policy_regulation",
+        affectedMarkets: ["policy-sensitive sectors"],
+        topics: ["politics", "tech"],
+        signalStrength: "weak",
+        confidenceScore: 35,
+      }),
+    );
+
+    expect(text.startsWith("The House vote") || text.startsWith("This policy move")).toBe(true);
+    expect(text.startsWith("House Effort")).toBe(false);
+  });
+
   it("keeps sentence ordering as subject to mechanism to impact", async () => {
     const text = await generateWhyThisMatters(
       createIntelligence({

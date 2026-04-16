@@ -542,6 +542,18 @@ function extractLeadTitleEntity(title: string) {
 }
 
 function buildStrongNounPhrase(intelligence: NormalizedIntelligence) {
+  if (isGenericHeadlineFragment(getAnchorLabelCandidateFromTitle(intelligence.title))) {
+    if (/house|congress|congressional/.test(intelligence.title.toLowerCase())) {
+      return "The House vote";
+    }
+
+    if (intelligence.reasoningCategory === "policy_regulation") {
+      return "This policy move";
+    }
+
+    return "This development";
+  }
+
   switch (intelligence.reasoningCategory) {
     case "large_ipo":
       return "the IPO";
@@ -556,6 +568,35 @@ function buildStrongNounPhrase(intelligence: NormalizedIntelligence) {
     default:
       return "";
   }
+}
+
+function getAnchorLabelCandidateFromTitle(title: string) {
+  return extractHeadlineCandidates(title)[0] ?? "";
+}
+
+function isGenericHeadlineFragment(value: string) {
+  if (!value) {
+    return false;
+  }
+
+  const normalized = value.toLowerCase();
+  const words = normalized.split(/\s+/);
+  if (words.length !== 2) {
+    return false;
+  }
+
+  const genericWords = new Set([
+    "house",
+    "effort",
+    "breaking",
+    "news",
+    "market",
+    "watch",
+    "update",
+    "report",
+  ]);
+
+  return words.every((word) => genericWords.has(word));
 }
 
 function sanitizeAnchorCandidate(value: string) {
@@ -596,6 +637,10 @@ function extractHeadlineCandidates(title: string) {
 function isMeaningfulAnchor(value: string) {
   const normalized = value.toLowerCase();
   if (!normalized || INVALID_ANCHORS.has(normalized)) {
+    return false;
+  }
+
+  if (isGenericHeadlineFragment(value)) {
     return false;
   }
 

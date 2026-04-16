@@ -349,6 +349,23 @@ describe("buildEventIntelligence", () => {
     expect(cluster.affectedMarkets).toContain("defense posture");
     expect(cluster.affectedMarkets).toContain("international relations");
   });
+
+  it("does not route company antitrust stories into the geopolitical override", () => {
+    const story = buildEventIntelligence(
+      [
+        createArticle({
+          title: "Live Nation faces new antitrust effort in House committee",
+          summaryText: "Lawmakers advanced a competition probe into ticketing practices.",
+          sourceName: "Reuters",
+        }),
+      ],
+      { topicName: "Business", matchedKeywords: ["Live Nation", "antitrust", "House"] },
+    );
+
+    expect(story.eventType).not.toBe("defense");
+    expect(story.eventType).not.toBe("geopolitical");
+    expect(story.affectedMarkets).not.toContain("defense posture");
+  });
 });
 
 describe("rankNewsClusters", () => {
