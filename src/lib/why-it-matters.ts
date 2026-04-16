@@ -16,6 +16,7 @@ type NormalizedReasoningCategory =
   | "earnings_financials"
   | "mna_funding"
   | "product_launch_major"
+  | "governance_politics"
   | "geopolitics"
   | "legal_investigation"
   | "macro_market_move"
@@ -128,6 +129,23 @@ const REASONING_TEMPLATES: Record<NormalizedReasoningCategory, PatternTemplate[]
       key: "product_positioning",
       build: ({ anchor, mechanism, impact, horizonLabel }) =>
         `${anchor} puts pressure on competing product roadmaps, because ${mechanism}, so ${impact} over the ${horizonLabel}.`,
+    },
+  ],
+  governance_politics: [
+    {
+      key: "governance_accountability",
+      build: ({ anchor, mechanism, impact, horizonLabel }) =>
+        `${anchor} raises governance and accountability questions, which ${mechanism}, so ${impact} over the ${horizonLabel}.`,
+    },
+    {
+      key: "governance_credibility",
+      build: ({ anchor, mechanism, impact, horizonLabel }) =>
+        `${anchor} can affect political or diplomatic credibility, because ${mechanism}, and that may ${impact} over the ${horizonLabel}.`,
+    },
+    {
+      key: "governance_followthrough",
+      build: ({ anchor, mechanism, impact, horizonLabel }) =>
+        `${anchor} tests whether this develops into a broader governance problem, which ${mechanism}, so ${impact} over the ${horizonLabel}.`,
     },
   ],
   geopolitics: [
@@ -268,7 +286,7 @@ function buildGroundedWhyThisMatters(
   previousOutputs: string[],
 ) {
   if (isLowDataScenario(intelligence)) {
-    return buildLowConfidenceFallback(intelligence);
+    return buildLowConfidenceFallback(intelligence, previousOutputs);
   }
 
   const anchor = extractPrimaryAnchor(intelligence);
@@ -294,12 +312,9 @@ function buildGroundedWhyThisMatters(
     }))
     .sort((left, right) => left.usage - right.usage);
 
-  const chosen =
-    rankedTemplates.find((candidate) => candidate.usage < 2 && !isTooSimilar(candidate.text, previousOutputs)) ??
-    rankedTemplates.find((candidate) => !isTooSimilar(candidate.text, previousOutputs)) ??
-    rankedTemplates[0];
+  const chosen = chooseBestCandidate(rankedTemplates, previousOutputs);
 
-  return chosen?.text ?? buildLowConfidenceFallback(intelligence);
+  return chosen?.text ?? buildLowConfidenceFallback(intelligence, previousOutputs);
 }
 
 function extractPrimaryAnchor(intelligence: NormalizedIntelligence) {
@@ -357,6 +372,8 @@ function buildEventLabel(intelligence: NormalizedIntelligence) {
       return "This deal or funding round";
     case "product_launch_major":
       return "This product release";
+    case "governance_politics":
+      return "This governance story";
     case "geopolitics":
       return "This geopolitical development";
     case "legal_investigation":
@@ -378,6 +395,8 @@ function buildMechanism(intelligence: NormalizedIntelligence, marketLabel: strin
       return `changes capital availability, competitive positioning, or market structure in ${marketLabel}`;
     case "product_launch_major":
       return `changes adoption expectations and the competitive benchmark in ${marketLabel}`;
+    case "governance_politics":
+      return `changes assumptions about political accountability, diplomatic credibility, or institutional follow-through`;
     case "geopolitics":
       return `changes risk, trade, supply, or energy assumptions feeding into ${marketLabel}`;
     case "legal_investigation":
@@ -399,6 +418,8 @@ function buildImpact(intelligence: NormalizedIntelligence, marketLabel: string) 
       return `shift competitive intensity, consolidation expectations, or valuation support in ${marketLabel}`;
     case "product_launch_major":
       return `change buyer adoption, platform share, or roadmap pressure in ${marketLabel}`;
+    case "governance_politics":
+      return `shift diplomatic standing, political accountability, or policy credibility around the story`;
     case "geopolitics":
       return `move trade exposure, energy sensitivity, or risk premia in ${marketLabel}`;
     case "legal_investigation":
@@ -410,10 +431,46 @@ function buildImpact(intelligence: NormalizedIntelligence, marketLabel: string) 
   }
 }
 
-function buildLowConfidenceFallback(intelligence: NormalizedIntelligence) {
+function buildLowConfidenceFallback(
+  intelligence: NormalizedIntelligence,
+  previousOutputs: string[] = [],
+) {
   const marketLabel = intelligence.affectedMarkets.slice(0, 2).join(" and ");
   const watchFor = buildWatchForPhrase(intelligence, marketLabel);
-  return `This is an early signal with limited confirmed impact. Watch for ${watchFor} over the ${getTimeHorizonLabel(intelligence.timeHorizon)}.`;
+  const anchor = extractPrimaryAnchor(intelligence);
+  const anchorLabel = anchor?.label ?? buildEventLabel(intelligence);
+  const horizonLabel = getTimeHorizonLabel(intelligence.timeHorizon);
+  const templates = [
+    {
+      key: "early_signal_subject",
+      text: `${anchorLabel} is still an early signal, but watch for ${watchFor} over the ${horizonLabel}.`,
+    },
+    {
+      key: "early_signal_question",
+      text: `${anchorLabel} is still lightly confirmed, so the key question is whether ${watchFor} over the ${horizonLabel}.`,
+    },
+    {
+      key: "early_signal_coverage",
+      text: `Early coverage around ${anchorLabel} is still thin, but it is worth watching for ${watchFor} over the ${horizonLabel}.`,
+    },
+  ];
+  const usageByKey = countPatternUsage(previousOutputs);
+  const rankedTemplates = templates
+    .map((template, index) => ({
+      ...template,
+      usage: usageByKey.get(template.key) ?? 0,
+      index,
+    }))
+    .sort((left, right) => {
+      if (left.usage !== right.usage) {
+        return left.usage - right.usage;
+      }
+
+      return left.index - right.index;
+    });
+  const chosen = chooseBestCandidate(rankedTemplates, previousOutputs);
+
+  return chosen?.text ?? templates[getFallbackVariantIndex(intelligence)]?.text ?? templates[0].text;
 }
 
 function buildWatchForPhrase(intelligence: NormalizedIntelligence, marketLabel: string) {
@@ -426,6 +483,8 @@ function buildWatchForPhrase(intelligence: NormalizedIntelligence, marketLabel: 
       return `evidence that competition, funding capacity, or consolidation in ${marketLabel} is actually changing`;
     case "product_launch_major":
       return `evidence of real adoption, pricing power, or competitive response in ${marketLabel}`;
+    case "governance_politics":
+      return `whether it turns into a broader governance, diplomatic, or political accountability issue`;
     case "geopolitics":
       return `further confirmation that trade, supply, or energy risk is moving in ${marketLabel}`;
     case "legal_investigation":
@@ -438,10 +497,20 @@ function buildWatchForPhrase(intelligence: NormalizedIntelligence, marketLabel: 
 }
 
 function isLowDataScenario(intelligence: NormalizedIntelligence) {
+  const thinEvidence =
+    intelligence.signals.sourceDiversity <= 1 && intelligence.signals.articleCount <= 1;
+  const missingAnchor = !extractPrimaryAnchor(intelligence);
+  const weakEventType = intelligence.reasoningCategory === "company_update";
+  const veryLowConfidence = intelligence.confidenceScore < 32;
+  const weakThinStory =
+    thinEvidence &&
+    intelligence.signalStrength === "weak" &&
+    intelligence.confidenceScore < 48;
+
   return (
-    intelligence.confidenceScore < 58 ||
-    intelligence.signals.sourceDiversity <= 1 ||
-    intelligence.signals.articleCount <= 1
+    veryLowConfidence ||
+    (thinEvidence && missingAnchor) ||
+    (thinEvidence && weakEventType && weakThinStory)
   );
 }
 
@@ -461,10 +530,24 @@ function countPatternUsage(previousOutputs: string[]) {
   return usage;
 }
 
+function chooseBestCandidate<T extends { text: string; usage: number }>(
+  candidates: T[],
+  previousOutputs: string[],
+) {
+  return (
+    candidates.find((candidate) => candidate.usage < 2 && !isTooSimilar(candidate.text, previousOutputs)) ??
+    candidates.find((candidate) => !isTooSimilar(candidate.text, previousOutputs)) ??
+    candidates[0]
+  );
+}
+
 function getPatternKey(output: string) {
   const normalized = output.toLowerCase();
 
   if (normalized.startsWith("this is an early signal")) return "early_signal";
+  if (normalized.includes("is still an early signal")) return "early_signal_subject";
+  if (normalized.includes("is still lightly confirmed")) return "early_signal_question";
+  if (normalized.includes("early coverage around")) return "early_signal_coverage";
   if (normalized.includes("changes the policy framework")) return "policy_framework";
   if (normalized.includes("tightens the operating constraints")) return "policy_constraint";
   if (normalized.includes("forces investors and operators to reprice")) return "policy_repricing";
@@ -477,6 +560,9 @@ function getPatternKey(output: string) {
   if (normalized.includes("could shift product adoption")) return "product_adoption";
   if (normalized.includes("changes the platform comparison")) return "platform_competition";
   if (normalized.includes("puts pressure on competing product roadmaps")) return "product_positioning";
+  if (normalized.includes("raises governance and accountability questions")) return "governance_accountability";
+  if (normalized.includes("can affect political or diplomatic credibility")) return "governance_credibility";
+  if (normalized.includes("tests whether this develops into a broader governance problem")) return "governance_followthrough";
   if (normalized.includes("raises geopolitical risk")) return "geopolitics_risk";
   if (normalized.includes("can disrupt trade, supply, or energy flows")) return "geopolitics_trade";
   if (normalized.includes("changes the risk premium")) return "geopolitics_premium";
@@ -578,6 +664,8 @@ function mapReasoningCategory(eventType: string): NormalizedReasoningCategory {
       return "mna_funding";
     case "product_launch_major":
       return "product_launch_major";
+    case "governance_politics":
+      return "governance_politics";
     case "geopolitics":
     case "geopolitical":
       return "geopolitics";
@@ -596,6 +684,7 @@ function deriveLegacyEventType(intelligence: EventIntelligence) {
 
   if (/earnings|guidance|revenue|profit|quarter/.test(corpus)) return "earnings_financials";
   if (/lawsuit|probe|investigation|charges|sec|doj/.test(corpus)) return "legal_investigation";
+  if (/vetting|ambassador|minister|foreign office|parliament|cabinet|governance|diplomatic|diplomacy|appointment/.test(corpus)) return "governance_politics";
   if (/regulation|regulatory|policy|senate|congress|ban|antitrust/.test(corpus)) return "policy_regulation";
   if (/fed|inflation|rates|treasury|economy|macro/.test(corpus)) return "macro_market_move";
   if (/acquisition|merger|buyout|deal|takeover|funding|raises/.test(corpus)) return "mna_funding";
@@ -610,4 +699,10 @@ export const __testing__ = {
   buildLowConfidenceFallback,
   getPatternKey,
   isMeaningfulAnchor,
+  isLowDataScenario,
 };
+
+function getFallbackVariantIndex(intelligence: NormalizedIntelligence) {
+  const seed = `${intelligence.id}:${intelligence.reasoningCategory}:${intelligence.title}`.length;
+  return seed % 3;
+}

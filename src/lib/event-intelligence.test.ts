@@ -101,9 +101,37 @@ describe("buildEventIntelligence", () => {
         velocityScore: 20,
       }),
     ).toBe("weak");
+
+    expect(
+      getSignalStrength({
+        eventType: "governance_politics",
+        affectedMarkets: ["diplomatic credibility"],
+        sourceDiversity: 1,
+        articleCount: 1,
+        rankingScore: 48,
+        topics: ["politics"],
+        sourceNames: ["Reuters"],
+        recencyScore: 72,
+        velocityScore: 20,
+      }),
+    ).toBe("weak");
+
+    expect(
+      getSignalStrength({
+        eventType: "macro_market_move",
+        affectedMarkets: ["housing", "consumer demand"],
+        sourceDiversity: 2,
+        articleCount: 2,
+        rankingScore: 67,
+        topics: ["finance"],
+        sourceNames: ["Reuters", "Financial Times"],
+        recencyScore: 85,
+        velocityScore: 64,
+      }),
+    ).toBe("strong");
   });
 
-  it("covers product launches and legal investigations with explicit event typing", () => {
+  it("covers product launches, legal investigations, and governance stories with explicit event typing", () => {
     const product = buildEventIntelligence(
       [
         createArticle({
@@ -126,8 +154,23 @@ describe("buildEventIntelligence", () => {
       { topicName: "Tech" },
     );
 
+    const governance = buildEventIntelligence(
+      [
+        createArticle({
+          title: "Peter Mandelson failed UK Foreign Office vetting",
+          summaryText: "The setback raises questions about diplomatic judgment and political accountability.",
+          sourceName: "Reuters",
+        }),
+      ],
+      { topicName: "Politics" },
+    );
+
     expect(product.eventType).toBe("product_launch_major");
     expect(legal.eventType).toBe("legal_investigation");
+    expect(governance.eventType).toBe("governance_politics");
+    expect(governance.affectedMarkets).toContain("diplomatic credibility");
+    expect(governance.affectedMarkets).not.toContain("technology");
+    expect(governance.timeHorizon).toBe("medium");
   });
 });
 

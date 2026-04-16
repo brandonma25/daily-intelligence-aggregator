@@ -200,6 +200,8 @@ export function getSignalStrength(input: {
 
   if (input.articleCount >= 4) {
     score += 1;
+  } else if (input.articleCount <= 1) {
+    score -= 1;
   }
 
   if (input.affectedMarkets.length >= 2 || input.topics.includes("finance")) {
@@ -213,6 +215,22 @@ export function getSignalStrength(input: {
 
   if (input.rankingScore >= 78) {
     score += 1;
+  }
+
+  if (input.sourceDiversity <= 1) {
+    score -= 1;
+  }
+
+  if (input.eventType === "company_update" && input.sourceDiversity <= 1) {
+    score -= 1;
+  }
+
+  if (
+    (input.eventType === "governance_politics" || input.eventType === "product_launch_major") &&
+    input.sourceDiversity <= 1 &&
+    input.articleCount <= 1
+  ) {
+    score -= 1;
   }
 
   if (score >= 7) {
@@ -316,6 +334,7 @@ function inferEventType(
   const rules: Array<[string, string[]]> = [
     ["earnings_financials", ["earnings", "guidance", "revenue", "profit", "quarter", "results"]],
     ["legal_investigation", ["lawsuit", "probe", "investigation", "charges", "doj", "sec", "antitrust case"]],
+    ["governance_politics", ["vetting", "ambassador", "minister", "foreign office", "cabinet", "parliament", "appointment", "diplomatic", "diplomacy"]],
     ["policy_regulation", ["regulation", "regulatory", "antitrust", "rule", "rules", "senate", "congress", "policy", "ban", "approval", "approved", "export restrictions", "tariff"]],
     ["macro_market_move", ["inflation", "fed", "federal reserve", "rates", "treasury", "jobs", "gdp", "economy", "economic", "trade"]],
     ["mna_funding", ["acquisition", "acquire", "merger", "buyout", "takeover", "stake", "deal", "funding", "raises", "series a", "series b"]],
@@ -346,6 +365,8 @@ function inferPrimaryImpact(input: {
       return `${entityLabel} changes the rate, demand, or liquidity backdrop feeding into ${marketLabel}.`;
     case "mna_funding":
       return `${entityLabel} can shift competitive positioning, capital allocation, and consolidation expectations in ${marketLabel}.`;
+    case "governance_politics":
+      return `${entityLabel} may affect governance credibility, diplomatic standing, or political accountability around the story.`;
     case "geopolitics":
       return `${entityLabel} may disrupt supply chains, policy alignment, or risk premiums tied to ${marketLabel}.`;
     case "product_launch_major":
@@ -382,7 +403,7 @@ function inferAffectedMarkets(
     affected.add("sector sentiment");
   }
 
-  if (eventType === "policy_regulation" || eventType === "geopolitics" || eventType === "legal_investigation") {
+  if (eventType === "policy_regulation" || eventType === "governance_politics" || eventType === "geopolitics" || eventType === "legal_investigation") {
     affected.add("policy-sensitive sectors");
   }
 
@@ -393,6 +414,11 @@ function inferAffectedMarkets(
   if (eventType === "product_launch_major") {
     affected.add("technology");
     affected.add("platform competition");
+  }
+
+  if (eventType === "governance_politics") {
+    affected.add("diplomatic credibility");
+    affected.add("political accountability");
   }
 
   if (corpus.includes("chip") || corpus.includes("semiconductor")) {
@@ -407,11 +433,11 @@ function inferAffectedMarkets(
     affected.add("credit");
   }
 
-  if (topics.includes("finance")) {
+  if (topics.includes("finance") && eventType !== "governance_politics") {
     affected.add("equities");
   }
 
-  if (topics.includes("tech")) {
+  if (topics.includes("tech") && eventType !== "governance_politics") {
     affected.add("technology");
   }
 
@@ -429,11 +455,12 @@ function inferTimeHorizon(eventType: string, articles: FeedArticle[]): EventTime
 
   if (
     eventType === "policy_regulation" ||
+    eventType === "governance_politics" ||
     eventType === "geopolitics" ||
     corpus.includes("multi-year") ||
     corpus.includes("long term")
   ) {
-    return "long";
+    return eventType === "governance_politics" ? "medium" : "long";
   }
 
   if (
@@ -571,6 +598,7 @@ function getEventTypeSignalWeight(eventType: string) {
     case "geopolitics":
     case "legal_investigation":
       return 2;
+    case "governance_politics":
     case "product_launch_major":
       return 1;
     default:
