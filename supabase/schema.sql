@@ -43,6 +43,10 @@ create table if not exists public.articles (
   url text not null,
   summary_text text,
   published_at timestamptz,
+  importance_score integer not null default 0,
+  event_type text,
+  source_tier text not null default 'tier3' check (source_tier in ('tier1', 'tier2', 'tier3')),
+  entity_tags text[] not null default '{}'::text[],
   dedupe_key text,
   created_at timestamptz not null default now()
 );

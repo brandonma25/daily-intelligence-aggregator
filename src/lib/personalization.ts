@@ -1,4 +1,4 @@
-import { getBriefingRankSnapshot } from "@/lib/ranking";
+import { compareBriefingItemsByRanking, getBriefingRankSnapshot } from "@/lib/ranking";
 import type { BriefingItem, Topic } from "@/lib/types";
 
 export const PERSONALIZATION_STORAGE_KEY = "daily-intel-preferences";
@@ -290,12 +290,13 @@ export function compareBriefingItemsByPersonalization(
   right: BriefingItem,
   profile: BriefingPersonalizationProfile | null | undefined,
 ) {
+  const baselineOrder = compareBriefingItemsByRanking(left, right);
+  if (baselineOrder !== 0) {
+    return baselineOrder;
+  }
+
   const leftSnapshot = getBriefingRankSnapshot(left);
   const rightSnapshot = getBriefingRankSnapshot(right);
-
-  if (leftSnapshot.isHighSignal !== rightSnapshot.isHighSignal) {
-    return Number(rightSnapshot.isHighSignal) - Number(leftSnapshot.isHighSignal);
-  }
 
   const leftScore = leftSnapshot.rankingScore + buildPersonalizationMatch(left, profile).bonus;
   const rightScore = rightSnapshot.rankingScore + buildPersonalizationMatch(right, profile).bonus;

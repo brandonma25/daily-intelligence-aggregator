@@ -53,24 +53,18 @@ function createItem(overrides: Partial<BriefingItem>): BriefingItem {
 }
 
 describe("ranking activation helpers", () => {
-  it("orders high-signal stronger events above manually flagged top items", () => {
+  it("orders higher importance scores above lower ones regardless of priority flag", () => {
     const highSignal = createItem({
       id: "high-signal",
       priority: "normal",
-      eventIntelligence: {
-        ...createItem({}).eventIntelligence!,
-        rankingScore: 90,
-        confidenceScore: 80,
-      },
+      importanceScore: 15,
+      publishedAt: "2026-04-17T06:00:00.000Z",
     });
     const weakTop = createItem({
       id: "weak-top",
       priority: "top",
-      eventIntelligence: {
-        ...createItem({}).eventIntelligence!,
-        rankingScore: 52,
-        confidenceScore: 51,
-      },
+      importanceScore: 8,
+      publishedAt: "2026-04-17T07:00:00.000Z",
     });
 
     expect(compareBriefingItemsByRanking(highSignal, weakTop)).toBeLessThan(0);
@@ -80,29 +74,21 @@ describe("ranking activation helpers", () => {
     ]);
   });
 
-  it("pushes low-signal items below high-signal items even when scores are similar", () => {
-    const strong = createItem({
-      id: "strong",
-      eventIntelligence: {
-        ...createItem({}).eventIntelligence!,
-        rankingScore: 61,
-        confidenceScore: 58,
-        isHighSignal: true,
-      },
+  it("breaks equal importance scores by freshest published time", () => {
+    const newer = createItem({
+      id: "newer",
+      importanceScore: 11,
+      publishedAt: "2026-04-17T07:00:00.000Z",
     });
-    const weak = createItem({
-      id: "weak",
-      eventIntelligence: {
-        ...createItem({}).eventIntelligence!,
-        rankingScore: 64,
-        confidenceScore: 60,
-        isHighSignal: false,
-      },
+    const older = createItem({
+      id: "older",
+      importanceScore: 11,
+      publishedAt: "2026-04-17T05:00:00.000Z",
     });
 
-    expect(sortBriefingItemsByRanking([weak, strong]).map((item) => item.id)).toEqual([
-      "strong",
-      "weak",
+    expect(sortBriefingItemsByRanking([older, newer]).map((item) => item.id)).toEqual([
+      "newer",
+      "older",
     ]);
   });
 

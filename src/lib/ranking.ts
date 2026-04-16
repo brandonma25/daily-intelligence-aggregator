@@ -1,4 +1,14 @@
+import {
+  buildImportanceClassifierInput,
+  classifyArticleImportance,
+} from "@/lib/importance-classifier";
 import { buildEventIntelligence } from "@/lib/event-intelligence";
+import {
+  compareImportanceScores,
+  computeImportanceScore,
+  getImportanceLabel,
+  getSignalLabel,
+} from "@/lib/importance-score";
 import type { FeedArticle } from "@/lib/rss";
 import type { BriefingItem, EventIntelligence } from "@/lib/types";
 
@@ -10,6 +20,10 @@ type ArticleCluster = {
 export type RankedCluster = ArticleCluster & {
   importanceScore: number;
   importanceLabel: "Critical" | "High" | "Watch";
+  signalLabel: "High Signal" | "Medium Signal" | "Low Signal";
+  eventType: string;
+  sourceTier: "tier1" | "tier2" | "tier3";
+  entityTags: string[];
   rankingSignals: string[];
   eventIntelligence: EventIntelligence;
 };
@@ -20,7 +34,7 @@ export function rankNewsClusters(
 ): RankedCluster[] {
   return clusters
     .map((cluster) => rankCluster(topicName, cluster))
-    .filter((cluster) => cluster.eventIntelligence.isHighSignal)
+    .filter((cluster) => cluster.importanceScore >= 6 || cluster.eventIntelligence.isHighSignal)
     .sort(compareRankedClusters);
 }
 
@@ -29,10 +43,20 @@ function rankCluster(topicName: string, cluster: ArticleCluster): RankedCluster 
     topicName,
     createdAt: cluster.representative.publishedAt,
   });
-  const importanceScore = eventIntelligence.rankingScore;
+  const clusterArticleScores = cluster.sources.map((article) =>
+    computeImportanceScore(
+      classifyArticleImportance(buildImportanceClassifierInput(article)),
+    ),
+  );
+  const topImportanceArticle = clusterArticleScores
+    .slice()
+    .sort((left, right) => right.score - left.score)[0];
+  const importanceScore = topImportanceArticle?.score ?? 0;
 
   const rankingSignals = [
-    eventIntelligence.rankingReason,
+    topImportanceArticle
+      ? `${topImportanceArticle.signalLabel} driven by ${topImportanceArticle.eventType.replace(/-/g, " ")} coverage.`
+      : eventIntelligence.rankingReason,
     eventIntelligence.signals.sourceDiversity >= 3
       ? `Confirmed by ${eventIntelligence.signals.sourceDiversity} independent sources.`
       : "Still early coverage with limited source confirmation.",
@@ -45,29 +69,35 @@ function rankCluster(topicName: string, cluster: ArticleCluster): RankedCluster 
   return {
     ...cluster,
     importanceScore,
-    importanceLabel:
-      importanceScore >= 80 ? "Critical" : importanceScore >= 65 ? "High" : "Watch",
+    importanceLabel: getImportanceLabel(importanceScore),
+    signalLabel: getSignalLabel(importanceScore),
+    eventType: topImportanceArticle?.eventType ?? "minor-update",
+    sourceTier: topImportanceArticle?.sourceTier ?? "tier3",
+    entityTags: topImportanceArticle?.entityTags ?? [],
     rankingSignals,
     eventIntelligence,
   };
 }
 
 export function compareRankedClusters(left: RankedCluster, right: RankedCluster) {
-  const scoreDelta = right.eventIntelligence.rankingScore - left.eventIntelligence.rankingScore;
-  if (scoreDelta !== 0) {
-    return scoreDelta;
+  const importanceDelta = compareImportanceScores(
+    {
+      importanceScore: left.importanceScore,
+      publishedAt: left.representative.publishedAt,
+    },
+    {
+      importanceScore: right.importanceScore,
+      publishedAt: right.representative.publishedAt,
+    },
+  );
+  if (importanceDelta !== 0) {
+    return importanceDelta;
   }
 
   const confidenceDelta =
     right.eventIntelligence.confidenceScore - left.eventIntelligence.confidenceScore;
   if (confidenceDelta !== 0) {
     return confidenceDelta;
-  }
-
-  const freshnessDelta =
-    getTimestamp(right.representative.publishedAt) - getTimestamp(left.representative.publishedAt);
-  if (freshnessDelta !== 0) {
-    return freshnessDelta;
   }
 
   return left.representative.title.localeCompare(right.representative.title);
@@ -84,14 +114,12 @@ type BriefingRankSnapshot = {
 export function compareBriefingItemsByRanking(left: BriefingItem, right: BriefingItem) {
   const leftSnapshot = getBriefingRankSnapshot(left);
   const rightSnapshot = getBriefingRankSnapshot(right);
-
-  if (leftSnapshot.isHighSignal !== rightSnapshot.isHighSignal) {
-    return Number(rightSnapshot.isHighSignal) - Number(leftSnapshot.isHighSignal);
-  }
-
-  const scoreDelta = rightSnapshot.rankingScore - leftSnapshot.rankingScore;
-  if (scoreDelta !== 0) {
-    return scoreDelta;
+  const importanceDelta = compareImportanceScores(
+    { importanceScore: leftSnapshot.rankingScore, publishedAt: left.publishedAt },
+    { importanceScore: rightSnapshot.rankingScore, publishedAt: right.publishedAt },
+  );
+  if (importanceDelta !== 0) {
+    return importanceDelta;
   }
 
   const confidenceDelta = rightSnapshot.confidenceScore - leftSnapshot.confidenceScore;
@@ -118,7 +146,7 @@ export function sortBriefingItemsByRanking(items: BriefingItem[]) {
 
 export function getBriefingRankSnapshot(item: BriefingItem): BriefingRankSnapshot {
   const intelligence = item.eventIntelligence;
-  const rankingScore = intelligence?.rankingScore ?? item.importanceScore ?? 0;
+  const rankingScore = item.importanceScore ?? intelligence?.rankingScore ?? 0;
   const confidenceScore = intelligence?.confidenceScore ?? 0;
   const sourceDiversity =
     intelligence?.signals.sourceDiversity ??
@@ -126,9 +154,7 @@ export function getBriefingRankSnapshot(item: BriefingItem): BriefingRankSnapsho
     new Set(item.sources.map((source) => source.title)).size;
 
   return {
-    isHighSignal:
-      intelligence?.isHighSignal ??
-      (rankingScore >= 45 && (sourceDiversity >= 2 || (item.relatedArticles?.length ?? 0) >= 2)),
+    isHighSignal: (item.importanceScore ?? 0) >= 8 || (intelligence?.isHighSignal ?? false),
     rankingScore,
     confidenceScore,
     freshestTimestamp: getTimestamp(item.publishedAt ?? intelligence?.createdAt),

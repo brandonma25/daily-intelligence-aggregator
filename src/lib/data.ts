@@ -4,6 +4,15 @@ import { formatISO } from "date-fns";
 import { demoDashboardData, demoHistory, demoSources, demoTopics } from "@/lib/demo-data";
 import { buildEventIntelligence } from "@/lib/event-intelligence";
 import { countSourcesByHomepageCategory } from "@/lib/homepage-taxonomy";
+import {
+  buildImportanceClassifierInput,
+  classifyArticleImportance,
+} from "@/lib/importance-classifier";
+import {
+  computeImportanceScore,
+  getImportanceLabel,
+  getSignalLabel,
+} from "@/lib/importance-score";
 import { logServerEvent } from "@/lib/observability";
 import { selectRelatedCoverage } from "@/lib/related-coverage";
 import {
@@ -35,6 +44,10 @@ type StoredArticle = {
   published_at: string | null;
   url: string;
   source_id: string | null;
+  importance_score?: number | null;
+  event_type?: string | null;
+  source_tier?: "tier1" | "tier2" | "tier3" | null;
+  entity_tags?: string[] | null;
   event_id?: string | null;
 };
 
@@ -828,6 +841,16 @@ export async function buildMatchedBriefing(
       );
       const sourceCount = new Set(eventArticles.map((article) => article.sourceName)).size;
       const freshest = eventArticles[0];
+      const articleImportance = eventArticles.map((article) =>
+        computeImportanceScore(
+          classifyArticleImportance(
+            buildImportanceClassifierInput(toFeedArticle(article), sourceById.get(article.source_id ?? "")),
+          ),
+        ),
+      );
+      const strongestImportance = articleImportance
+        .slice()
+        .sort((left, right) => right.score - left.score)[0];
       const intelligence =
         rankedCluster?.eventIntelligence ??
         buildEventIntelligence(feedArticles, {
@@ -868,10 +891,16 @@ export async function buildMatchedBriefing(
         matchedKeywords,
         matchScore: Math.max(...eventArticles.map((article) => article.matchScore), 0),
         publishedAt: freshest.published_at ?? undefined,
-        importanceScore: intelligence.rankingScore,
-        importanceLabel: getImportanceLabel(intelligence.rankingScore),
+        importanceScore: strongestImportance?.score ?? 0,
+        importanceLabel: getImportanceLabel(strongestImportance?.score ?? 0),
+        signalLabel: getSignalLabel(strongestImportance?.score ?? 0),
+        eventType: strongestImportance?.eventType ?? "minor-update",
+        sourceTier: strongestImportance?.sourceTier ?? "tier3",
+        entityTags: strongestImportance?.entityTags ?? [],
         rankingSignals: [
-          intelligence.rankingReason,
+          strongestImportance
+            ? `${strongestImportance.signalLabel} from ${strongestImportance.eventType.replace(/-/g, " ")} coverage.`
+            : intelligence.rankingReason,
           `Confidence ${intelligence.confidenceScore}/100.`,
           ...buildSignalBreakdown(intelligence),
         ],
@@ -969,6 +998,18 @@ export async function persistRawArticles(
   const fetchedArticles = fetchedResults.flatMap((result) =>
     result.articles.map((article) => {
       const canonicalUrl = canonicalizeArticleUrl(article.url);
+      const importance = computeImportanceScore(
+        classifyArticleImportance(
+          buildImportanceClassifierInput(
+            {
+              ...article,
+              url: canonicalUrl,
+            },
+            result.source,
+          ),
+        ),
+      );
+
       return {
         sourceId: result.source.id,
         sourceName: article.sourceName,
@@ -977,6 +1018,10 @@ export async function persistRawArticles(
         summaryText: article.summaryText,
         contentText: article.contentText,
         publishedAt: article.publishedAt,
+        importanceScore: importance.score,
+        eventType: importance.eventType,
+        sourceTier: importance.sourceTier,
+        entityTags: importance.entityTags,
         dedupeKey: createArticleDedupeKey(article.title, canonicalUrl),
       };
     }),
@@ -1048,6 +1093,10 @@ export async function persistRawArticles(
       url: article.url,
       summary_text: article.summaryText,
       published_at: article.publishedAt,
+      importance_score: article.importanceScore,
+      event_type: article.eventType,
+      source_tier: article.sourceTier,
+      entity_tags: article.entityTags,
       dedupe_key: article.dedupeKey,
     }));
 
@@ -1220,6 +1269,10 @@ async function buildBriefingItemFromFeedCluster(input: {
     sources: FeedArticle[];
     importanceScore: number;
     importanceLabel: "Critical" | "High" | "Watch";
+    signalLabel: "High Signal" | "Medium Signal" | "Low Signal";
+    eventType: string;
+    sourceTier: "tier1" | "tier2" | "tier3";
+    entityTags: string[];
     rankingSignals: string[];
     eventIntelligence: BriefingItem["eventIntelligence"];
   };
@@ -1267,10 +1320,14 @@ async function buildBriefingItemFromFeedCluster(input: {
     estimatedMinutes: Math.min(6, Math.max(3, Math.ceil(input.cluster.sources.length * 1.5))),
     read: false,
     priority: input.priority,
-    importanceScore: intelligence.rankingScore,
-    importanceLabel: getImportanceLabel(intelligence.rankingScore),
+    importanceScore: input.cluster.importanceScore,
+    importanceLabel: input.cluster.importanceLabel,
+    signalLabel: input.cluster.signalLabel,
+    eventType: input.cluster.eventType,
+    sourceTier: input.cluster.sourceTier,
+    entityTags: input.cluster.entityTags,
     rankingSignals: [
-      intelligence.rankingReason,
+      input.cluster.rankingSignals[0] ?? intelligence.rankingReason,
       `Confidence ${intelligence.confidenceScore}/100.`,
       ...buildSignalBreakdown(intelligence),
     ],
@@ -1303,12 +1360,6 @@ function buildSignalBreakdown(intelligence: NonNullable<BriefingItem["eventIntel
     `Seen across ${intelligence.signals.sourceDiversity} ${intelligence.signals.sourceDiversity === 1 ? "source" : "sources"}.`,
     intelligence.signals.velocityScore >= 70 ? "Rapidly developing story." : null,
   ].filter((value): value is string => Boolean(value));
-}
-
-function getImportanceLabel(score: number | undefined) {
-  if ((score ?? 0) >= 80) return "Critical" as const;
-  if ((score ?? 0) >= 65) return "High" as const;
-  return "Watch" as const;
 }
 
 function buildRelatedArticles(articles: EventSeedArticle[]): RelatedArticle[] {

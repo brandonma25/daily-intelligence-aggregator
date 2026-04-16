@@ -475,13 +475,18 @@ function DashboardEventCard({
   const intelligence = buildEventIntelligenceSignals(item);
   const primarySourceUrl = item.relatedArticles?.[0]?.url ?? item.sources.find((source) => isValidStoryUrl(source.url))?.url;
   const displayStateLabel = getDisplayStateLabel(item.displayState);
+  const signalLabel = item.signalLabel ?? "Medium Signal";
 
   return (
-    <div className={cn("overflow-hidden rounded-[22px] border bg-white/65 p-5", tone === "early" ? "border-[rgba(138,90,17,0.18)]" : "border-[var(--line)]")}>
+    <div
+      className={cn("overflow-hidden rounded-[22px] border bg-white/65 p-5", tone === "early" ? "border-[rgba(138,90,17,0.18)]" : "border-[var(--line)]")}
+      data-testid="dashboard-event-card"
+    >
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
           <div className="flex flex-wrap gap-2">
             <Badge>{item.topicName}</Badge>
+            <Badge className={getSignalBadgeClass(signalLabel)}>{signalLabel}</Badge>
             <Badge className={tone === "early" ? "text-[#8a5a11]" : "text-[var(--accent)]"}>
               {tone === "early" ? "Early Signal" : "Top Event"}
             </Badge>
@@ -504,12 +509,18 @@ function DashboardEventCard({
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex min-w-0 items-start gap-2 text-xl font-semibold tracking-tight text-[var(--foreground)] underline-offset-4 hover:underline"
+                data-testid="dashboard-event-title"
               >
                 <span className="break-words">{item.title}</span>
                 <ExternalLink className="mt-1 h-4 w-4 shrink-0 text-[var(--muted)]" />
               </a>
             ) : (
-              <h3 className="break-words text-xl font-semibold tracking-tight text-[var(--foreground)]">{item.title}</h3>
+              <h3
+                className="break-words text-xl font-semibold tracking-tight text-[var(--foreground)]"
+                data-testid="dashboard-event-title"
+              >
+                {item.title}
+              </h3>
             )}
             <p className="mt-2 text-sm leading-7 text-[var(--muted)] line-clamp-3">{item.whatHappened}</p>
           </div>
@@ -630,6 +641,12 @@ function DashboardEventCard({
       </div>
     </div>
   );
+}
+
+function getSignalBadgeClass(signalLabel: BriefingItem["signalLabel"]) {
+  if (signalLabel === "High Signal") return "text-[var(--accent)]";
+  if (signalLabel === "Low Signal") return "text-[#8a5a11]";
+  return "text-[#294f86]";
 }
 
 function SignalStat({ label, value }: { label: string; value: string }) {

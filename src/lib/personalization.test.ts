@@ -106,7 +106,7 @@ describe("personalization weighting", () => {
       },
     });
 
-    expect(compareBriefingItemsByPersonalization(tech, finance, profile)).toBeLessThan(0);
+    expect(compareBriefingItemsByPersonalization(tech, finance, profile)).toBeGreaterThan(0);
   });
 
   it("caps the boost on single-source items so weak content stays weak", () => {

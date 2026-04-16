@@ -899,7 +899,7 @@ export function buildEventIntelligenceSignals(
 
   const timelineIndicator = getDisplayTimelineIndicator(item);
   const confidenceTone =
-    sourceCount >= 4 || (item.importanceScore ?? 0) >= 85
+    sourceCount >= 4 || (item.importanceScore ?? 0) >= 13
       ? "high"
       : sourceCount >= TOP_EVENT_SOURCE_THRESHOLD
         ? "medium"
@@ -953,8 +953,8 @@ function getDisplayImpactLabel(
   importanceLabel: BriefingItem["importanceLabel"],
   importanceScore: number,
 ) {
-  if (importanceLabel === "Critical" || importanceScore >= 80) return "High impact";
-  if (importanceLabel === "High" || importanceScore >= 65) return "Meaningful impact";
+  if (importanceLabel === "Critical" || importanceScore >= 13) return "High impact";
+  if (importanceLabel === "High" || importanceScore >= 8) return "Meaningful impact";
   return "Watch impact";
 }
 

@@ -14,6 +14,7 @@ export function StoryCard({ item }: { item: BriefingItem }) {
   const sourceCount = item.sourceCount ?? item.sources.length;
   const relatedCoverage = item.relatedArticles?.length ? item.relatedArticles : null;
   const rankingDisplaySignals = buildRankingDisplaySignals(item);
+  const signalLabel = item.signalLabel ?? "Medium Signal";
   const trustLayer = buildTrustLayerPresentation(item.eventIntelligence, {
     title: item.title,
     topicName: item.topicName,
@@ -29,6 +30,7 @@ export function StoryCard({ item }: { item: BriefingItem }) {
           <div className="space-y-2">
             <div className="flex flex-wrap gap-2">
               <Badge>{item.topicName}</Badge>
+              <Badge className={getSignalBadgeClass(signalLabel)}>{signalLabel}</Badge>
               {item.priority === "top" ? (
                 <Badge className="text-[var(--accent)]">Top event</Badge>
               ) : null}
@@ -215,6 +217,12 @@ export function StoryCard({ item }: { item: BriefingItem }) {
       </div>
     </Panel>
   );
+}
+
+function getSignalBadgeClass(signalLabel: BriefingItem["signalLabel"]) {
+  if (signalLabel === "High Signal") return "text-[var(--accent)]";
+  if (signalLabel === "Low Signal") return "text-[#8a5a11]";
+  return "text-[#294f86]";
 }
 
 function TimelineBlock({ timeline }: { timeline: BriefingItem["timeline"] }) {

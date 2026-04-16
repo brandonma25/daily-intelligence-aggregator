@@ -19,6 +19,7 @@ function createItem(overrides: Partial<BriefingItem>): BriefingItem {
     priority: overrides.priority ?? "top",
     matchedKeywords: overrides.matchedKeywords ?? ["fed"],
     sourceCount: overrides.sourceCount ?? 1,
+    signalLabel: overrides.signalLabel ?? "Medium Signal",
     timeline: overrides.timeline,
     rankingSignals: overrides.rankingSignals ?? [],
     eventIntelligence: overrides.eventIntelligence,
@@ -92,6 +93,7 @@ describe("StoryCard timeline", () => {
     render(
       <StoryCard
         item={createItem({
+          signalLabel: "High Signal",
           publishedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
           eventIntelligence: {
             id: "intel-1",
@@ -118,6 +120,7 @@ describe("StoryCard timeline", () => {
     );
 
     expect(screen.getByText("Why this ranks")).toBeInTheDocument();
+    expect(screen.getByText("High Signal")).toBeInTheDocument();
     expect(
       screen.getAllByText(/Broad coverage around the Federal Reserve across 5 articles from 3 sources/i)
         .length,

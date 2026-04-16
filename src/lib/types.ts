@@ -106,6 +106,10 @@ export type BriefingItem = {
   timeline?: TimelineGroup[];
   importanceScore?: number;
   importanceLabel?: "Critical" | "High" | "Watch";
+  signalLabel?: "High Signal" | "Medium Signal" | "Low Signal";
+  eventType?: string;
+  sourceTier?: "tier1" | "tier2" | "tier3";
+  entityTags?: string[];
   rankingSignals?: string[];
   eventIntelligence?: EventIntelligence;
   displayState?: EventDisplayState;

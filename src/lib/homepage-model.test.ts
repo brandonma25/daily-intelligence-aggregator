@@ -381,8 +381,8 @@ describe("buildHomepageViewModel", () => {
     const model = buildHomepageViewModel(createData([financeItem, techItem, weakEarly]), profile);
 
     expect(model.topRanked.map((event) => event.id).slice(0, 2)).toEqual([
-      "tech-personalization",
       "finance-personalization",
+      "tech-personalization",
     ]);
     expect(model.topRanked.map((event) => event.id)).not.toContain("weak-early-personalization");
     expect(model.earlySignals.map((event) => event.id)).toContain("weak-early-personalization");
