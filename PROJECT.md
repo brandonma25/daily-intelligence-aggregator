@@ -225,6 +225,31 @@ When updating this file:
 - Ignored local files such as `.env.local` can still hold real credentials on a developer machine; they are not tracked, but their values should still be managed carefully outside Git.
 - Existing branch-local code changes outside this hygiene task were preserved and not reviewed for behavioral correctness.
 
+### [2026-04-16 14:33] — Repo History Security Audit
+
+**Agent:**
+- Codex
+
+**Problem addressed:**
+- The repo needed a higher-confidence review of prior commits to determine whether sensitive material may have been exposed historically, not just in the current working tree.
+
+**Root cause:**
+- Earlier setup and QA documentation captured concrete deployment and auth-routing details during active troubleshooting, so a history audit was needed to distinguish secret exposure from non-secret but overly specific infrastructure references.
+
+**Change made:**
+- Audited current tracked files and git history for secret-bearing patterns including env variable names, OAuth fields, bearer-token markers, callback URLs, key-file extensions, and project-specific Vercel/Supabase identifiers.
+- Confirmed no tracked `.env`, `.pem`, `.key`, `.crt`, or `.p12` files appear in git history other than the placeholder-only `.env.example`.
+- Confirmed repeated historical exposure of concrete Vercel deployment URLs, a concrete Supabase project ref/callback URL, and deployment IDs in tracked docs and one auth test, but did not confirm committed secret values such as service-role keys, OpenAI keys, OAuth client secrets, or session tokens.
+- Added a dedicated historical security audit record in `docs/bug-fixes/repo-history-security-audit.md`.
+
+**Files modified:**
+- `PROJECT.md`
+- `docs/bug-fixes/repo-history-security-audit.md`
+
+**Remaining risks / next steps:**
+- The audit found historical infrastructure-identifying references in prior commits; if public minimization of those identifiers matters, history rewrite is a separate decision and was not performed here.
+- No confirmed committed secret values were found, so provider-side credential rotation is not clearly warranted from git-history evidence alone; if there are off-repo concerns about leaked local env files or copied credentials, rotation should be decided provider-side.
+
 ---
 
 ## 8. NEXT ACTION (FOCUS)
