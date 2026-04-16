@@ -1,16 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
-import {
-  buildAuthCallbackUrl,
-  buildAuthConfigErrorPath,
-  resolveRequestOrigin,
-} from "@/lib/auth";
-import { isSupabaseConfigured } from "@/lib/env";
+import { buildAuthCallbackUrl, buildAuthConfigErrorPath } from "@/lib/auth";
+import { env, isSupabaseConfigured } from "@/lib/env";
 import { bootstrapUserDefaults, seedDefaultTopics } from "@/lib/default-topics";
 import { buildMatchedBriefing, persistRawArticles, syncEventClusters, syncTopicMatches } from "@/lib/data";
 import { errorContext, logServerEvent } from "@/lib/observability";
@@ -69,17 +64,6 @@ async function syncUserProfile() {
     });
     return { supabase, user: null };
   }
-}
-
-async function getActionRequestOrigin() {
-  const requestHeaders = await headers();
-
-  return resolveRequestOrigin({
-    origin: requestHeaders.get("origin"),
-    forwardedHost: requestHeaders.get("x-forwarded-host"),
-    forwardedProto: requestHeaders.get("x-forwarded-proto"),
-    host: requestHeaders.get("host"),
-  });
 }
 
 async function requireActionSession(unauthenticatedRedirect: string, route: string) {
@@ -183,13 +167,12 @@ export async function requestMagicLinkAction(formData: FormData) {
   }
 
   const supabase = await createSupabaseServerClient();
-  const requestOrigin = await getActionRequestOrigin();
 
   try {
     await supabase?.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: buildAuthCallbackUrl({ origin: requestOrigin }),
+        emailRedirectTo: buildAuthCallbackUrl({ origin: env.appUrl }),
       },
     });
   } catch (error) {
@@ -218,14 +201,13 @@ export async function signUpWithPasswordAction(formData: FormData) {
   if (!supabase) {
     redirect("/?auth=signup-error");
   }
-  const requestOrigin = await getActionRequestOrigin();
 
   const result = await supabase.auth
     .signUp({
       email,
       password,
       options: {
-        emailRedirectTo: buildAuthCallbackUrl({ origin: requestOrigin }),
+        emailRedirectTo: buildAuthCallbackUrl({ origin: env.appUrl }),
       },
     })
     .catch((error) => {

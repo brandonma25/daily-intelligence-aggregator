@@ -10,7 +10,6 @@ import {
   hasSupabaseCodeVerifierCookie,
   hasAuthReturnParams,
   hasSupabaseSessionCookie,
-  resolveRequestOrigin,
   safeRedirectPath,
 } from "@/lib/auth";
 
@@ -33,15 +32,6 @@ describe("auth helpers", () => {
         next: "/dashboard",
       }),
     ).toBe("http://localhost:3001/auth/callback?next=%2Fdashboard");
-  });
-
-  it("resolves the current request origin from forwarded headers", () => {
-    expect(
-      resolveRequestOrigin({
-        forwardedHost: "preview.example.vercel.app",
-        forwardedProto: "https",
-      }),
-    ).toBe("https://preview.example.vercel.app");
   });
 
   it("detects Supabase session cookies", () => {
