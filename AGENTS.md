@@ -28,15 +28,29 @@ Before ANY substantial implementation work, you MUST read:
 - Verify the app loads.
 - If build fails, stop.
 
-## 5. Human Validation Required
+## 5. Preview Playwright Enforcement
+- For any UI-affecting, auth-affecting, routing-affecting, SSR-affecting, dashboard-affecting, or data-rendering change, evaluate whether Playwright coverage must be added or updated.
+- After implementation is complete and a preview deployment URL is available, run the relevant automated test suite when technically possible.
+- Always report:
+- the exact preview URL
+- the exact test commands run
+- pass/fail results
+- HTML report availability, if applicable
+- which checks still require human validation
+- Preview remains the source of truth for auth, cookies, redirects, SSR, and environment-specific behavior.
+- Production is only for final sanity validation, not debugging.
+- If automatic post-preview execution is not wired through CI/CD yet, treat test execution as a required workflow step and state explicitly that repo instruction files can require Codex to run tests, but cannot themselves trigger execution on deployment events.
+- `AGENTS.md` and engineering protocol files are workflow rules only; they do not auto-run tests or trigger deployment hooks.
+
+## 6. Human Validation Required
 - Request user validation for OAuth or login flows.
 - Request user validation for session persistence.
 - Request user validation for preview environment behavior.
 - Request user validation for auth, SSR, or env-sensitive changes.
 
-## 6. Documentation & Security
+## 7. Documentation & Security
 - Update repo-safe documentation for every serious feature or fix.
 - Never commit or expose API keys, tokens, secrets, auth vulnerabilities, exploit steps, cookies, headers, or sensitive logs.
 
-## 7. Merge Conditions
+## 8. Merge Conditions
 - Do not recommend merge unless build passes, local validation is complete, preview validation is confirmed, and docs are updated.

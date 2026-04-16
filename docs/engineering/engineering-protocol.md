@@ -58,7 +58,19 @@
 - Production is for final sanity checks only.
 - If auth, cookies, redirects, SSR, or environment logic has not been tested in preview, it is not validated.
 
-## 7. Default Automated Testing Block
+## 7. Preview Playwright Policy
+- For any UI-affecting, auth-affecting, routing-affecting, SSR-affecting, dashboard-affecting, or data-rendering change, Codex must evaluate whether Playwright coverage needs to be added or updated.
+- After implementation is complete and a preview deployment URL is available, Codex must run the relevant automated test suite when technically possible.
+- Codex must report:
+- the exact preview URL
+- the exact test commands run
+- pass/fail results
+- HTML report availability, if applicable
+- which checks still require human validation
+- Preview remains the source of truth for auth, cookies, redirects, SSR, and environment-specific behavior.
+- Production is only for final sanity validation, not debugging.
+
+## 8. Default Automated Testing Block
 - Codex should run:
 - `npm install`
 - `npm run lint || true`
@@ -72,7 +84,13 @@
 - Build failure is blocking.
 - Lint and test failures must be reported explicitly.
 
-## 8. Human Validation Requirements
+## 9. Workflow Rules Versus Automation
+- `AGENTS.md` and engineering protocol files are workflow rules only.
+- These files can require Codex to run tests as part of the workflow, but they do not themselves trigger execution on preview deployment events.
+- True automatic post-preview execution requires a real automation mechanism such as GitHub Actions or another CI runner.
+- Until that automation exists and is validated, Codex must treat post-preview automated test execution as a required workflow step rather than assuming deployment events will trigger it automatically.
+
+## 10. Human Validation Requirements
 - The user must validate in preview when relevant:
 - OAuth flow
 - session persistence
@@ -82,26 +100,26 @@
 - env-dependent behavior
 - After merge to `main`, the user must perform a concise production sanity check.
 
-## 9. Git and Branch Discipline
+## 11. Git and Branch Discipline
 - One feature or fix per branch.
 - No unrelated changes in the same branch.
 - No direct experimentation in `main`.
 - Merge only after validation and docs updates are complete.
 
-## 10. Merge Checklist
+## 12. Merge Checklist
 - Branch is correct and isolated.
 - Local validation passed.
 - Preview validation passed.
 - Docs updated.
 - No blockers remain.
 
-## 11. Debugging Protocol
+## 13. Debugging Protocol
 - Classify the environment first.
 - Classify the issue type next.
 - Fix the issue at the lowest valid layer.
 - Retest upward from local to preview to production sanity.
 
-## 12. Documentation Security Policy
+## 14. Documentation Security Policy
 - Allowed:
 - PRD summaries
 - feature briefs
@@ -120,12 +138,19 @@
 - infrastructure weaknesses
 - Decision rule: "Does this help a future maintainer more than an attacker?"
 
-## 13. Expected Docs Structure
+## 15. Future State
+- Intended end state:
+- preview deployment completes
+- automated Playwright suite runs automatically via CI
+- results are attached to the PR or branch workflow
+- Until CI-based preview test automation is enabled and validated, Codex must run the required post-preview suite as part of the workflow and report the results explicitly.
+
+## 16. Expected Docs Structure
 - `docs/prd-summaries/`
 - `docs/bug-fixes/`
 - `docs/testing/`
 
-## 14. Enforcement Behavior
+## 17. Enforcement Behavior
 - Do not recommend merge when:
 - preview validation is missing for env, auth, cookies, redirects, or SSR work
 - scope is mixed
