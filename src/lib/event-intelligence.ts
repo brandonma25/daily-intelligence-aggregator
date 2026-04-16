@@ -68,6 +68,27 @@ const LOW_SIGNAL_HINTS = [
   "game recap",
 ];
 
+const NON_SIGNAL_HINTS = [
+  "advice",
+  "ask",
+  "qa",
+  "q&a",
+  "questions and answers",
+  "how to",
+  "should i",
+  "should you",
+  "dear",
+  "personal finance",
+  "retirement advice",
+  "moneyist",
+  "lifestyle",
+  "horoscope",
+  "relationship",
+  "travel tips",
+  "wellness",
+  "recipe",
+];
+
 const TOPIC_RULES: Array<{ topic: string; keywords: string[] }> = [
   { topic: "tech", keywords: ["ai", "software", "cloud", "chip", "chips", "semiconductor", "platform", "developer", "data center", "cyber", "device"] },
   { topic: "finance", keywords: ["markets", "market", "stocks", "bonds", "treasury", "fed", "inflation", "rates", "earnings", "bank", "banking", "ipo", "acquisition", "merger", "revenue", "economy", "economic", "trade", "tariff"] },
@@ -89,6 +110,7 @@ export function buildEventIntelligence(
   const keyEntities = extractKeyEntities(sorted, options.matchedKeywords);
   const topics = deriveTopics(sorted, options.topicName, options.matchedKeywords);
   const eventType = inferEventType(sorted, options.topicName, options.matchedKeywords);
+  const isNonSignalContent = isNonSignalArticleSet(sorted, options.topicName, options.matchedKeywords);
   const affectedMarkets = inferAffectedMarkets(sorted, eventType, topics, keyEntities);
   const timeHorizon = inferTimeHorizon(eventType, sorted);
   const primaryChange = buildPrimaryChange(representative?.title ?? options.topicName);
@@ -135,6 +157,7 @@ export function buildEventIntelligence(
     sourceNames: sorted.map((article) => article.sourceName),
     recencyScore,
     velocityScore,
+    isNonSignalContent,
   });
   const isHighSignal = evaluateHighSignal({
     title: representative?.title ?? primaryChange,
@@ -143,6 +166,7 @@ export function buildEventIntelligence(
     rankingScore,
     articleCount,
     sourceDiversity,
+    isNonSignalContent,
   });
 
   return {
@@ -186,7 +210,12 @@ export function getSignalStrength(input: {
   sourceNames?: string[];
   recencyScore?: number;
   velocityScore?: number;
+  isNonSignalContent?: boolean;
 }): EventSignalStrength {
+  if (input.isNonSignalContent || input.eventType === "non_signal") {
+    return "weak";
+  }
+
   let score = getEventTypeSignalWeight(input.eventType);
   const sourceTierWeight = getSourceTierSignalWeight(input.sourceNames ?? []);
 
@@ -308,6 +337,10 @@ function inferEventType(
     `${topicName} ${articles.map((article) => `${article.title} ${article.summaryText}`).join(" ")} ${(matchedKeywords ?? []).join(" ")}`,
   );
 
+  if (isNonSignalCorpus(corpus)) {
+    return "non_signal";
+  }
+
   if (
     (corpus.includes("chrome") || corpus.includes("ai mode")) &&
     (corpus.includes("lets you") || corpus.includes("open links") || corpus.includes("side-by-side"))
@@ -317,7 +350,7 @@ function inferEventType(
 
   const rules: Array<[string, string[]]> = [
     ["defense", ["department of defense", "classified", "government", "military", "pentagon", "defense department"]],
-    ["political", ["election", "minister", "foreign office", "foreign minister", "cabinet", "parliament", "vetting", "ambassador", "appointment"]],
+    ["political", ["election", "minister", "foreign office", "foreign minister", "cabinet", "parliament", "vetting", "ambassador", "appointment", "surveillance powers", "oversight", "executive authority"]],
     ["corporate", ["earnings", "guidance", "revenue", "profit", "quarter", "results"]],
     ["product", ["product launch", "launch", "launched", "feature", "features", "update", "updated", "release", "released", "rollout", "debut", "debuts", "adds"]],
     ["legal_investigation", ["lawsuit", "probe", "investigation", "charges", "doj", "sec", "antitrust case"]],
@@ -342,6 +375,8 @@ function inferPrimaryImpact(input: {
   const marketLabel = input.affectedMarkets[0] ?? "investor expectations";
 
   switch (input.eventType) {
+    case "non_signal":
+      return "This is not a market-moving development but may still matter for individual decision-making.";
     case "corporate":
       return `${entityLabel} is resetting near-term expectations for pricing, margins, or guidance in ${marketLabel}.`;
     case "political":
@@ -379,6 +414,11 @@ function inferAffectedMarkets(
     `${topics.join(" ")} ${entities.join(" ")} ${articles.map((article) => `${article.title} ${article.summaryText}`).join(" ")}`,
   );
   const affected = new Set<string>();
+
+  if (eventType === "non_signal") {
+    affected.add("individual decision-making");
+    return [...affected];
+  }
 
   if (eventType === "macro_market_move") {
     affected.add("rates");
@@ -605,6 +645,8 @@ function getEventTypeSignalWeight(eventType: string) {
     case "mna_funding":
     case "legal_investigation":
       return 1;
+    case "non_signal":
+      return -2;
     case "product":
       return 0;
     default:
@@ -672,7 +714,12 @@ function evaluateHighSignal(input: {
   rankingScore: number;
   articleCount: number;
   sourceDiversity: number;
+  isNonSignalContent?: boolean;
 }) {
+  if (input.isNonSignalContent) {
+    return false;
+  }
+
   const corpus = normalizeText(`${input.title} ${input.summary} ${input.topics.join(" ")}`);
 
   if (LOW_SIGNAL_HINTS.some((hint) => corpus.includes(hint))) {
@@ -708,6 +755,16 @@ function isStopEntity(value: string) {
     "live",
     "update",
     "updates",
+    "she",
+    "he",
+    "they",
+    "them",
+    "it",
+    "we",
+    "you",
+    "i",
+    "this",
+    "that",
   ].includes(normalized);
 }
 
@@ -728,6 +785,30 @@ function matchesKeyword(corpus: string, keyword: string) {
   const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const pattern = new RegExp(`(^|\\s)${escaped}(\\s|$)`, "i");
   return pattern.test(corpus);
+}
+
+function isNonSignalArticleSet(
+  articles: FeedArticle[],
+  topicName: string,
+  matchedKeywords?: string[],
+) {
+  const corpus = normalizeText(
+    `${topicName} ${(matchedKeywords ?? []).join(" ")} ${articles.map((article) => `${article.title} ${article.summaryText} ${article.contentText}`).join(" ")}`,
+  );
+
+  return isNonSignalCorpus(corpus);
+}
+
+function isNonSignalCorpus(corpus: string) {
+  if (NON_SIGNAL_HINTS.some((hint) => corpus.includes(hint))) {
+    return true;
+  }
+
+  return (
+    /\b(q\s*&\s*a|q and a|questions and answers)\b/.test(corpus) ||
+    /\b(ask|asked)\s+(amy|martha|the expert|the adviser|the advisor)\b/.test(corpus) ||
+    /\bshould\s+(i|you|we)\b/.test(corpus)
+  );
 }
 
 function ensurePeriod(value: string) {
