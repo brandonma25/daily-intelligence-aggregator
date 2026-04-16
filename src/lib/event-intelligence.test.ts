@@ -201,6 +201,68 @@ describe("buildEventIntelligence", () => {
     expect(defense.affectedMarkets).not.toContain("equities");
     expect(defense.signalStrength).not.toBe("weak");
   });
+
+  it("classifies personal advice and Q&A content as non-signal", () => {
+    const advice = buildEventIntelligence(
+      [
+        createArticle({
+          title: "MarketWatch advice column: Should I refinance before retirement?",
+          summaryText: "A personal finance Q&A about mortgage decisions for retirees.",
+          contentText: "Advice for readers weighing retirement and refinance timing.",
+          sourceName: "MarketWatch",
+        }),
+      ],
+      { topicName: "Finance" },
+    );
+
+    expect(advice.eventType).toBe("non_signal");
+    expect(advice.signalStrength).toBe("weak");
+    expect(advice.isHighSignal).toBe(false);
+    expect(advice.primaryImpact.toLowerCase()).toContain("not a market-moving development");
+  });
+
+  it("does not let pronouns into extracted entity anchors", () => {
+    const intelligence = buildEventIntelligence(
+      [
+        createArticle({
+          title: "She says the White House should revisit chip export policy",
+          summaryText: "Commentary references export controls but names no valid principal.",
+          sourceName: "Reuters",
+        }),
+      ],
+      { topicName: "Politics" },
+    );
+
+    expect(intelligence.entities).not.toContain("She");
+  });
+
+  it("keeps defense and political stories out of default equity language", () => {
+    const defense = buildEventIntelligence(
+      [
+        createArticle({
+          title: "Google Gemini wins Department of Defense classified prototype contract",
+          summaryText: "The agreement ties Google more closely to sensitive U.S. government AI work.",
+          sourceName: "Reuters",
+        }),
+      ],
+      { topicName: "Tech" },
+    );
+    const political = buildEventIntelligence(
+      [
+        createArticle({
+          title: "Trump Urges Extending Foreign Surveillance Powers",
+          summaryText: "The push could reignite debate over executive authority and oversight.",
+          sourceName: "Reuters",
+        }),
+      ],
+      { topicName: "Politics" },
+    );
+
+    expect(defense.eventType).toBe("defense");
+    expect(defense.affectedMarkets).not.toContain("equities");
+    expect(political.eventType).toBe("political");
+    expect(political.affectedMarkets).not.toContain("technology");
+  });
 });
 
 describe("rankNewsClusters", () => {

@@ -277,4 +277,127 @@ describe("why-it-matters", () => {
     expect(__testing__.isLowDataScenario(createIntelligence())).toBe(false);
     expect(fixed).toContain("because this changes");
   });
+
+  it("rejects pronoun anchors and falls back to a safe event phrase", async () => {
+    const text = await generateWhyThisMatters(
+      createIntelligence({
+        title: "She says the White House should revisit chip export policy",
+        summary: "The commentary raises a policy question but does not provide a valid named subject anchor.",
+        entities: ["She"],
+        keyEntities: ["She"],
+        eventType: "policy_regulation",
+        primaryImpact: "The policy discussion could alter export-control expectations.",
+        affectedMarkets: ["policy-sensitive sectors"],
+        topics: ["politics", "tech"],
+        signalStrength: "weak",
+        confidenceScore: 30,
+      }),
+    );
+
+    expect(text.startsWith("This policy move") || text.startsWith("White House")).toBe(true);
+    expect(text.startsWith("She")).toBe(false);
+  });
+
+  it("reduces malformed entity phrases to a clean subject anchor", async () => {
+    const text = await generateWhyThisMatters(
+      createIntelligence({
+        title: "Trump Urges Extending Foreign Surveillance Powers",
+        summary: "The policy push could revive debate around surveillance oversight and executive priorities.",
+        entities: ["Trump Urges Extending Foreign Surveillance"],
+        keyEntities: ["Trump Urges Extending Foreign Surveillance"],
+        eventType: "policy_regulation",
+        affectedMarkets: ["policy risk"],
+        topics: ["politics"],
+        signalStrength: "moderate",
+        confidenceScore: 48,
+      }),
+    );
+
+    expect(text.startsWith("Trump")).toBe(true);
+    expect(text).not.toContain("Trump Urges Extending");
+  });
+
+  it("keeps same-entity product cards differentiated by headline delta", async () => {
+    const previousOutputs: string[] = [];
+    const browsing = await generateWhyThisMatters(
+      createIntelligence({
+        id: "google-browse",
+        title: "Google AI Mode changes browsing behavior in Chrome",
+        summary: "The update pushes more AI-guided navigation inside Chrome.",
+        primaryChange: "Google changed browsing behavior in Chrome with AI Mode",
+        entities: ["Google"],
+        keyEntities: ["Google"],
+        eventType: "product",
+        affectedMarkets: ["adoption", "user behavior", "competitive feature dynamics"],
+        topics: ["tech"],
+        signalStrength: "moderate",
+        confidenceScore: 55,
+      }),
+      { previousOutputs },
+    );
+    previousOutputs.push(browsing);
+
+    const links = await generateWhyThisMatters(
+      createIntelligence({
+        id: "google-links",
+        title: "Google AI Mode changes how users open links in Chrome",
+        summary: "The product change alters link interaction inside AI-assisted browsing flows.",
+        primaryChange: "Google changed how users open links in Chrome with AI Mode",
+        entities: ["Google"],
+        keyEntities: ["Google"],
+        eventType: "product",
+        affectedMarkets: ["adoption", "user behavior", "competitive feature dynamics"],
+        topics: ["tech"],
+        signalStrength: "moderate",
+        confidenceScore: 55,
+      }),
+      { previousOutputs },
+    );
+
+    expect(browsing).not.toBe(links);
+    expect(browsing.toLowerCase()).toContain("browsing");
+    expect(links.toLowerCase()).toMatch(/link|links/);
+    expect(__testing__.similarityScore(browsing, links)).toBeLessThan(0.8);
+  });
+
+  it("keeps non-signal advice stories out of policy or market framing", async () => {
+    const text = await generateWhyThisMatters(
+      createIntelligence({
+        title: "MarketWatch advice column: Should I refinance before retirement?",
+        summary: "A personal finance Q&A about mortgage decisions for retirees.",
+        primaryChange: "A MarketWatch advice column discussed refinancing before retirement",
+        entities: ["MarketWatch"],
+        keyEntities: ["MarketWatch"],
+        eventType: "non_signal",
+        affectedMarkets: ["individual decision-making"],
+        topics: ["finance"],
+        signalStrength: "weak",
+        confidenceScore: 18,
+      }),
+    );
+
+    expect(text.toLowerCase()).toContain("not a market-moving development");
+    expect(text.toLowerCase()).not.toMatch(/policy risk|valuation|equities/);
+  });
+
+  it("keeps non-fallback outputs subject-first without hedge prefixes", async () => {
+    const text = await generateWhyThisMatters(
+      createIntelligence({
+        title: "Madison Air files for IPO",
+        summary: "The filing gives investors an early look at the HVAC supplier's growth plans.",
+        primaryChange: "Madison Air filed for an IPO",
+        entities: ["Madison Air"],
+        keyEntities: ["Madison Air"],
+        eventType: "mna_funding",
+        affectedMarkets: ["competition", "market structure"],
+        topics: ["business"],
+        signalStrength: "moderate",
+        confidenceScore: 51,
+      }),
+    );
+
+    expect(text.startsWith("Madison Air")).toBe(true);
+    expect(text.startsWith("It is")).toBe(false);
+    expect(text.startsWith("This is")).toBe(false);
+  });
 });

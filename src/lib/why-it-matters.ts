@@ -20,6 +20,7 @@ type NormalizedReasoningCategory =
   | "defense_geopolitical"
   | "legal_investigation"
   | "macro_market_move"
+  | "non_signal"
   | "company_update";
 
 type NormalizedIntelligence = EventIntelligence & {
@@ -42,6 +43,15 @@ type PatternTemplate = {
 };
 
 const INVALID_ANCHORS = new Set([
+  "she",
+  "he",
+  "they",
+  "them",
+  "it",
+  "this",
+  "that",
+  "these",
+  "those",
   "ai",
   "ipo",
   "with",
@@ -67,6 +77,22 @@ const INVALID_ANCHORS = new Set([
   "update",
   "launch",
   "product",
+]);
+
+const INVALID_ANCHOR_PARTS = new Set([
+  "urges",
+  "extending",
+  "failed",
+  "wins",
+  "win",
+  "launches",
+  "launch",
+  "adds",
+  "add",
+  "signals",
+  "signal",
+  "says",
+  "say",
 ]);
 
 const CONNECTOR_WORDS = new Set([
@@ -96,7 +122,7 @@ const REASONING_TEMPLATES: Record<NormalizedReasoningCategory, PatternTemplate[]
     {
       key: "contrast_frame",
       build: ({ anchor, mechanism, impact, horizonLabel }) =>
-        `Even before the full policy response is clear, ${anchor} matters because ${mechanism}, which could ${impact} over the ${horizonLabel}.`,
+        `${anchor} still matters before the full policy response is clear because ${mechanism}, which could ${impact} over the ${horizonLabel}.`,
     },
   ],
   corporate: [
@@ -113,7 +139,7 @@ const REASONING_TEMPLATES: Record<NormalizedReasoningCategory, PatternTemplate[]
     {
       key: "contrast_frame",
       build: ({ anchor, mechanism, impact, horizonLabel }) =>
-        `The headline is company-specific, but ${anchor} could still ${impact} over the ${horizonLabel} because ${mechanism}.`,
+        `${anchor} is still company-specific, but it could ${impact} over the ${horizonLabel} because ${mechanism}.`,
     },
   ],
   mna_funding: [
@@ -130,7 +156,7 @@ const REASONING_TEMPLATES: Record<NormalizedReasoningCategory, PatternTemplate[]
     {
       key: "contrast_frame",
       build: ({ anchor, mechanism, impact, horizonLabel }) =>
-        `This is partly a capital story, but ${anchor} could still ${impact} over the ${horizonLabel} because ${mechanism}.`,
+        `${anchor} is partly a capital story, but it could still ${impact} over the ${horizonLabel} because ${mechanism}.`,
     },
   ],
   product: [
@@ -147,7 +173,7 @@ const REASONING_TEMPLATES: Record<NormalizedReasoningCategory, PatternTemplate[]
     {
       key: "contrast_frame",
       build: ({ anchor, mechanism, impact, horizonLabel }) =>
-        `It is a product story rather than a policy one, but ${anchor} could still ${impact} over the ${horizonLabel} because ${mechanism}.`,
+        `${anchor} is a product story rather than a policy one, but it could still ${impact} over the ${horizonLabel} because ${mechanism}.`,
     },
   ],
   political: [
@@ -164,7 +190,7 @@ const REASONING_TEMPLATES: Record<NormalizedReasoningCategory, PatternTemplate[]
     {
       key: "contrast_frame",
       build: ({ anchor, mechanism, impact, horizonLabel }) =>
-        `This is not an equity story by default; ${anchor} matters because ${mechanism}, and that could ${impact} over the ${horizonLabel}.`,
+        `${anchor} is not an equity story by default; it matters because ${mechanism}, and that could ${impact} over the ${horizonLabel}.`,
     },
   ],
   defense_geopolitical: [
@@ -181,7 +207,7 @@ const REASONING_TEMPLATES: Record<NormalizedReasoningCategory, PatternTemplate[]
     {
       key: "contrast_frame",
       build: ({ anchor, mechanism, impact, horizonLabel }) =>
-        `This should be read through a geopolitical lens, not a valuation lens, because ${anchor} matters where ${mechanism}, and that could ${impact} over the ${horizonLabel}.`,
+        `${anchor} should be read through a geopolitical lens, not a valuation lens, because ${mechanism}, and that could ${impact} over the ${horizonLabel}.`,
     },
   ],
   legal_investigation: [
@@ -198,7 +224,7 @@ const REASONING_TEMPLATES: Record<NormalizedReasoningCategory, PatternTemplate[]
     {
       key: "contrast_frame",
       build: ({ anchor, mechanism, impact, horizonLabel }) =>
-        `Even if the legal outcome is still unfolding, ${anchor} could ${impact} over the ${horizonLabel} because ${mechanism}.`,
+        `${anchor} could ${impact} over the ${horizonLabel} even if the legal outcome is still unfolding because ${mechanism}.`,
     },
   ],
   macro_market_move: [
@@ -215,7 +241,24 @@ const REASONING_TEMPLATES: Record<NormalizedReasoningCategory, PatternTemplate[]
     {
       key: "contrast_frame",
       build: ({ anchor, mechanism, impact, horizonLabel }) =>
-        `This changes the macro baseline rather than just the headline, because ${anchor} matters where ${mechanism}, and that could ${impact} over the ${horizonLabel}.`,
+        `${anchor} changes the macro baseline rather than just the headline because ${mechanism}, and that could ${impact} over the ${horizonLabel}.`,
+    },
+  ],
+  non_signal: [
+    {
+      key: "non_signal_statement",
+      build: ({ anchor, mechanism, impact }) =>
+        `${anchor} is not a market-moving development, but ${mechanism} and ${impact}.`,
+    },
+    {
+      key: "non_signal_consumer",
+      build: ({ anchor, mechanism, impact }) =>
+        `${anchor} is more useful for individual decision-making because ${mechanism}, while ${impact}.`,
+    },
+    {
+      key: "non_signal_specific",
+      build: ({ anchor, mechanism, impact }) =>
+        `${anchor} belongs in a consumer or personal-decision context because ${mechanism}, not a broad market frame where ${impact}.`,
     },
   ],
   company_update: [
@@ -232,7 +275,7 @@ const REASONING_TEMPLATES: Record<NormalizedReasoningCategory, PatternTemplate[]
     {
       key: "contrast_frame",
       build: ({ anchor, mechanism, impact, horizonLabel }) =>
-        `This still looks company-specific, but ${anchor} could ${impact} over the ${horizonLabel} because ${mechanism}.`,
+        `${anchor} still looks company-specific, but it could ${impact} over the ${horizonLabel} because ${mechanism}.`,
     },
   ],
 };
@@ -377,14 +420,29 @@ function getAnchorLabel(intelligence: NormalizedIntelligence) {
 
 function sanitizeAnchorCandidate(value: string) {
   const trimmed = value.trim().replace(/[’']s$/i, "");
-  const words = trimmed.split(/\s+/);
-  const connectorIndex = words.findIndex((word, index) => index > 0 && CONNECTOR_WORDS.has(word.toLowerCase()));
-
-  if (connectorIndex > 0) {
-    return words.slice(0, connectorIndex).join(" ");
+  if (!trimmed) {
+    return "";
   }
 
-  return trimmed;
+  const words = trimmed.split(/\s+/);
+  const connectorIndex = words.findIndex((word, index) => index > 0 && CONNECTOR_WORDS.has(word.toLowerCase()));
+  const blockerIndex = words.findIndex((word, index) => index > 0 && INVALID_ANCHOR_PARTS.has(word.toLowerCase()));
+  const meaningfulWords = words.filter(
+    (word) => !INVALID_ANCHOR_PARTS.has(word.toLowerCase()) && !CONNECTOR_WORDS.has(word.toLowerCase()),
+  );
+
+  if (blockerIndex > 0) {
+    return words.slice(0, blockerIndex).join(" ");
+  }
+
+  if (connectorIndex > 0) {
+    return words
+      .slice(0, connectorIndex)
+      .filter((word) => !INVALID_ANCHOR_PARTS.has(word.toLowerCase()))
+      .join(" ");
+  }
+
+  return meaningfulWords.join(" ").trim();
 }
 
 function extractHeadlineCandidates(title: string) {
@@ -398,6 +456,14 @@ function extractHeadlineCandidates(title: string) {
 function isMeaningfulAnchor(value: string) {
   const normalized = value.toLowerCase();
   if (!normalized || INVALID_ANCHORS.has(normalized)) {
+    return false;
+  }
+
+  if (value.split(/\s+/).some((word) => INVALID_ANCHORS.has(word.toLowerCase()))) {
+    return false;
+  }
+
+  if (value.split(/\s+/).some((word) => INVALID_ANCHOR_PARTS.has(word.toLowerCase()))) {
     return false;
   }
 
@@ -438,54 +504,100 @@ function buildEventLabel(intelligence: NormalizedIntelligence) {
       return "This legal development";
     case "macro_market_move":
       return "This macro signal";
+    case "non_signal":
+      return "This personal-decision story";
     default:
       return "This development";
   }
 }
 
+function buildHeadlineDeltaPhrase(intelligence: NormalizedIntelligence) {
+  const corpus = `${intelligence.title} ${intelligence.summary} ${intelligence.primaryChange}`.toLowerCase();
+
+  if (/open links|link interaction|links in chat|click through/.test(corpus)) {
+    return "how users interact with links";
+  }
+
+  if (/browse|browsing|navigation|navigate|search behavior/.test(corpus)) {
+    return "how browsing behavior changes";
+  }
+
+  if (/classified|department of defense|military|government contract/.test(corpus)) {
+    return "how government adoption and procurement priorities shift";
+  }
+
+  if (/foreign office|vetting|appointment|minister|diplomatic/.test(corpus)) {
+    return "how governance credibility and diplomatic scrutiny evolve";
+  }
+
+  if (/mortgage|rates|refinancing|housing/.test(corpus)) {
+    return "how borrowing conditions feed into housing demand";
+  }
+
+  if (/funding|raises|series [a-z]|backed|investment/.test(corpus)) {
+    return "how capital availability changes competitive pressure";
+  }
+
+  if (/traffic|demand|retail|revenue/.test(corpus)) {
+    return "how demand signals feed into revenue expectations";
+  }
+
+  return "";
+}
+
 function buildMechanism(intelligence: NormalizedIntelligence, marketLabel: string) {
+  const delta = buildHeadlineDeltaPhrase(intelligence);
+  const deltaSuffix = delta ? `, especially in ${delta}` : "";
+
   switch (intelligence.reasoningCategory) {
     case "policy_regulation":
-      return `this changes regulation, compliance, or market-access assumptions around ${marketLabel}`;
+      return `this changes regulation, compliance, or market-access assumptions around ${marketLabel}${deltaSuffix}`;
     case "corporate":
-      return `this changes revenue, margin, or guidance expectations tied to ${marketLabel}`;
+      return `this changes revenue, margin, or guidance expectations tied to ${marketLabel}${deltaSuffix}`;
     case "mna_funding":
-      return `this changes capital availability, competitive positioning, or market structure in ${marketLabel}`;
+      return `this changes capital availability, competitive positioning, or market structure in ${marketLabel}${deltaSuffix}`;
     case "product":
-      return `this changes adoption expectations, product comparison, and feature benchmarks in ${marketLabel}`;
+      return `this changes adoption expectations, product comparison, and feature benchmarks in ${marketLabel}${deltaSuffix}`;
     case "political":
-      return `this raises questions about governance credibility, diplomatic judgment, and policy follow-through`;
+      return `this raises questions about governance credibility, diplomatic judgment, and policy follow-through${delta ? `, especially in ${delta}` : ""}`;
     case "defense_geopolitical":
-      return `this changes assumptions about defense posture, state capacity, or international alignment in ${marketLabel}`;
+      return `this changes assumptions about defense posture, state capacity, or international alignment in ${marketLabel}${deltaSuffix}`;
     case "legal_investigation":
-      return `this changes liability, operating flexibility, or reputational assumptions around ${marketLabel}`;
+      return `this changes liability, operating flexibility, or reputational assumptions around ${marketLabel}${deltaSuffix}`;
     case "macro_market_move":
-      return `this changes how investors price rates, demand, or risk in ${marketLabel}`;
+      return `this changes how investors price rates, demand, or risk in ${marketLabel}${deltaSuffix}`;
+    case "non_signal":
+      return `the story is mainly useful for individual readers, not for broad market positioning${delta ? `, especially in ${delta}` : ""}`;
     default:
-      return `this changes execution expectations around ${marketLabel}`;
+      return `this changes execution expectations around ${marketLabel}${deltaSuffix}`;
   }
 }
 
 function buildImpact(intelligence: NormalizedIntelligence, marketLabel: string) {
+  const delta = buildHeadlineDeltaPhrase(intelligence);
+  const deltaSuffix = delta ? `, with the clearest effect in ${delta}` : "";
+
   switch (intelligence.reasoningCategory) {
     case "policy_regulation":
-      return `shift sector constraints, cost structures, or strategic flexibility in ${marketLabel}`;
+      return `shift sector constraints, cost structures, or strategic flexibility in ${marketLabel}${deltaSuffix}`;
     case "corporate":
-      return `move financial expectations, guidance credibility, or valuation in ${marketLabel}`;
+      return `move financial expectations, guidance credibility, or valuation in ${marketLabel}${deltaSuffix}`;
     case "mna_funding":
-      return `reshape competition, capital allocation, or market structure in ${marketLabel}`;
+      return `reshape competition, capital allocation, or market structure in ${marketLabel}${deltaSuffix}`;
     case "product":
-      return `change adoption patterns, user behavior, or competitive feature dynamics in ${marketLabel}`;
+      return `change adoption patterns, user behavior, or competitive feature dynamics in ${marketLabel}${deltaSuffix}`;
     case "political":
-      return `shift governance credibility, political accountability, or policy risk around the story`;
+      return `shift governance credibility, political accountability, or policy risk around the story${delta ? `, especially in ${delta}` : ""}`;
     case "defense_geopolitical":
-      return `raise defense risk, policy pressure, or international-relations risk in ${marketLabel}`;
+      return `raise defense risk, policy pressure, or international-relations risk in ${marketLabel}${deltaSuffix}`;
     case "legal_investigation":
-      return `raise downside risk for operations, cash flow, or reputation in ${marketLabel}`;
+      return `raise downside risk for operations, cash flow, or reputation in ${marketLabel}${deltaSuffix}`;
     case "macro_market_move":
-      return `move market expectations, sector sentiment, or pricing in ${marketLabel}`;
+      return `move market expectations, sector sentiment, or pricing in ${marketLabel}${deltaSuffix}`;
+    case "non_signal":
+      return `the main relevance stays with individual decision-making rather than market-wide pricing`;
     default:
-      return `change expectations around ${marketLabel}`;
+      return `change expectations around ${marketLabel}${deltaSuffix}`;
   }
 }
 
@@ -495,6 +607,41 @@ function buildLowConfidenceFallback(
 ) {
   const marketLabel = intelligence.affectedMarkets.slice(0, 2).join(" and ");
   const anchorLabel = getAnchorLabel(intelligence);
+
+  if (intelligence.reasoningCategory === "non_signal") {
+    const templates = [
+      {
+        key: "non_signal_specific",
+        text: `${anchorLabel} is not a market-moving development, but it may still matter for individual decision-making.`,
+      },
+      {
+        key: "non_signal_consumer",
+        text: `${anchorLabel} fits better as consumer or personal guidance than as a policy or market signal.`,
+      },
+      {
+        key: "non_signal_statement",
+        text: `${anchorLabel} belongs in an individual decision-making frame, not a broader macro or market narrative.`,
+      },
+    ];
+    const usageByKey = countPatternUsage(previousOutputs);
+    const rankedTemplates = templates
+      .map((template, index) => ({
+        ...template,
+        usage: usageByKey.get(template.key) ?? 0,
+        index,
+      }))
+      .sort((left, right) => {
+        if (left.usage !== right.usage) {
+          return left.usage - right.usage;
+        }
+
+        return left.index - right.index;
+      });
+
+    const chosen = chooseBestCandidate(rankedTemplates, previousOutputs);
+    return chosen?.text ?? templates[0].text;
+  }
+
   const horizonLabel = getTimeHorizonLabel(intelligence.timeHorizon);
   const mechanism = buildMechanism(intelligence, marketLabel);
   const impact = buildImpact(intelligence, marketLabel);
@@ -532,6 +679,10 @@ function buildLowConfidenceFallback(
 }
 
 function isLowDataScenario(intelligence: NormalizedIntelligence) {
+  if (intelligence.reasoningCategory === "non_signal") {
+    return false;
+  }
+
   const thinEvidence =
     intelligence.signals.sourceDiversity <= 1 && intelligence.signals.articleCount <= 1;
   const missingAnchor = !getAnchorLabel(intelligence);
@@ -588,6 +739,9 @@ function chooseBestCandidate<T extends { text: string; usage: number }>(
 function getPatternKey(output: string) {
   const normalized = output.toLowerCase();
 
+  if (normalized.includes("not a market-moving development")) return "non_signal_statement";
+  if (normalized.includes("consumer or personal guidance")) return "non_signal_consumer";
+  if (normalized.includes("individual decision-making frame")) return "non_signal_specific";
   if (normalized.includes("points to an early shift")) return "specific_shift";
   if (normalized.includes("already touches")) return "specific_implication";
   if (normalized.includes("suggests pressure on")) return "specific_causal";
@@ -701,6 +855,8 @@ function mapReasoningCategory(eventType: string): NormalizedReasoningCategory {
     case "macro_market_move":
     case "macro":
       return "macro_market_move";
+    case "non_signal":
+      return "non_signal";
     default:
       return "company_update";
   }
@@ -709,6 +865,7 @@ function mapReasoningCategory(eventType: string): NormalizedReasoningCategory {
 function deriveLegacyEventType(intelligence: EventIntelligence) {
   const corpus = `${intelligence.title} ${intelligence.summary} ${intelligence.topics?.join(" ") ?? ""}`.toLowerCase();
 
+  if (/advice|q&a|qa|how to|should i|should you|moneyist|personal finance|lifestyle/.test(corpus)) return "non_signal";
   if (
     (corpus.includes("chrome") || corpus.includes("ai mode")) &&
     (corpus.includes("lets you") || corpus.includes("open links") || corpus.includes("side-by-side"))
@@ -729,10 +886,12 @@ export const __testing__ = {
   extractPrimaryAnchor,
   mapReasoningCategory,
   buildLowConfidenceFallback,
+  buildHeadlineDeltaPhrase,
   postProcessGrammar,
   getPatternKey,
   isMeaningfulAnchor,
   isLowDataScenario,
+  similarityScore,
 };
 
 function getFallbackVariantIndex(intelligence: NormalizedIntelligence) {
