@@ -273,6 +273,37 @@ When updating this file:
 - The public repo is cleaner, but historical commit content still exists unchanged unless a separate history-rewrite decision is made later.
 - Current placeholders and example domains elsewhere in the repo remain intentional and public-safe.
 
+### [2026-04-17 07:05] — Repo Consolidation Main Sync
+
+**Agent:**
+- Codex
+
+**Problem addressed:**
+- The repo had multiple open or lingering feature branches, a divergent local `main`, and an active dirty worktree, making it unclear which branches were safe to consolidate toward `main`.
+
+**Root cause:**
+- Recent product, auth, testing, and docs work had landed across a mix of merged PRs, stale open PRs, and branch-local follow-up fixes.
+- The primary repo worktree was not safe for direct branch switching or consolidation because it contained active uncommitted changes.
+
+**Change made:**
+- Audited local branches, remote refs, and recent GitHub PRs to classify branches as merge-now, hold, already-in-main, or do-not-merge.
+- Created a separate consolidation worktree from `origin/main` on `feature/repo-consolidation-main-sync`.
+- Merged `feature/playwright-e2e-foundation`, `chore/add-ci-workflow`, `feature/why-this-matters-final-merge-fix`, and `feature/signal-filtering-layer` into the consolidation branch.
+- Intentionally excluded preview-sensitive auth work and stale/superseded branches from the merge set.
+- Ran repeated local validation after meaningful merge steps and recorded a concise repo-safe consolidation summary, bug report, and testing report.
+
+**Files modified:**
+- `PROJECT.md`
+- `docs/prd/repo-consolidation-main-sync.md`
+- `docs/bug-fixes/repo-consolidation-main-sync.md`
+- `docs/testing/repo-consolidation-main-sync.md`
+
+**Remaining risks / next steps:**
+- The consolidation branch is not ready for `main` yet because `npm run lint` and `npm run test` still fail locally.
+- Playwright is configured but not executable in this environment due browser-launch sandbox restrictions.
+- `feature/auth-preview-host-fix` still requires preview and human validation before it should be considered for merge.
+- The original repo worktree still contains active uncommitted feature work that was intentionally left untouched.
+
 ---
 
 ## 8. NEXT ACTION (FOCUS)
