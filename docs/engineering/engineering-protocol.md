@@ -88,6 +88,15 @@
 - No direct experimentation in `main`.
 - Merge only after validation and docs updates are complete.
 
+### Working Tree Isolation Rule
+- After switching branches, Codex must run:
+- `git branch --show-current`
+- `git status`
+- Codex must confirm the working tree matches the intended scope of the current branch.
+- Docs-only, protocol-only, or repo-operating-system changes must not remain as local modifications in unrelated feature branches.
+- If unrelated local changes are present after branch switching, Codex must clean them before ending the task.
+- Before task completion, Codex must verify there is no cross-branch working-tree contamination.
+
 ## 10. Merge Checklist
 - Branch is correct and isolated.
 - Local validation passed.
@@ -129,6 +138,7 @@
 - Do not recommend merge when:
 - preview validation is missing for env, auth, cookies, redirects, or SSR work
 - scope is mixed
+- branch scope is mixed or the working tree contains unrelated local changes
 - docs are missing
 - build is broken
 - known blockers remain
