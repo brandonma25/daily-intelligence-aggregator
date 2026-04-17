@@ -67,39 +67,14 @@ Before ANY substantial implementation work, you MUST read:
 This repository uses a strict documentation system to prevent bloat and maintain clarity.
 
 ### Source of Truth
-- `/docs/product/feature-system.csv` is the ONLY source of truth for:
-  - layer
-  - feature_name
-  - priority
-  - status
-  - description
-  - owner
-  - dependency
-  - build_order
-  - decision (build / delay / kill)
-  - last_updated
-- Allowed `status` values:
-  - `Not Built`
-  - `In Progress`
-  - `In Review`
-  - `Built`
-  - `Deprecated`
+- `/docs/product/feature-system.csv` is the source of truth for feature order, status, dependencies, and decisions.
 
 ### PRD Rules
 - Each feature has ONLY ONE canonical PRD file:
   `/docs/prd/prd-<number>-<short-name>.md`
-- DO NOT create multiple PRD versions (no v2, final, updated files)
-- If a PRD needs changes, UPDATE the existing file instead of creating a new one
-
-### When to Create a PRD
-Create a PRD ONLY if:
-- the feature is system-level or multi-file
-- the feature affects architecture or logic
-
-DO NOT create PRDs for:
-- UI tweaks
-- copy changes
-- minor fixes
+- Create a PRD only for meaningful system-level or multi-file features.
+- Use `/docs/engineering/prd-template.md` when a PRD is needed.
+- Do not create multiple PRD versions. Update the existing canonical PRD instead.
 
 ### Feature Execution Rules
 Before implementing ANY feature:
@@ -116,11 +91,9 @@ When implementation is complete but awaiting merge or review:
 - set `status = In Review`
 
 After merge or explicit user acceptance:
-1. Update:
-   - status → Built
-   - decision → keep
-   - last_updated
-2. Commit the updated CSV
+- set `status = Built`
+- set `decision = keep`
+- update `last_updated`
 
 Do not:
 - implement features marked `delay` or `kill`
@@ -132,11 +105,3 @@ If a feature is no longer active:
 - update `decision` accordingly if explicitly instructed
 
 The CSV must be updated in the same PR as the feature work whenever feature state changes.
-
-### Anti-Bloat Rule
-- DO NOT create redundant documentation
-- DO NOT duplicate feature descriptions across files
-- DO NOT create “summary”, “final”, or “v2” files
-
-### Principle
-One feature = one source of truth

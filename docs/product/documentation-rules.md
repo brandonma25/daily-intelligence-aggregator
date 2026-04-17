@@ -20,6 +20,10 @@ This repository uses a controlled documentation system. The goal is to keep docs
 - Testing notes belong in `docs/testing/` only when they add validation context that should live outside the PRD.
 - Bug records belong in `docs/bug-fixes/` only when they capture a real defect, root cause, and fix history that should stay separate from the PRD.
 
+## Visibility Note
+- `docs/product/feature-system.csv` is visible if this repository is public.
+- To keep that file private, the repository must be private or the file must move to a private repository.
+
 ## What Not To Create
 - No duplicate PRDs for the same feature.
 - No versioned PRD files such as `v2`, `final`, `updated`, or `summary`.
