@@ -169,6 +169,7 @@ Run the full local release validation flow with:
 
 ```bash
 npm run release:local
+./scripts/release-check.sh
 ```
 
 This runs install, lint, unit/integration tests, build, the Dev Server Rule on port `3000`, Chromium Playwright smoke coverage, and signed-out route probes for `/` and `/dashboard`.
@@ -180,6 +181,8 @@ Once you have a deployed URL, run:
 ```bash
 npm run release:preview -- --base-url https://preview.example.com
 npm run release:production -- --base-url https://app.example.com
+node scripts/preview-check.js https://preview.example.com
+node scripts/prod-check.js https://app.example.com
 ```
 
 These probes verify `/` and `/dashboard`, require HTTP `200`, and fail on obvious deployment or framework error markers.

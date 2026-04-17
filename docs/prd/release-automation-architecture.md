@@ -9,6 +9,7 @@
 - Add preview and production route verification entrypoints.
 - Add reusable human auth/session and release-doc templates.
 - Document the release operating model and required external setup.
+- Align the newer `release-machine` protocol wrappers on `main` with the stronger release automation system so future Codex work follows one consistent release path.
 
 ## Explicit Exclusions
 - Real third-party OAuth automation with personal accounts
@@ -21,6 +22,8 @@
 - Release documentation can be scaffolded quickly for future releases.
 - GitHub branch protection can reference clear PR check names.
 - Preview and production verification can run without repo secrets by accepting a base URL as input.
+- `AGENTS.md` requires release-machine guidance and release-automation guidance by default before serious implementation work.
+- The standard wrapper entrypoints from `release-machine.md` delegate to the same underlying release automation instead of drifting separately.
 
 ## Risks
 - Auth or session risk:

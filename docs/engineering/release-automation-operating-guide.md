@@ -14,6 +14,7 @@
 ## Release Gates
 ### 1. Local Gate
 - Command: `npm run release:local`
+- Standard wrapper: `./scripts/release-check.sh`
 - Runs deterministic local validation in repo protocol order:
   - `npm install`
   - `npm run lint`
@@ -38,6 +39,7 @@
 ### 3. Preview Gate
 - Workflow: [preview-gate.yml](/Users/bm/Documents/daily-intelligence-aggregator-main/.github/workflows/preview-gate.yml)
 - Script entrypoint: `npm run release:preview -- --base-url https://preview.example.com`
+- Standard wrapper: `node scripts/preview-check.js https://preview.example.com`
 - Verifies:
   - `/`
   - `/dashboard`
@@ -59,6 +61,7 @@
 ### 5. Production Verification Gate
 - Workflow: [production-verification.yml](/Users/bm/Documents/daily-intelligence-aggregator-main/.github/workflows/production-verification.yml)
 - Script entrypoint: `npm run release:production -- --base-url https://app.example.com`
+- Standard wrapper: `node scripts/prod-check.js https://app.example.com`
 - Runs after merge to `main` or manually with a supplied production URL.
 - Confirms `/` and `/dashboard` return `200` and do not expose obvious deployment failure markers.
 
@@ -104,4 +107,3 @@
 - Vercel preview automation must provide a preview URL to the Preview Gate workflow.
 - GitHub repo variable `PRODUCTION_BASE_URL` should point at the canonical production URL for automatic post-merge verification.
 - No secrets are stored in repo scripts or workflows; placeholder env values are used for build-safe automation.
-

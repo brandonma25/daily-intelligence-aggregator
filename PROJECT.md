@@ -378,6 +378,45 @@ When updating this file:
 - The local release gate required escalation in this environment so the dev server could bind to port `3000`; the repo code itself passed once allowed to run normally.
 - `npm install` still reports one pre-existing high severity vulnerability that was not changed by this release work.
 
+### [2026-04-17 22:35] — Release Automation Rollout Verification And Enforcement Alignment
+
+**Agent:**
+- Codex
+
+**Problem addressed:**
+- The release automation implementation existed on the local rollout branch, but `origin/main` had advanced independently with a separate release-machine protocol, and `main` still lacked most of the intended release automation assets.
+
+**Root cause:**
+- The original release automation branch never reached remote because the current GitHub credential could not push `.github/workflows/*` changes without `workflow` scope.
+- Meanwhile, `origin/main` merged a smaller release-machine protocol branch that added required docs and wrapper entrypoints but not the fuller preview/prod workflows, release automation scripts, or templates.
+- The merged branch also surfaced brittle auth-focused tests that timed out under the full parallel Vitest suite until their module isolation was tightened.
+
+**Change made:**
+- Verified directly that `origin/main` still lacks the release automation implementation assets and that commit `d016623` is not reachable from `main`.
+- Merged `origin/main` into `codex/release-automation-architecture` so the branch now contains both the release-machine protocol and the fuller release automation system.
+- Updated `AGENTS.md` to require both `docs/engineering/release-machine.md` and `docs/engineering/release-automation-operating-guide.md` before serious implementation work.
+- Rewired `scripts/release-check.sh`, `scripts/preview-check.js`, and `scripts/prod-check.js` to delegate to the stronger release automation entrypoints instead of maintaining weaker parallel logic.
+- Stabilized `src/lib/data.auth.test.ts` and `src/components/auth/auth-modal.test.tsx` by resetting modules between tests and raising their timeout budget so the full repo test suite passes reliably after the merge.
+- Re-ran lint, test, build, the standardized local release gate, and the preview/prod wrappers against a live local server.
+
+**Files modified:**
+- `AGENTS.md`
+- `README.md`
+- `PROJECT.md`
+- `docs/testing/release-automation-architecture.md`
+- `docs/bug-fixes/release-automation-architecture.md`
+- `docs/prd/release-automation-architecture.md`
+- `scripts/release-check.sh`
+- `scripts/preview-check.js`
+- `scripts/prod-check.js`
+- `src/lib/data.auth.test.ts`
+- `src/components/auth/auth-modal.test.tsx`
+
+**Remaining risks / next steps:**
+- `origin/main` still does not contain the release automation rollout because this branch still cannot be pushed with the current GitHub credential.
+- Branch protection, preview URL handoff, and `PRODUCTION_BASE_URL` still require external GitHub/Vercel configuration.
+- `npm install` still reports one pre-existing high severity vulnerability unrelated to this rollout work.
+
 ---
 
 ## 8. NEXT ACTION (FOCUS)

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const signInWithOAuth = vi.fn();
 const createSupabaseBrowserClient = vi.fn();
+const assignMock = vi.fn();
 
 vi.mock("@/lib/supabase/client", () => ({
   createSupabaseBrowserClient,
@@ -20,6 +21,8 @@ vi.mock("@/lib/env", () => ({
 describe("AuthModal", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.resetModules();
+    assignMock.mockReset();
     createSupabaseBrowserClient.mockReturnValue({
       auth: {
         signInWithOAuth,
@@ -31,62 +34,68 @@ describe("AuthModal", () => {
       value: {
         ...window.location,
         origin: "http://localhost:3000",
-        assign: vi.fn(),
+        assign: assignMock,
       },
     });
   });
 
-  it("starts Google OAuth with the expected provider and callback URL", async () => {
-    signInWithOAuth.mockResolvedValue({
-      data: { url: "https://accounts.google.com/mock-oauth" },
-      error: null,
-    });
-
-    const { default: AuthModal } = await import("@/components/auth/auth-modal");
-
-    render(<AuthModal open onClose={() => undefined} />);
-
-    fireEvent.click(screen.getByRole("button", { name: /continue with google/i }));
-
-    await waitFor(() => {
-      expect(signInWithOAuth).toHaveBeenCalledWith({
-        provider: "google",
-        options: {
-          redirectTo: "http://localhost:3000/auth/callback",
-          skipBrowserRedirect: true,
-        },
+  it(
+    "starts Google OAuth with the expected provider and callback URL",
+    async () => {
+      signInWithOAuth.mockResolvedValue({
+        data: { url: "https://accounts.google.com/mock-oauth" },
+        error: null,
       });
-    });
 
-    await waitFor(() => {
-      expect(window.location.assign).toHaveBeenCalledWith(
-        "https://accounts.google.com/mock-oauth",
-      );
-    });
-  });
+      const { default: AuthModal } = await import("@/components/auth/auth-modal");
 
-  it("blocks OAuth when Supabase returns a provider URL that points back to production", async () => {
-    signInWithOAuth.mockResolvedValue({
-      data: {
-        url: "https://example.supabase.co/auth/v1/authorize?redirect_to=https%3A%2F%2Fapp.example.com%2Fauth%2Fcallback",
-      },
-      error: null,
-    });
+      render(<AuthModal open onClose={() => undefined} />);
 
-    const { default: AuthModal } = await import("@/components/auth/auth-modal");
+      fireEvent.click(screen.getByRole("button", { name: /continue with google/i }));
 
-    render(<AuthModal open onClose={() => undefined} />);
+      await waitFor(() => {
+        expect(signInWithOAuth).toHaveBeenCalledWith({
+          provider: "google",
+          options: {
+            redirectTo: "http://localhost:3000/auth/callback",
+            skipBrowserRedirect: true,
+          },
+        });
+      });
 
-    fireEvent.click(screen.getByRole("button", { name: /continue with google/i }));
+      await waitFor(() => {
+        expect(assignMock).toHaveBeenCalledWith("https://accounts.google.com/mock-oauth");
+      });
+    },
+    15000,
+  );
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          /Google sign-in is configured to return to https:\/\/app\.example\.com/i,
-        ),
-      ).toBeInTheDocument();
-    });
+  it(
+    "blocks OAuth when Supabase returns a provider URL that points back to production",
+    async () => {
+      signInWithOAuth.mockResolvedValue({
+        data: {
+          url: "https://example.supabase.co/auth/v1/authorize?redirect_to=https%3A%2F%2Fapp.example.com%2Fauth%2Fcallback",
+        },
+        error: null,
+      });
 
-    expect(window.location.assign).not.toHaveBeenCalled();
-  });
+      const { default: AuthModal } = await import("@/components/auth/auth-modal");
+
+      render(<AuthModal open onClose={() => undefined} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /continue with google/i }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(
+            /Google sign-in is configured to return to https:\/\/app\.example\.com/i,
+          ),
+        ).toBeInTheDocument();
+      });
+
+      expect(assignMock).not.toHaveBeenCalled();
+    },
+    15000,
+  );
 });

@@ -13,8 +13,9 @@
 
 ## Fix Applied
 - Exact change:
-  Added a scripted local release gate, deploy route probes, release-doc scaffolding, PR summary generation, clearer GitHub Actions workflows, a human auth/session checklist, release templates, and a concise release operating guide.
+  Added a scripted local release gate, deploy route probes, release-doc scaffolding, PR summary generation, clearer GitHub Actions workflows, a human auth/session checklist, release templates, and a concise release operating guide. After `origin/main` advanced with the separate release-machine protocol, merged that protocol into this branch and wired its standard wrapper entrypoints (`scripts/release-check.sh`, `scripts/preview-check.js`, `scripts/prod-check.js`) to the stronger release automation implementation.
 - Files modified:
+  - `AGENTS.md`
   - `.github/workflows/ci.yml`
   - `.github/workflows/preview-gate.yml`
   - `.github/workflows/production-verification.yml`
@@ -24,7 +25,11 @@
   - `scripts/release/verify-deployment.mjs`
   - `scripts/release/generate-release-docs.mjs`
   - `scripts/release/generate-pr-summary.mjs`
+  - `scripts/release-check.sh`
+  - `scripts/preview-check.js`
+  - `scripts/prod-check.js`
   - `docs/engineering/release-automation-operating-guide.md`
+  - `docs/engineering/release-machine.md`
   - `docs/testing/human-auth-session-gate.md`
   - `docs/testing/templates/release-testing-report-template.md`
   - `docs/bug-fixes/templates/release-bug-fix-template.md`
@@ -33,6 +38,8 @@
   - `docs/bug-fixes/release-automation-architecture.md`
   - `docs/prd/release-automation-architecture.md`
   - `README.md`
+  - `src/lib/data.auth.test.ts`
+  - `src/components/auth/auth-modal.test.tsx`
 
 ## Validation
 - Automated checks:
@@ -42,6 +49,9 @@
   - `npm run build`
   - `ruby -e 'require "yaml"; ARGV.each { |path| YAML.load_file(path) }; puts "workflow yaml ok"' .github/workflows/ci.yml .github/workflows/preview-gate.yml .github/workflows/production-verification.yml`
   - `npm run release:local`
+  - `bash scripts/release-check.sh`
+  - `node scripts/preview-check.js http://127.0.0.1:3000`
+  - `node scripts/prod-check.js http://127.0.0.1:3000`
 - Human checks:
   - Not run in this session by design; auth/session truth remains a human preview gate.
 
@@ -49,3 +59,4 @@
 - The Preview Gate workflow still needs a preview URL handoff from Vercel or a manual dispatch step.
 - Automatic production verification requires the GitHub repo variable `PRODUCTION_BASE_URL`.
 - Branch protection must be updated to require the new PR jobs before the architecture is fully enforced.
+- The current GitHub credential still lacks `workflow` scope, so this branch cannot be pushed or merged through GitHub from the current auth context yet.
