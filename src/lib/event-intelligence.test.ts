@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { buildEventIntelligence, getSignalStrength, getTrustTier } from "@/lib/event-intelligence";
+import {
+  buildEventIntelligence,
+  buildEventIntelligenceSignals,
+  getSignalStrength,
+  getTrustTier,
+} from "@/lib/event-intelligence";
 import { rankNewsClusters } from "@/lib/ranking";
 import type { FeedArticle } from "@/lib/rss";
 
@@ -262,6 +267,27 @@ describe("buildEventIntelligence", () => {
     expect(defense.affectedMarkets).not.toContain("equities");
     expect(political.eventType).toBe("political");
     expect(political.affectedMarkets).not.toContain("technology");
+  });
+
+  it("uses a stable reference time for dashboard recency labels", () => {
+    const signals = buildEventIntelligenceSignals(
+      {
+        title: "Fed signals rates will stay elevated",
+        topicName: "Finance",
+        publishedAt: "2026-04-17T07:00:00.000Z",
+        matchedKeywords: ["fed"],
+        importanceLabel: "Critical",
+        importanceScore: 14,
+        sourceCount: 3,
+        sources: [{ title: "Reuters", url: "https://example.com/story" }],
+        displayState: "unchanged",
+      },
+      "2026-04-17T09:00:00.000Z",
+    );
+
+    expect(signals.timelineIndicator).toBe("New");
+    expect(signals.recencyLabel).toBe("last 2 hours");
+    expect(signals.rankingReason).toContain("last 2 hours");
   });
 });
 

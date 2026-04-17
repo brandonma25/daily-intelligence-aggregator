@@ -40,6 +40,7 @@ export default function PersonalizedDashboard({
   data,
   viewer,
 }: PersonalizedDashboardProps) {
+  const briefingReferenceTime = data.briefing.briefingDate;
   const isSignedIn = Boolean(viewer);
   const personalizationPayload = useSyncExternalStore(
     subscribeToPersonalizationStore,
@@ -294,6 +295,7 @@ export default function PersonalizedDashboard({
                     key={event.id}
                     item={event}
                     tone="confirmed"
+                    referenceTime={briefingReferenceTime}
                     personalization={buildPersonalizationMatch(event, personalizationProfile)}
                     personalizationEnabled={personalizationActive}
                   />
@@ -377,6 +379,7 @@ export default function PersonalizedDashboard({
                       key={item.id}
                       item={item}
                       tone="confirmed"
+                      referenceTime={briefingReferenceTime}
                       compact
                       personalization={buildPersonalizationMatch(item, personalizationProfile)}
                       personalizationEnabled={personalizationActive}
@@ -387,6 +390,7 @@ export default function PersonalizedDashboard({
                       key={item.id}
                       item={item}
                       tone="early"
+                      referenceTime={briefingReferenceTime}
                       compact
                       personalization={buildPersonalizationMatch(item, personalizationProfile)}
                       personalizationEnabled={personalizationActive}
@@ -419,6 +423,7 @@ export default function PersonalizedDashboard({
                   key={item.id}
                   item={item}
                   tone="early"
+                  referenceTime={briefingReferenceTime}
                   compact
                   personalization={buildPersonalizationMatch(item, personalizationProfile)}
                   personalizationEnabled={personalizationActive}
@@ -463,16 +468,18 @@ function DashboardEventCard({
   item,
   tone,
   compact = false,
+  referenceTime,
   personalization,
   personalizationEnabled = false,
 }: {
   item: BriefingItem;
   tone: "confirmed" | "early";
   compact?: boolean;
+  referenceTime: string;
   personalization?: PersonalizationMatch;
   personalizationEnabled?: boolean;
 }) {
-  const intelligence = buildEventIntelligenceSignals(item);
+  const intelligence = buildEventIntelligenceSignals(item, referenceTime);
   const primarySourceUrl = item.relatedArticles?.[0]?.url ?? item.sources.find((source) => isValidStoryUrl(source.url))?.url;
   const displayStateLabel = getDisplayStateLabel(item.displayState);
   const signalLabel = item.signalLabel ?? "Medium Signal";

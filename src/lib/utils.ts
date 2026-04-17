@@ -1,5 +1,4 @@
 import { clsx, type ClassValue } from "clsx";
-import { format, isToday, parseISO } from "date-fns";
 import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
@@ -7,8 +6,24 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatBriefingDate(value: string) {
-  const date = parseISO(value);
-  return isToday(date) ? `Today • ${format(date, "EEEE, MMMM d")}` : format(date, "EEEE, MMMM d, yyyy");
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const todayUtc = new Date().toISOString().slice(0, 10);
+  const valueUtc = date.toISOString().slice(0, 10);
+  const formatted = new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+
+  return valueUtc === todayUtc
+    ? `Today • ${formatted.replace(/, (\d{4})$/, "")}`
+    : formatted;
 }
 
 export function stripHtml(value: string | null | undefined) {

@@ -893,11 +893,13 @@ export function buildEventIntelligenceSignals(
     | "sources"
     | "displayState"
   >,
+  referenceTime: string | number | Date = Date.now(),
 ): EventDisplaySignals {
   const sourceCount = item.sourceCount ?? item.sources.length;
   const isEarlySignal = sourceCount < TOP_EVENT_SOURCE_THRESHOLD;
+  const referenceTimestamp = toTimestamp(referenceTime);
 
-  const timelineIndicator = getDisplayTimelineIndicator(item);
+  const timelineIndicator = getDisplayTimelineIndicator(item, referenceTimestamp);
   const confidenceTone =
     sourceCount >= 4 || (item.importanceScore ?? 0) >= 13
       ? "high"
@@ -912,7 +914,7 @@ export function buildEventIntelligenceSignals(
         : "Developing";
 
   const impactLabel = getDisplayImpactLabel(item.importanceLabel, item.importanceScore ?? 0);
-  const recencyLabel = getDisplayRecencyLabel(item.publishedAt, item.displayState);
+  const recencyLabel = getDisplayRecencyLabel(item.publishedAt, item.displayState, referenceTimestamp);
   const sourceLabel = `${sourceCount} ${sourceCount === 1 ? "source" : "sources"}`;
 
   return {
@@ -936,6 +938,7 @@ export function isTopEventEligible(item: Pick<BriefingItem, "sourceCount" | "sou
 
 function getDisplayTimelineIndicator(
   item: Pick<BriefingItem, "displayState" | "publishedAt">,
+  referenceTimestamp: number,
 ): EventTimelineIndicator {
   if (item.displayState === "escalated") return "Escalating";
   if (item.displayState === "changed") return "Updated";
@@ -943,7 +946,7 @@ function getDisplayTimelineIndicator(
 
   const publishedAt = item.publishedAt ? new Date(item.publishedAt).getTime() : 0;
   const ageHours = publishedAt
-    ? (Date.now() - publishedAt) / (1000 * 60 * 60)
+    ? (referenceTimestamp - publishedAt) / (1000 * 60 * 60)
     : Number.POSITIVE_INFINITY;
 
   return ageHours <= 12 ? "New" : "Updated";
@@ -961,6 +964,7 @@ function getDisplayImpactLabel(
 function getDisplayRecencyLabel(
   publishedAt: string | undefined,
   displayState: BriefingItem["displayState"],
+  referenceTimestamp: number,
 ) {
   if (!publishedAt) {
     if (displayState === "new") return "new this cycle";
@@ -969,7 +973,7 @@ function getDisplayRecencyLabel(
     return "current briefing cycle";
   }
 
-  const ageHours = Math.max(0, (Date.now() - new Date(publishedAt).getTime()) / (1000 * 60 * 60));
+  const ageHours = Math.max(0, (referenceTimestamp - new Date(publishedAt).getTime()) / (1000 * 60 * 60));
 
   if (ageHours < 1) {
     return "last hour";
@@ -982,6 +986,19 @@ function getDisplayRecencyLabel(
 
   const ageDays = Math.max(1, Math.round(ageHours / 24));
   return ageDays === 1 ? "last day" : `last ${ageDays} days`;
+}
+
+function toTimestamp(referenceTime: string | number | Date) {
+  if (typeof referenceTime === "number") {
+    return referenceTime;
+  }
+
+  const timestamp =
+    referenceTime instanceof Date
+      ? referenceTime.getTime()
+      : new Date(referenceTime).getTime();
+
+  return Number.isFinite(timestamp) ? timestamp : Date.now();
 }
 
 function extractDisplayKeyEntities(
