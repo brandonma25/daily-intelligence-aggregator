@@ -195,7 +195,8 @@ export function isObviousFailure(body) {
     "internal server error",
     "unexpected application error",
     "error digest",
-    "500",
+    "500 -",
+    "500 internal server error",
     "this page could not be found",
   ].some((token) => normalized.includes(token));
 }
