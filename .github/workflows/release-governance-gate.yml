@@ -1,0 +1,25 @@
+name: Release Governance Gate
+
+on:
+  pull_request:
+
+jobs:
+  release-governance-gate:
+    name: release-governance-gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run release governance gate
+        run: >
+          python scripts/release-governance-gate.py
+          --base-sha "${{ github.event.pull_request.base.sha }}"
+          --head-sha "${{ github.event.pull_request.head.sha }}"
