@@ -1,55 +1,24 @@
-# Bug Fix: OAuth Session Persistence
+# OAuth Session Persistence
+
+- related_prd_id: `PRD-14`
+- related_files:
+  - `src/app/auth/callback/route.ts`
+  - `src/lib/auth.ts`
+  - `src/lib/data.ts`
+  - `src/components/auth/auth-modal.tsx`
+- related_commits:
+  - `f40dfcf`
+  - `fc3bbef`
+  - `ef78092`
 
 ## Problem
-Google sign-in could start and sometimes appear to complete, but the app did not reliably remember signed-in state afterward. Users could still land on the homepage showing public-mode prompts, and later login attempts could fail with callback-related errors.
-
-## Symptoms
-- False `Authentication is not configured for this environment yet` blocker
-- `redirect_uri_mismatch` during Google OAuth setup
-- OAuth return landing on `/?code=...`
-- Homepage still showing signed-out/public-mode messaging after login
-- Callback error on later login attempts
-- Session not surviving refresh or navigation reliably
+- Google sign-in could appear to complete, but the signed-in session did not always survive callback finalization, refresh, or later navigation.
 
 ## Root Cause
-This was a chain of related auth issues rather than one single bug:
-- Browser env detection mismatch in client code caused a false missing-config blocker
-- Google/Supabase provider redirect configuration mismatch caused `redirect_uri_mismatch`
-- OAuth finalization logic only handled `/auth/callback` reliably, while some returns could land on `/?code=...`
-- `/auth/callback` could discard a response containing fresh auth cookies if `bootstrapUserDefaults()` failed after `exchangeCodeForSession()`
+- Auth env detection could falsely report missing config, some OAuth returns landed outside the expected callback path, and callback bootstrap failure could discard a response that already contained fresh auth cookies.
 
-## Fix Attempts
-- `feature/auth-real-session`
-  Added real auth/session handling and removed fake demo-path behavior, but did not fully solve Google OAuth persistence.
-- `feature/google-auth-config-fix`
-  Fixed browser-side public env detection and compatibility for `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. This removed the false missing-config blocker and allowed Google OAuth initiation.
-- `feature/oauth-session-finalization-fix`
-  Added callback normalization for stray `/?code=...` returns and later fixed cookie loss when post-login bootstrap failed after successful code exchange. Final browser verification now confirms the OAuth session completes and persists correctly.
+## Fix
+- Corrected browser-side auth env detection, normalized stray `/?code=...` returns into the callback flow, and preserved successful session exchange behavior even when post-login bootstrap work failed later in the route.
 
-## Current Status
-Fixed.
-- Browser env detection mismatch
-- OAuth initiation with the correct public config
-- Local login now returns to `localhost`
-- Successful login lands on `/dashboard`
-- Signed-in state persists after login
-- Stray OAuth return normalization into `/auth/callback`
-- Callback cookie loss when post-login bootstrap fails
-
-## Verification
-- Successful Google sign-in
-- Local login returns to `localhost`
-- Successful login lands on `/dashboard`
-- Signed-in state persists after login
-- Refresh persists session
-- Homepage no longer shows sign-in prompts after login
-- Sign-out works cleanly
-- No raw `?code=...` final URL
-
-## Final Verification Note
-Manual in-browser verification is complete: local Google OAuth now returns to `localhost`, finishes on `/dashboard`, and the signed-in session remains intact after login and refresh.
-
-## Related Branches
-- `feature/auth-real-session`
-- `feature/google-auth-config-fix`
-- `feature/oauth-session-finalization-fix`
+## Impact
+- OAuth login stopped degrading into false signed-out states as often, and callback success became much more likely to persist across refresh and navigation.

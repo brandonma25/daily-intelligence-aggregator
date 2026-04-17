@@ -1,21 +1,23 @@
-# Bug Fix: PRD 13 Signal Filtering Layer
+# Signal Filtering Layer Tuning
 
-## Summary
-- Added a dedicated signal-filtering module that evaluates article quality before downstream clustering and ranking.
-- Stored machine-readable filter metadata on raw articles so filtering behavior is inspectable and tunable.
-- Added fallback promotion logic so low-volume runs degrade gracefully instead of collapsing into empty briefing states.
+- related_prd_id: `PRD-13`
+- related_files:
+  - `src/lib/signal-filtering.ts`
+  - `src/lib/data.ts`
+  - `supabase/schema.sql`
+  - `src/lib/signal-filtering.test.ts`
+- related_commits:
+  - `4abb745`
+  - `49e46cb`
 
-## Changed Behavior
-- Weak commentary, filler, promotional content, and repetitive follow-ups are now suppressed or rejected earlier.
-- Tier 1 sources pass with lighter requirements than Tier 2 or Tier 3 sources.
-- Non-tier1 but important stories can still survive via explicit fallback promotion rules.
+## Problem
+- Low-value commentary, filler, and repetitive follow-ups still leaked into the briefing pipeline, while low-volume runs risked becoming too empty after filtering.
 
-## Files and Systems Touched
-- `src/lib/signal-filtering.ts`
-- `src/lib/data.ts`
-- `supabase/schema.sql`
-- `src/lib/signal-filtering.test.ts`
+## Root Cause
+- The pipeline lacked a dedicated pre-clustering filter with explicit source tiers, event gating, and a controlled fallback path when pass volume was too low.
 
-## Remaining Gaps
-- Source tier mappings are intentionally conservative and will need tuning as more feeds are added.
-- Existing unrelated lint/test debt remains in the repository and is documented in the validation notes.
+## Fix
+- Added a shared signal-filtering layer, persisted machine-readable filter metadata on articles, and introduced fallback promotion rules so thin runs could recover without fully collapsing filter intent.
+
+## Impact
+- Downstream ranking and clustering started from a cleaner article pool while still degrading gracefully when feed volume was sparse.

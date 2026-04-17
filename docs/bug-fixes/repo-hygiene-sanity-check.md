@@ -1,32 +1,22 @@
-# Bug Fix: Repo Hygiene Sanity Check
+# Repo Hygiene Sanity Check
+
+- related_prd_id: `none`
+- related_files:
+  - `README.md`
+  - `.env.example`
+  - `.gitignore`
+  - `QA-LIVE-TEST-2026-04-15.md`
+  - `src/components/auth/auth-modal.test.tsx`
+- related_commit: `c3dc7c7`
 
 ## Problem
-The repository contained public-facing documentation and test fixtures with environment-specific details that were useful during setup and debugging, but too specific for a public GitHub repo.
-
-## Symptoms
-- `README.md` referenced a local absolute filesystem path
-- `README.md` included concrete Vercel deployment URLs and a real Supabase project URL
-- The repo documentation referenced `.env.example`, but no tracked example file existed
-- A tracked auth test used project-specific OAuth callback domains
-- A tracked live verification note included a concrete production URL and deployment identifier
+- Public-facing docs and tests contained environment-specific details that were too specific for a public repository.
 
 ## Root Cause
-Auth troubleshooting and deployment verification were documented quickly for active development, and those notes were never normalized back to public-safe placeholders.
+- Active debugging notes and setup instructions were committed faster than they were normalized back to reusable placeholders.
 
 ## Fix
-- Replaced deployment-specific setup examples in `README.md` with reusable placeholders
-- Removed the local absolute path from setup instructions
-- Added a tracked `.env.example` containing placeholders only
-- Updated `.gitignore` so real env files remain ignored while `.env.example` stays committed
-- Replaced project-specific OAuth URLs in the auth modal test with `example` domains
-- Redacted production-specific identifiers from the live verification note
+- Replaced deployment-specific references with placeholders, added a tracked `.env.example`, preserved ignore rules for real env files, and sanitized test and QA references that exposed project-specific hosts.
 
-## Verification
-- Confirmed `.env.local` and `.env.local.save` are ignored by Git
-- Confirmed no tracked `.env`, `.pem`, `.key`, `.crt`, or `.p12` files remain
-- Confirmed example emails in tests are placeholder addresses only
-- Confirmed the README setup flow still points to valid placeholder inputs rather than real credentials
-
-## Remaining Manual Review
-- Review any future ad hoc QA or incident notes before committing them, since those documents are the easiest place for deployment-specific details to slip back in.
-- If credentials were ever committed before this cleanup, rotate them through the relevant provider dashboards rather than relying on repo cleanup alone.
+## Impact
+- The repo became safer to share publicly without losing basic setup guidance.

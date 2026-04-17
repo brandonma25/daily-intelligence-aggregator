@@ -1,29 +1,20 @@
 # Auth Test Stability
 
-## Failing Tests
-- `src/components/auth/auth-modal.test.tsx`
-- `src/lib/data.auth.test.ts`
+- related_prd_id: `PRD-14`
+- related_files:
+  - `src/components/auth/auth-modal.test.tsx`
+  - `src/lib/data.auth.test.ts`
+  - `src/components/auth/auth-modal.tsx`
+- related_commit: `251e02c`
 
-## Root Cause By File
-- `src/components/auth/auth-modal.test.tsx`
-  - The test used a dynamic import of the component plus a direct `window.location` replacement.
-  - That setup passed when run alone, but became brittle inside the wider suite where other files also mock adjacent auth modules.
-- `src/lib/data.auth.test.ts`
-  - The test used dynamic imports of both the mocked dependency and the module under test.
-  - That made the assertions sensitive to suite-level module cache and mock ordering, even though the real auth behavior was correct.
+## Problem
+- Auth-related tests passed in isolation but failed unpredictably in broader suite runs, making release validation noisy and unreliable.
 
-## Fix Applied
-- Converted both tests to use stable mocked bindings with normal imports after hoisted `vi.mock(...)` declarations.
-- Replaced the invasive `window.location` override with `window.history.replaceState(...)` in the auth modal test.
-- Reset only the relevant mocks in `beforeEach` so each test starts from a deterministic state.
+## Root Cause
+- The tests depended on dynamic imports, suite-level module cache behavior, and invasive `window.location` replacement, which made mock ordering fragile across the wider test run.
 
-## Whether Any Production Code Changed
-- No. The fix is test-only.
+## Fix
+- Converted tests to stable hoisted mocks with normal imports, switched URL setup to `window.history.replaceState(...)`, and reset only the relevant mocks between cases.
 
-## Regression Risk
-- Low. The updated tests keep the same behavioral assertions while reducing cross-suite mock brittleness.
-
-## Result
-- Direct auth test runs now pass.
-- Broader auth-related runs now pass.
-- The full Vitest suite now passes.
+## Impact
+- Auth test runs became deterministic enough to support the release-validation path without changing production auth behavior.

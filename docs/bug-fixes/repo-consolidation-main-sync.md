@@ -1,35 +1,19 @@
-# Repo Consolidation — Bug-Fix Notes
+# Repo Consolidation Validation Drift
 
-## Blockers Found
-- `src/components/app-shell.tsx`
-  Lint failed on `react-hooks/set-state-in-effect` because the shell restored sidebar state and closed mobile nav by setting state inside effects.
-- `src/lib/data.test.ts`
-  Unit tests still expected older fallback retry counts and test-only helper exports that are no longer present after the consolidation merges.
-- `src/lib/data.auth.test.ts`
-- `src/components/auth/auth-modal.test.tsx`
-  Prior failures from the earlier consolidation run did not reproduce on rerun and were treated as transient test-run noise rather than current app regressions.
+- related_prd_id: `none`
+- related_files:
+  - `src/components/app-shell.tsx`
+  - `src/lib/data.test.ts`
+- related_commit: `af784d5`
+
+## Problem
+- The consolidation branch was blocked by a lint failure in the app shell and stale data-layer tests that no longer matched merged behavior.
 
 ## Root Cause
-- The shell component used post-mount effects for UI state that can be derived at initialization time or handled by existing click flows.
-- The data test file had drifted behind the consolidated data-layer behavior:
-  - GDELT fallback fetches now use `retryCount: 0`
-  - obsolete `__testing__` helpers are no longer exported from `src/lib/data.ts`
-- Playwright itself was healthy. The initial reruns failed because the repo expects an already-running dev server unless `PLAYWRIGHT_MANAGED_WEBSERVER` is set.
+- UI state was being set inside effects in the shell component, and the data tests still asserted pre-consolidation fallback behavior plus legacy helper exports.
 
-## Exact Fix Applied
-- `src/components/app-shell.tsx`
-  - replaced the sidebar hydration effect with a lazy `useState` initializer that reads `localStorage` only in the browser
-  - removed the separate hydration state
-  - removed the route-change effect that only closed the mobile drawer, since mobile nav links already close it directly
-- `src/lib/data.test.ts`
-  - updated the fallback retry expectation from `2` to `0`
-  - removed obsolete tests that depended on non-exported legacy helpers
+## Fix
+- Moved sidebar restoration into a lazy browser-only state initializer, removed the redundant route-change effect, and updated data tests to match the consolidated fallback behavior.
 
-## Unresolved Items
-- No current code or test failures remain on the consolidation branch after this stabilization pass.
-- Preview validation was not performed in this session, so merge-to-main still depends on whether the repo operating rules require preview confirmation for this release step.
-
-## Operational Notes
-- The consolidation branch still intentionally excludes:
-  - `feature/auth-preview-host-fix`
-  - `feature/importance-scoring-engine-v1`
+## Impact
+- The branch regained a clean local validation path without reverting other consolidation work.

@@ -1,15 +1,24 @@
-# PRD 12 — Why This Matters Bug Notes
+# Why This Matters Precision Failures
 
-## Failures Addressed
-- Weak anchors such as pronouns, role words, and malformed fragments appearing as subjects.
-- Repetitive generic explanations across adjacent cards.
-- Domain leakage between company, macro, governance, housing, and defense story types.
-- Non-signal content receiving policy or market-style reasoning.
-- Thin single-source stories receiving inflated signal labels.
+- related_prd_id: `PRD-12`
+- related_files:
+  - `src/lib/why-it-matters.ts`
+  - `src/lib/event-intelligence.ts`
+  - `src/lib/types.ts`
+- related_commits:
+  - `6322135`
+  - `d4566f4`
+  - `b16d09e`
+  - `a5634ec`
 
-## Fix Themes
-- Stronger entity validation and subject ranking.
-- Event-specific routing and subtype handling.
-- Safer non-signal classification.
-- Batch-level repetition control plus clause cleanup.
-- Tighter signal calibration for sparse or low-quality evidence.
+## Problem
+- Early `why_it_matters` output drifted into weak anchors, repetitive phrasing, and overconfident explanations on thin evidence.
+
+## Root Cause
+- Subject selection, event routing, and signal calibration were not strict enough, so low-quality anchors and generic causal phrasing leaked into the output.
+
+## Fix
+- Tightened entity validation, introduced event-specific routing, constrained non-signal handling, reduced batch-level repetition, and recalibrated early-signal language for sparse stories.
+
+## Impact
+- The reasoning layer became more specific and less repetitive, which made downstream explanation quality safer for homepage and dashboard use.
