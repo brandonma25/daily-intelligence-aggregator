@@ -5,6 +5,7 @@ import AuthModal from "@/components/auth/auth-modal";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 const signInWithOAuth = vi.fn();
+
 vi.mock("@/lib/supabase/client", () => ({
   createSupabaseBrowserClient: vi.fn(),
 }));
@@ -48,5 +49,29 @@ describe("AuthModal", () => {
         },
       });
     });
+  });
+
+  it("does not surface a local error when Supabase returns a mismatched provider callback URL", async () => {
+    signInWithOAuth.mockResolvedValue({
+      data: {
+        url: "https://example.supabase.co/auth/v1/authorize?redirect_to=https%3A%2F%2Fapp.example.com%2Fauth%2Fcallback",
+      },
+      error: null,
+    });
+
+    render(<AuthModal open onClose={() => undefined} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /continue with google/i }));
+
+    await waitFor(() => {
+      expect(signInWithOAuth).toHaveBeenCalledWith({
+        provider: "google",
+        options: {
+          redirectTo: "http://localhost:3000/auth/callback",
+        },
+      });
+    });
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
