@@ -161,6 +161,12 @@ git push origin --delete feature/<name>
 - No direct experimentation in `main`.
 - Merge only after validation and docs updates are complete.
 
+## 10a. Governance Hotspot Workflow
+- Treat `docs/product/feature-system.csv`, `AGENTS.md`, `docs/engineering/engineering-protocol.md`, `docs/engineering/prd-template.md`, and `docs/product/documentation-rules.md` as serialized hotspot files.
+- Hotspot changes should be short-lived and should sync with `origin/main` immediately before PR creation and again before merge.
+- Avoid parallel hotspot branches when possible; if overlap exists, prefer rebasing or stacking on the latest branch instead of letting both drift.
+- If a hotspot PR becomes stale, it should usually be superseded by port-forwarding the still-needed logic into a fresh branch from `main` instead of force-merging the stale branch.
+
 ## 11. Merge Checklist
 - Branch is correct and isolated.
 - Local validation passed.
