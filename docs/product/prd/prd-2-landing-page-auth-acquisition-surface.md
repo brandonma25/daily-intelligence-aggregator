@@ -4,13 +4,13 @@
 - Canonical file: `docs/product/prd/prd-2-landing-page-auth-acquisition-surface.md`
 
 ## Objective
-- Turn the homepage into a clearer signed-out entry surface that explains product value and gives users a direct path into authentication.
+- Establish the homepage as a clearer signed-out entry surface with a direct path into authentication.
 
 ## User Problem
 - A signed-out visitor needs to understand what the product does and how to start using it, rather than landing on a thin or confusing homepage.
 
 ## Scope
-- Landing-page hero conversion messaging.
+- Landing-page hero messaging and primary call-to-action.
 - Auth modal entrypoints from the public homepage.
 - Simplified signed-out navigation into the product.
 
@@ -38,5 +38,13 @@
 ## Evidence and Confidence
 - Repo evidence:
   - Historical PRD content from commit `0c6196f`
+  - Commit `69487c4` (`feat: simplify landing page auth flow`) created `src/components/auth/auth-modal.tsx` and `src/components/landing/hero.tsx`
   - Current related files: `src/app/page.tsx`, `src/components/auth/auth-modal.tsx`, `src/components/landing/hero.tsx`
-- Confidence: Medium. The repo history and surviving files support the feature identity, but some landing-page intent is reconstructed from code shape and naming rather than a fuller contemporary brief.
+- Directly evidenced:
+  - The homepage was simplified around a landing hero plus auth modal flow.
+  - Public homepage entrypoints into auth were added explicitly.
+- Inferred:
+  - The wording "acquisition surface" is a product framing layer inferred from the hero copy, CTA placement, and commit message about simplifying landing-page auth flow.
+- Still uncertain:
+  - There is no surviving contemporaneous product brief proving a broader conversion strategy beyond the simplified hero-plus-auth implementation.
+- Confidence: Medium. The repo clearly shows a landing-page auth simplification, but the broader acquisition framing is still partly reconstructed from implementation shape.

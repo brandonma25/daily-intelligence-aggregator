@@ -4,10 +4,10 @@
 - Canonical file: `docs/product/prd/prd-9-ranking-and-timeline-activation.md`
 
 ## Objective
-- Activate ranking and narrative context so event clusters are ordered intentionally and can show concise development timelines instead of appearing as undifferentiated cards.
+- Activate shared ranking and timeline context so event clusters are ordered consistently and can show concise development timelines.
 
 ## User Problem
-- Users need the most important developments surfaced first, with enough sequence context to understand what changed and why it matters now.
+- Users need the most important developments surfaced first, with enough sequence context to understand how a story is developing.
 
 ## Scope
 - Shared ranking logic for homepage and dashboard.
@@ -38,5 +38,16 @@
 ## Evidence and Confidence
 - Repo evidence:
   - Historical PRD content from commit `0c6196f`
+  - Commit `6354eb9` (`feat: timeline builder for event-level narratives`)
+  - Commit `92766b2` (`feat: activate ranking across homepage and dashboard`)
   - Current related files: `src/lib/ranking.ts`, `src/lib/timeline-builder.ts`, `src/lib/data.ts`, `src/components/story-card.tsx`, `src/components/landing/homepage.tsx`, `src/app/dashboard/page.tsx`
-- Confidence: Medium. The repo evidence is strong on ranking and timeline modules, but some product framing is still reconstructed from implementation shape.
+  - Related tests: `src/lib/ranking.test.ts`, `src/lib/timeline-builder.test.ts`, `src/components/story-card.test.tsx`
+- Directly evidenced:
+  - A dedicated timeline-builder module was added for event-level narratives.
+  - Shared ranking logic was added across homepage and dashboard.
+  - Story cards render timeline and ranking-derived signals.
+- Inferred:
+  - The phrase "activation" is a summarizing label inferred from the pair of ranking and timeline commits rather than a surviving historical feature title in code.
+- Still uncertain:
+  - The exact original product framing that grouped ranking and timeline into one numbered feature is reconstructed from the historical PRD content and adjacent commit sequence.
+- Confidence: High. The repo has unusually strong direct evidence for both the ranking and timeline pieces, and they were implemented in a tight historical sequence with supporting tests.

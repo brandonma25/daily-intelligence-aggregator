@@ -4,15 +4,15 @@
 - Canonical file: `docs/product/prd/prd-5-google-oauth-onboarding-entry.md`
 
 ## Objective
-- Add the first Google OAuth entry path so users can start onboarding through a provider-based login instead of password-only flows.
+- Add the first Google OAuth entry path so users can begin sign-in through a provider-based login instead of password-only flows.
 
 ## User Problem
 - Users need a low-friction sign-in path to reach onboarding and the product quickly; password-only entry adds unnecessary friction.
 
 ## Scope
 - Google OAuth launch entrypoints in the auth modal.
-- Homepage and app-shell integration for provider login.
-- Initial onboarding linkage between OAuth completion and seeded defaults.
+- Homepage integration for provider login.
+- OAuth callback and auth flows that reuse the existing default-bootstrap path after sign-in.
 
 ## Non-Goals
 - Callback-host correctness, PKCE safety, and durable session routing fixed later under PRD-14 bug work.
@@ -21,7 +21,7 @@
 
 ## Implementation Shape / System Impact
 - The auth surface expands beyond password login to include provider-based entry.
-- OAuth completion becomes part of the onboarding pathway rather than a disconnected sign-in side path.
+- OAuth sign-in reuses the same default-bootstrap path already used by the app's auth flows.
 
 ## Dependencies / Risks
 - Dependencies:
@@ -32,11 +32,22 @@
 
 ## Acceptance Criteria
 - Users can initiate Google OAuth from the product’s signed-out entry surface.
-- Successful provider sign-in can flow into the app’s onboarding path.
+- Successful provider sign-in can return through the app’s auth flow and reuse the default bootstrap path.
 - OAuth entry does not remove access to existing auth options.
 
 ## Evidence and Confidence
 - Repo evidence:
   - Historical PRD content from commit `0c6196f`
-  - Current related files: `src/components/auth/auth-modal.tsx`, `src/app/actions.ts`, `src/app/auth/callback/route.ts`, `src/components/app-shell.tsx`, `src/app/page.tsx`
-- Confidence: Medium. The repo history and code clearly support a first-pass Google OAuth entry, but some onboarding intent is inferred from the surviving integration points.
+  - Commit `c8783a7` (`Add Google OAuth login with seeded onboarding support`)
+  - Current related files: `src/components/auth/auth-modal.tsx`, `src/app/actions.ts`, `src/app/auth/callback/route.ts`, `src/app/auth/password/route.ts`, `src/lib/default-topics.ts`
+  - Related bug records: `docs/engineering/bug-fixes/google-oauth-pkce-callback-fix.md`, `docs/engineering/bug-fixes/oauth-session-persistence.md`
+- Directly evidenced:
+  - Google OAuth entry was added to the auth modal.
+  - Auth callback and password routes both call `bootstrapUserDefaults(...)`, which seeds default topics after sign-in.
+  - Later bug-fix docs confirm Google OAuth became a real path that then required callback and session hardening.
+- Inferred:
+  - The term "onboarding entry" is partly inferred from the reuse of bootstrap defaults and the commit message about seeded onboarding support.
+- Still uncertain:
+  - There is not a surviving standalone product brief showing a broader onboarding design beyond sign-in plus default bootstrap.
+  - Current `app-shell` code is no longer necessary evidence for this PRD.
+- Confidence: Medium. Google OAuth entry is directly supported, and default bootstrap linkage is supported by the auth routes, but the stronger onboarding framing still depends partly on commit intent rather than a surviving canonical brief.
