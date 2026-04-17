@@ -47,6 +47,27 @@ git push origin --delete feature/<name>
 - Do not mix unrelated changes.
 - Do not modify unrelated files.
 
+## GOVERNANCE HOTSPOT RULES
+
+The following files are serialized hotspot files:
+
+- `docs/product/feature-system.csv`
+- `AGENTS.md`
+- `docs/engineering/engineering-protocol.md`
+- `docs/engineering/prd-template.md`
+- `docs/product/documentation-rules.md`
+
+Rules:
+
+1. Codex must avoid parallel long-lived branches that edit hotspot files.
+2. If a branch needs to edit hotspot files and another open PR already edits them, Codex must:
+   - warn that overlap exists
+   - prefer rebasing or stacking on the latest branch
+   - or recommend closing the stale branch as superseded
+3. Before opening a PR that touches hotspot files, Codex must sync with `origin/main`.
+4. Before merging a PR that touches hotspot files, Codex must re-check whether `main` has moved and re-sync if needed.
+5. If a hotspot-governance branch becomes stale, prefer port-forwarding the still-needed logic into a fresh branch from `main` instead of forcing the stale PR through.
+
 ## 3. Validation Order
 - Follow `Local -> Vercel Preview -> Production`.
 - Treat Vercel preview as the source of truth for auth, cookies, redirects, SSR, and environment variables.
