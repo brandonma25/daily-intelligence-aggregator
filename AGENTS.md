@@ -68,12 +68,22 @@ This repository uses a strict documentation system to prevent bloat and maintain
 
 ### Source of Truth
 - `/docs/product/feature-system.csv` is the ONLY source of truth for:
-  - feature list
+  - layer
+  - feature_name
   - priority
   - status
-  - build order
+  - description
+  - owner
+  - dependency
+  - build_order
   - decision (build / delay / kill)
-  - dependencies
+  - last_updated
+- Allowed `status` values:
+  - `Not Built`
+  - `In Progress`
+  - `In Review`
+  - `Built`
+  - `Deprecated`
 
 ### PRD Rules
 - Each feature has ONLY ONE canonical PRD file:
@@ -97,12 +107,31 @@ Before implementing ANY feature:
 2. Select the next feature where:
    - `decision = build`
    - lowest `build_order`
+3. Respect dependencies before implementation
 
-After implementation:
+During active branch work:
+- set `status = In Progress`
+
+When implementation is complete but awaiting merge or review:
+- set `status = In Review`
+
+After merge or explicit user acceptance:
 1. Update:
    - status → Built
+   - decision → keep
    - last_updated
 2. Commit the updated CSV
+
+Do not:
+- implement features marked `delay` or `kill`
+- change `build_order` without explicit user instruction
+- create new feature rows unless explicitly asked
+
+If a feature is no longer active:
+- set `status = Deprecated`
+- update `decision` accordingly if explicitly instructed
+
+The CSV must be updated in the same PR as the feature work whenever feature state changes.
 
 ### Anti-Bloat Rule
 - DO NOT create redundant documentation
