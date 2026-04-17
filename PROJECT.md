@@ -336,6 +336,48 @@ When updating this file:
 - `feature/auth-preview-host-fix` still requires preview and human validation before it should be considered for merge.
 - The original repo worktree still contains active uncommitted feature work that was intentionally left untouched.
 
+### [2026-04-17 22:15] — Release Automation Architecture
+
+**Agent:**
+- Codex
+
+**Problem addressed:**
+- Release readiness for this repo depended on scattered manual steps, which made local validation, PR validation, preview sanity checks, and release documentation inconsistent and easy to miss.
+
+**Root cause:**
+- The repo had baseline CI and Playwright coverage, but it lacked a single release entrypoint, reusable deploy probes, explicit protected-branch check names, a concise human auth/session gate, and reusable release-doc scaffolding.
+
+**Change made:**
+- Added a release-automation layer with a scripted local gate, preview and production route probes, PR summary generation, release-doc scaffolding, and clearer GitHub Actions workflows for PR validation, preview verification, and post-merge production verification.
+- Added concise release operating documentation and a reusable human auth/session checklist that keeps Google OAuth, callback truth, refresh persistence, sign-out truth, and final auth-sensitive product judgment explicitly human-owned.
+- Scaffolded repo-safe PRD, testing, and bug-fix documents for the release-automation branch and updated the README with the new release commands and flow.
+
+**Files modified:**
+- `.github/workflows/ci.yml`
+- `.github/workflows/preview-gate.yml`
+- `.github/workflows/production-verification.yml`
+- `package.json`
+- `scripts/release/common.mjs`
+- `scripts/release/validate-local.mjs`
+- `scripts/release/verify-deployment.mjs`
+- `scripts/release/generate-release-docs.mjs`
+- `scripts/release/generate-pr-summary.mjs`
+- `docs/engineering/release-automation-operating-guide.md`
+- `docs/testing/human-auth-session-gate.md`
+- `docs/testing/templates/release-testing-report-template.md`
+- `docs/bug-fixes/templates/release-bug-fix-template.md`
+- `docs/prd/templates/release-brief-template.md`
+- `docs/testing/release-automation-architecture.md`
+- `docs/bug-fixes/release-automation-architecture.md`
+- `docs/prd/release-automation-architecture.md`
+- `README.md`
+- `PROJECT.md`
+
+**Remaining risks / next steps:**
+- Preview and production workflows still require external GitHub/Vercel configuration to supply the preview URL handoff and canonical production URL.
+- The local release gate required escalation in this environment so the dev server could bind to port `3000`; the repo code itself passed once allowed to run normally.
+- `npm install` still reports one pre-existing high severity vulnerability that was not changed by this release work.
+
 ---
 
 ## 8. NEXT ACTION (FOCUS)
