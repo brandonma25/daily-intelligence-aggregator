@@ -1,6 +1,8 @@
 # Homepage Category Rails and Empty States
 
 - related_prd_id: `PRD-17`
+- related_issue: `#43`
+- related_issue_url: `https://github.com/brandonma25/daily-intelligence-aggregator/issues/43`
 - related_files:
   - `src/components/landing/homepage.tsx`
   - `src/lib/homepage-model.ts`

@@ -1,6 +1,8 @@
 # Why This Matters Precision Failures
 
 - related_prd_id: `PRD-12`
+- related_issue: `#38`
+- related_issue_url: `https://github.com/brandonma25/daily-intelligence-aggregator/issues/38`
 - related_files:
   - `src/lib/why-it-matters.ts`
   - `src/lib/event-intelligence.ts`

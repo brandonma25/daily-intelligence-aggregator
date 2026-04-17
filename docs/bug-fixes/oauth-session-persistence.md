@@ -1,6 +1,8 @@
 # OAuth Session Persistence
 
 - related_prd_id: `PRD-14`
+- related_issue: `#37`
+- related_issue_url: `https://github.com/brandonma25/daily-intelligence-aggregator/issues/37`
 - related_files:
   - `src/app/auth/callback/route.ts`
   - `src/lib/auth.ts`

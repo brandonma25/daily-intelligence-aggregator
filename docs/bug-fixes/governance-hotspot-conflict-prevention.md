@@ -1,6 +1,8 @@
 # Governance Hotspot Conflict Prevention
 
 - related_prd_id: `PRD-23`
+- related_issue: `#44`
+- related_issue_url: `https://github.com/brandonma25/daily-intelligence-aggregator/issues/44`
 - related_files:
   - `AGENTS.md`
   - `docs/engineering/engineering-protocol.md`

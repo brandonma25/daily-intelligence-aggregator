@@ -1,6 +1,8 @@
 # Repo Consolidation Validation Drift
 
 - related_prd_id: `none`
+- related_issue: `#41`
+- related_issue_url: `https://github.com/brandonma25/daily-intelligence-aggregator/issues/41`
 - related_files:
   - `src/components/app-shell.tsx`
   - `src/lib/data.test.ts`

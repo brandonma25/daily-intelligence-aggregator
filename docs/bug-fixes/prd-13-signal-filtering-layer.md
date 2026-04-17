@@ -1,6 +1,8 @@
 # Signal Filtering Layer Tuning
 
 - related_prd_id: `PRD-13`
+- related_issue: `#39`
+- related_issue_url: `https://github.com/brandonma25/daily-intelligence-aggregator/issues/39`
 - related_files:
   - `src/lib/signal-filtering.ts`
   - `src/lib/data.ts`

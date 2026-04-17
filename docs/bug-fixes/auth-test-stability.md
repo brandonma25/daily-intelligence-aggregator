@@ -1,6 +1,8 @@
 # Auth Test Stability
 
 - related_prd_id: `PRD-14`
+- related_issue: `#35`
+- related_issue_url: `https://github.com/brandonma25/daily-intelligence-aggregator/issues/35`
 - related_files:
   - `src/components/auth/auth-modal.test.tsx`
   - `src/lib/data.auth.test.ts`

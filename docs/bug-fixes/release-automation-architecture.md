@@ -1,6 +1,8 @@
 # Release Automation Architecture Gaps
 
 - related_prd_id: `PRD-22`
+- related_issue: `#40`
+- related_issue_url: `https://github.com/brandonma25/daily-intelligence-aggregator/issues/40`
 - related_files:
   - `docs/engineering/release-machine.md`
   - `docs/engineering/release-automation-operating-guide.md`

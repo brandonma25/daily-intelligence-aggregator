@@ -1,6 +1,8 @@
 # Ingestion Category Coverage Failures
 
 - related_prd_id: `PRD-11`
+- related_issue: `#42`
+- related_issue_url: `https://github.com/brandonma25/daily-intelligence-aggregator/issues/42`
 - related_files:
   - `src/lib/data.ts`
   - `src/lib/rss.ts`
