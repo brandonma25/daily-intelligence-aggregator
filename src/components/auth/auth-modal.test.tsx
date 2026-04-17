@@ -1,11 +1,12 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const signInWithOAuth = vi.fn();
-const createSupabaseBrowserClient = vi.fn();
+import AuthModal from "@/components/auth/auth-modal";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
+const signInWithOAuth = vi.fn();
 vi.mock("@/lib/supabase/client", () => ({
-  createSupabaseBrowserClient,
+  createSupabaseBrowserClient: vi.fn(),
 }));
 
 vi.mock("@/lib/env", () => ({
@@ -19,21 +20,14 @@ vi.mock("@/lib/env", () => ({
 
 describe("AuthModal", () => {
   beforeEach(() => {
-    vi.resetAllMocks();
-    createSupabaseBrowserClient.mockReturnValue({
+    vi.clearAllMocks();
+    vi.mocked(createSupabaseBrowserClient).mockReturnValue({
       auth: {
         signInWithOAuth,
       },
     });
 
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: {
-        ...window.location,
-        origin: "http://localhost:3000",
-        assign: vi.fn(),
-      },
-    });
+    window.history.replaceState({}, "", "http://localhost:3000/");
   });
 
   it("starts Google OAuth with the expected provider and callback URL", async () => {
@@ -41,8 +35,6 @@ describe("AuthModal", () => {
       data: { url: "https://accounts.google.com/mock-oauth" },
       error: null,
     });
-
-    const { default: AuthModal } = await import("@/components/auth/auth-modal");
 
     render(<AuthModal open onClose={() => undefined} />);
 

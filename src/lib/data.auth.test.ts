@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { getDashboardPageState, getViewerAccount } from "@/lib/data";
+import { safeGetUser } from "@/lib/supabase/server";
+
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: vi.fn(),
   safeGetUser: vi.fn(),
@@ -7,12 +10,11 @@ vi.mock("@/lib/supabase/server", () => ({
 
 describe("auth-driven SSR viewer detection", () => {
   beforeEach(() => {
-    vi.resetAllMocks();
+    vi.clearAllMocks();
+    vi.mocked(safeGetUser).mockReset();
   });
 
   it("returns a signed-in viewer account when safeGetUser resolves a user", async () => {
-    const { safeGetUser } = await import("@/lib/supabase/server");
-
     vi.mocked(safeGetUser).mockResolvedValue({
       supabase: null,
       sessionCookiePresent: true,
@@ -25,7 +27,6 @@ describe("auth-driven SSR viewer detection", () => {
       },
     });
 
-    const { getViewerAccount } = await import("@/lib/data");
     const viewer = await getViewerAccount();
 
     expect(viewer).toEqual({
@@ -37,15 +38,12 @@ describe("auth-driven SSR viewer detection", () => {
   });
 
   it("uses one auth lookup for combined dashboard page state", async () => {
-    const { safeGetUser } = await import("@/lib/supabase/server");
-
     vi.mocked(safeGetUser).mockResolvedValue({
       supabase: null,
       sessionCookiePresent: false,
       user: null,
     });
 
-    const { getDashboardPageState } = await import("@/lib/data");
     const pageState = await getDashboardPageState("/");
 
     expect(safeGetUser).toHaveBeenCalledTimes(1);
