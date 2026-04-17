@@ -49,11 +49,13 @@ export function AppShell({
   currentPath,
   mode,
   account,
+  loadingState = false,
 }: {
   children: React.ReactNode;
   currentPath: string;
   mode: "demo" | "live" | "public";
   account?: ViewerAccount | null;
+  loadingState?: boolean;
 }) {
   const [desktopCollapsed, setDesktopCollapsed] = useState(getInitialDesktopCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -90,6 +92,7 @@ export function AppShell({
               account={account}
               collapsed={false}
               mobile
+              loadingState={loadingState}
               onClose={() => setMobileOpen(false)}
             />
           </div>
@@ -108,6 +111,7 @@ export function AppShell({
           mode={mode}
           account={account}
           collapsed={desktopCollapsed}
+          loadingState={loadingState}
           onToggleCollapse={() => setDesktopCollapsed((v) => !v)}
         />
       </aside>
@@ -115,15 +119,30 @@ export function AppShell({
       {/* Main content */}
       <main className="min-w-0 flex-1">
         <div className="mb-3 flex min-h-[3rem] items-start justify-end gap-3 pl-14 lg:mb-4 lg:min-h-0 lg:pl-0">
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Badge className={account ? "text-[var(--accent)]" : ""}>
-              {account ? "Signed in" : "Public briefing"}
-            </Badge>
-            <Badge className={mode === "live" ? "text-[var(--accent)]" : ""}>
-              {mode === "live" ? "Personalized" : mode === "public" ? "Live preview" : "Demo preview"}
-            </Badge>
-          </div>
-          {mode !== "demo" ? <AccountMenu account={account} /> : null}
+          {loadingState ? (
+            <>
+              <div className="flex flex-wrap items-center justify-end gap-2" aria-hidden="true">
+                <ShellStatusSkeleton className="w-28" />
+                <ShellStatusSkeleton className="w-24" />
+              </div>
+              <div
+                aria-hidden="true"
+                className="h-[52px] w-[52px] rounded-full border border-[var(--line)] bg-[rgba(255,255,255,0.78)] md:w-[196px] md:rounded-full"
+              />
+            </>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Badge className={account ? "text-[var(--accent)]" : ""}>
+                  {account ? "Signed in" : "Public briefing"}
+                </Badge>
+                <Badge className={mode === "live" ? "text-[var(--accent)]" : ""}>
+                  {mode === "live" ? "Personalized" : mode === "public" ? "Live preview" : "Demo preview"}
+                </Badge>
+              </div>
+              {mode !== "demo" ? <AccountMenu account={account} /> : null}
+            </>
+          )}
         </div>
         {children}
       </main>
@@ -261,6 +280,7 @@ function SidebarPanel({
   account,
   collapsed,
   mobile = false,
+  loadingState = false,
   onClose,
   onToggleCollapse,
 }: {
@@ -269,6 +289,7 @@ function SidebarPanel({
   account?: ViewerAccount | null;
   collapsed: boolean;
   mobile?: boolean;
+  loadingState?: boolean;
   onClose?: () => void;
   onToggleCollapse?: () => void;
 }) {
@@ -365,7 +386,7 @@ function SidebarPanel({
 
       <div className="mt-6 space-y-3">
         {/* Mobile: account section */}
-        {mobile ? (
+        {mobile && !loadingState ? (
           <div className="rounded-[20px] border border-[var(--line)] bg-white/60 p-4">
             {account ? (
               <div className="space-y-3">
@@ -417,36 +438,64 @@ function SidebarPanel({
           )}
         >
           {collapsed && !mobile ? (
-            <p className="text-center text-xs font-semibold uppercase tracking-[0.15em] text-[var(--muted)]">
-              {mode === "demo" ? "Demo" : mode === "public" ? "Pub" : "Live"}
-            </p>
+            loadingState ? (
+              <div className="mx-auto h-3 w-9 rounded-full bg-[rgba(19,26,34,0.08)]" aria-hidden="true" />
+            ) : (
+              <p className="text-center text-xs font-semibold uppercase tracking-[0.15em] text-[var(--muted)]">
+                {mode === "demo" ? "Demo" : mode === "public" ? "Pub" : "Live"}
+              </p>
+            )
           ) : (
             <>
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
-                  Mode
-                </p>
-                <span
-                  className={cn(
-                    "h-2 w-2 rounded-full",
-                    mode === "live" ? "bg-[var(--accent)]" : "bg-[var(--muted)]/50",
-                  )}
-                />
-              </div>
-              <p className="mt-2 text-xs leading-5 text-[var(--foreground)]">{modeText}</p>
-              {mode !== "live" ? (
-                <Link
-                  href="/settings"
-                  className="mt-2 inline-flex text-xs font-semibold text-[var(--accent)] hover:underline"
-                  onClick={mobile ? onClose : undefined}
-                >
-                  Go to Settings →
-                </Link>
-              ) : null}
+              {loadingState ? (
+                <div className="space-y-2" aria-hidden="true">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="h-3 w-12 rounded-full bg-[rgba(19,26,34,0.08)]" />
+                    <div className="h-2 w-2 rounded-full bg-[rgba(19,26,34,0.08)]" />
+                  </div>
+                  <div className="h-3 w-full rounded-full bg-[rgba(19,26,34,0.08)]" />
+                  <div className="h-3 w-4/5 rounded-full bg-[rgba(19,26,34,0.06)]" />
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
+                      Mode
+                    </p>
+                    <span
+                      className={cn(
+                        "h-2 w-2 rounded-full",
+                        mode === "live" ? "bg-[var(--accent)]" : "bg-[var(--muted)]/50",
+                      )}
+                    />
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-[var(--foreground)]">{modeText}</p>
+                  {mode !== "live" ? (
+                    <Link
+                      href="/settings"
+                      className="mt-2 inline-flex text-xs font-semibold text-[var(--accent)] hover:underline"
+                      onClick={mobile ? onClose : undefined}
+                    >
+                      Go to Settings →
+                    </Link>
+                  ) : null}
+                </>
+              )}
             </>
           )}
         </div>
       </div>
     </Panel>
+  );
+}
+
+function ShellStatusSkeleton({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn(
+        "h-7 rounded-full border border-[var(--line)] bg-[rgba(255,255,255,0.72)]",
+        className,
+      )}
+    />
   );
 }
