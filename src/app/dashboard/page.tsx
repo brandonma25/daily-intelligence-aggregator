@@ -15,7 +15,7 @@ export default async function DashboardPage({
 }) {
   const params = await searchParams;
   const fixture =
-    process.env.NODE_ENV === "test" && params.fixture
+    process.env.NODE_ENV !== "production" && params.fixture
       ? getDashboardFixture(params.fixture)
       : null;
 

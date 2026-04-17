@@ -5,7 +5,7 @@ test("dashboard fixture shows signal labels and ranks higher-signal stories firs
 
   await expect(page.getByRole("heading", { name: "Top events today" })).toBeVisible();
 
-  const cards = page.getByTestId("dashboard-event-card");
+  const cards = page.getByTestId("top-events-list").getByTestId("dashboard-event-card");
   await expect(cards).toHaveCount(3);
 
   await expect(cards.nth(0)).toContainText("High Signal");

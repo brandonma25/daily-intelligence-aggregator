@@ -287,7 +287,7 @@ export default function PersonalizedDashboard({
                 ) : null}
               </div>
             </div>
-            <div className="mt-5 grid gap-4">
+            <div className="mt-5 grid gap-4" data-testid="top-events-list">
               {topEvents.length ? (
                 topEvents.map((event) => (
                   <DashboardEventCard
