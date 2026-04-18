@@ -35,12 +35,14 @@
   - `pr-e2e-chromium`
   - `pr-summary`
   - `release-governance-gate`
+- GitHub branch protection must separately require those checks; the repo workflows alone do not make them blocking.
 - These jobs automate install, lint, build, unit/integration tests, Chromium Playwright smoke coverage, artifact upload, and PR summary generation.
 
 ### 2a. Release Governance Gate
 - Workflow: [release-governance-gate.yml](/Users/bm/Documents/daily-intelligence-aggregator-main/.github/workflows/release-governance-gate.yml)
 - Script entrypoint: `python scripts/release-governance-gate.py`
 - Reuses the feature-system CSV validator and inspects the PR diff.
+- Monitored change areas include `src/`, `supabase/`, `scripts/`, `.github/workflows/`, and key root config files such as `package.json`, `next.config.ts`, `playwright.config.ts`, and `tsconfig.json`.
 - Classification:
   - docs-only
   - trivial-code-change
@@ -49,8 +51,9 @@
 - Enforcement:
   - docs-only changes pass when CSV validation still passes
   - trivial code changes pass when CSV validation still passes
-  - material feature or system changes require at least one supporting docs update in `docs/product/briefs/`, `docs/product/prd/`, `docs/engineering/bug-fixes/`, `docs/engineering/incidents/`, `docs/engineering/change-records/`, `docs/engineering/testing/`, or `docs/engineering/protocols/`
+  - material feature or system changes require at least one supporting docs update in `docs/product/briefs/`, `docs/product/prd/`, `docs/engineering/bug-fixes/`, `docs/engineering/incidents/`, `docs/engineering/change-records/`, `docs/engineering/testing/`, `docs/engineering/protocols/`, `docs/product/documentation-rules.md`, or `AGENTS.md`
   - new feature or system changes require a canonical `PRD-XX` file in `docs/product/prd/` plus a matching `docs/product/feature-system.csv` mapping
+  - new scripts or workflow files are treated as material governance changes by default, not as new feature/system declarations by themselves
 
 ### 3. Preview Gate
 - Workflow: [preview-gate.yml](/Users/bm/Documents/daily-intelligence-aggregator-main/.github/workflows/preview-gate.yml)
