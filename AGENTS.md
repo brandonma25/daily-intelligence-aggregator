@@ -113,6 +113,19 @@ Rules:
 - Update repo-safe documentation for every serious feature or fix.
 - Never commit or expose API keys, tokens, secrets, auth vulnerabilities, exploit steps, cookies, headers, or sensitive logs.
 
+## 7a. Google Sheets Feature Tracking Governance
+- Google Sheets workbook `Features Table` is the master live planning and feature-tracking system.
+- `Sheet1` is the governed approved feature table.
+- `Intake Queue` is the only allowed destination for unmapped, spontaneous, newly discovered, or ambiguous work.
+- `Record ID` in `Sheet1` is immutable and may be used only as the lookup key for governed writes.
+- Only explicitly approved automation-managed columns may be updated automatically.
+- Formula or computed columns must never be written by automation.
+- Codex must never auto-create unmapped rows directly in `Sheet1`.
+- For mapped work, merge to `main` may update status to `Merged`.
+- `Merged` may move to `Built` only after production verification succeeds.
+- Any workflow or automation that touches feature tracking must preserve `Sheet1` and `Intake Queue` separation.
+- Automation changes must fail safely and must not silently write to the wrong row.
+
 ## 8. Merge Conditions
 - Do not recommend merge unless build passes, local validation is complete, preview validation is confirmed, and docs are updated.
 
@@ -122,7 +135,8 @@ This repository uses a strict documentation system to prevent bloat and maintain
 
 ### Source of Truth
 - `PRD-XX` is the single source of truth for feature identity across the repo.
-- `/docs/product/feature-system.csv` is the source of truth for feature order, status, dependencies, decisions, and PRD mapping.
+- Google Sheets workbook `Features Table` is the source of truth for live feature-tracking status and intake review.
+- `/docs/product/feature-system.csv` remains the repo-side source of truth for PRD mapping, build order, dependencies, and durable repo governance metadata.
 
 ### PRD Rules
 - Every feature must have a unique PRD ID using the format `PRD-XX` where `XX` is the canonical numeric identifier.

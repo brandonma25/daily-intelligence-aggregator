@@ -6,7 +6,8 @@
 - `test-checklist.md` = validation reference
 - `prd-template.md` = planning standard
 - `pull_request_template.md` = merge enforcement
-- `docs/product/feature-system.csv` = feature control layer and build order source of truth
+- Google Sheets workbook `Features Table` = live feature-tracking status and intake source of truth
+- `docs/product/feature-system.csv` = repo-side feature control layer for PRD mapping and build order
 
 ## 1. Core Operating Model
 - The user is the PM and architect.
@@ -23,6 +24,9 @@
 
 ## 3. PRD Standard
 - PRD identity is governed by a unique `PRD-XX` ID, and that ID is the single source of truth for a feature across the repo.
+- Google Sheets `Sheet1` is the governed live tracker for mapped work, and `Intake Queue` is the only quarantine lane for unmapped or ambiguous work.
+- GitHub merge automation must never auto-create new governed rows in `Sheet1`; unmapped work goes to `Intake Queue`.
+- Schema-aware feature-tracking automation must validate expected headers before writing, must use the immutable `Record ID` as the exact-match governed key, and must never write human-managed or computed columns.
 - Before creating a PRD, Codex must check both `docs/product/prd/` and `docs/product/feature-system.csv` for an existing `PRD-XX`.
 - If the PRD ID already exists, Codex must update the existing document instead of creating a new file.
 - If the feature is new, Codex must assign the next sequential `PRD-XX`, create exactly one canonical file at `docs/product/prd/prd-XX-<feature-name>.md`, and register the mapping in `docs/product/feature-system.csv`.
