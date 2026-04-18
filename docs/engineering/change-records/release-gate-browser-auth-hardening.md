@@ -18,6 +18,8 @@
   - Added callback-error auth-entry smoke coverage
 - `tests/dashboard.spec.ts`
   - Added signed-out refresh truth and callback-error redirect smoke coverage
+- `src/components/auth/auth-modal.tsx`
+  - Removed a server/client callback-URL text mismatch so `/?auth=callback-error` no longer throws a hydration warning while the auth modal is open
 - `docs/engineering/protocols/`
   - Updated release guidance to document the new browser baseline and the remaining human-only auth/session checks
 
