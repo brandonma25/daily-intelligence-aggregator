@@ -43,10 +43,11 @@ describe("donor registry", () => {
     expect(registry.find((entry) => entry.donor === "openclaw")?.contractStates.ingestion).toBe("active");
     expect(registry.find((entry) => entry.donor === "after_market_agent")?.contractStates.clustering).toBe("active");
     expect(registry.find((entry) => entry.donor === "fns")?.contractStates.ranking).toBe("active");
-    expect(registry.find((entry) => entry.donor === "horizon")?.contractStates.enrichment).toBe("future_ready");
+    expect(registry.find((entry) => entry.donor === "horizon")?.contractStates.enrichment).toBe("active");
     expect(registry.find((entry) => entry.donor === "after_market_agent")?.clusteringCapabilities?.provider).toBe("after_market_agent");
     expect(registry.find((entry) => entry.donor === "fns")?.diversitySupportAvailable).toBe(true);
     expect(registry.find((entry) => entry.donor === "fns")?.rankingFeatureSupport?.provider).toBe("fns");
+    expect(registry.find((entry) => entry.donor === "horizon")?.enrichmentCapabilities?.provider).toBe("horizon");
   });
 
   it("normalizes donor feed metadata through the canonical ingestion contract", async () => {
@@ -168,5 +169,22 @@ describe("donor registry", () => {
         baseScore: 80,
       },
     ])[0]?.action).toBe("none");
+  });
+
+  it("exposes Horizon as an active but safe schema-bound enrichment boundary", () => {
+    const horizon = getDonorModule("horizon");
+
+    expect(horizon?.enrichmentSupport?.enabled).toBe(true);
+    expect(horizon?.enrichmentSupport?.describeCapabilities().schema_safe).toBe(true);
+    expect(horizon?.enrichmentSupport?.getStructuredEnrichment({
+      cluster_id: "cluster-1",
+      title: "Policy shift",
+      summary: "Policy shift summary",
+      what_to_watch: "Watch for confirmation.",
+      why_it_matters: "It matters because policy expectations are changing.",
+      source_count: 2,
+      material_ranking_features: ["structural_impact", "source_confirmation"],
+      unknowns: [],
+    }).status).toBe("skipped");
   });
 });

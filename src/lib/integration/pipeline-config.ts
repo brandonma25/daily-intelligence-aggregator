@@ -61,7 +61,7 @@ export const PIPELINE_STAGE_CONFIG: PipelineStageConfig[] = [
     ownership: "donor_assisted",
     canonicalModule: "src/lib/data.ts",
     donorIds: ["horizon"],
-    notes: "Horizon enrichment contract is stub-safe and not required for current runtime output.",
+    notes: "Horizon enrichment boundary is active in schema-safe optional mode and remains non-critical to runtime output.",
   },
 ];
 

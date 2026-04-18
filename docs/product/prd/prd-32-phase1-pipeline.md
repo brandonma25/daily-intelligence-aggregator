@@ -87,6 +87,12 @@ The product needs an end-to-end intelligence path that can ingest live news, nor
 - New grouped score families now help distinguish merely fresh stories from stories with stronger structural importance and downstream consequence.
 - Importance remains deterministic, inspectable, and conservative rather than model-driven or opaque.
 
+## Explanation Trust Layer Note
+
+- Phase 1 now carries a canonical explanation packet and trust debug layer behind existing briefing items.
+- Explanation assembly remains app-owned and deterministic by default.
+- Horizon enrichment is now activated only as an optional schema-safe boundary and is not required for pipeline continuity.
+
 ## Known Limitations
 
 - Clustering is materially stricter, but adjacent macro or policy stories can still require threshold tuning as feed mix changes.

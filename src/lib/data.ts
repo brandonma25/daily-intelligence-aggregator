@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import { formatISO } from "date-fns";
 
 import { demoDashboardData, demoHistory, demoSources, demoTopics } from "@/lib/demo-data";
+import { assembleExplanationPacket } from "@/lib/explanation-support";
 import { buildEventIntelligence } from "@/lib/event-intelligence";
 import {
   classifyHomepageCategory,
@@ -415,6 +416,16 @@ async function getPipelineBackedDashboardData(input: {
   const fallbackTopics = input.topics?.length ? input.topics : demoTopics;
   const fallbackSources = input.sources?.length ? input.sources : demoSources;
   const { briefing, pipelineRun } = await generateDailyBriefing(fallbackTopics, fallbackSources);
+  const explanationModes = briefing.items.reduce<Record<string, number>>((counts, item) => {
+    const mode = item.explanationPacket?.explanation_mode ?? "missing";
+    counts[mode] = (counts[mode] ?? 0) + 1;
+    return counts;
+  }, {});
+  const enrichmentStatuses = briefing.items.reduce<Record<string, number>>((counts, item) => {
+    const status = item.trustDebug?.enrichment.status ?? "missing";
+    counts[status] = (counts[status] ?? 0) + 1;
+    return counts;
+  }, {});
 
   logServerEvent("info", "Dashboard pipeline path resolved", {
     route: input.route,
@@ -426,6 +437,8 @@ async function getPipelineBackedDashboardData(input: {
     sourceCount: fallbackSources.length,
     generatedItemsCount: briefing.items.length,
     pipelineClusterCount: pipelineRun.num_clusters,
+    explanationModes,
+    enrichmentStatuses,
   });
 
   return {
@@ -559,11 +572,24 @@ export async function generateDailyBriefing(
     });
     const topic = resolvePipelineTopic(topics, cluster, topicFallback, intelligence);
     const sourceCount = new Set(cluster.articles.map((article) => article.source)).size;
+    const rankingSignals = [intelligence.rankingReason];
     const trustLayer = buildTrustLayerPresentation(intelligence, {
       title: intelligence.title,
       topicName: topic.name,
       sourceCount,
-      rankingSignals: [intelligence.rankingReason],
+      rankingSignals,
+    });
+    const { packet, trustDebug } = assembleExplanationPacket({
+      title: intelligence.title,
+      topicName: topic.name,
+      intelligence,
+      sourceNames: cluster.articles.map((article) => article.source),
+      sourceCount,
+      whyItMatters: trustLayer.body,
+      rankingExplanation: ranked.ranking_debug.explanation,
+      rankingSignals,
+      rankingDebug: ranked.ranking_debug,
+      cluster,
     });
     const relatedArticles = cluster.articles.slice(0, 4).map((article, articleIndex) => ({
       title: article.title,
@@ -578,13 +604,13 @@ export async function generateDailyBriefing(
       topicId: topic.id,
       topicName: topic.name,
       title: intelligence.title,
-      whatHappened: intelligence.summary,
+      whatHappened: packet.what_happened,
       keyPoints: [
         `${cluster.cluster_size} article${cluster.cluster_size === 1 ? "" : "s"} from ${sourceCount} ${sourceCount === 1 ? "source" : "sources"} are covering the same development.`,
         `Coverage lined up ${corroborationWindow} around the representative report.`,
-        `The event ranked highly because credibility, recency, and cross-source confirmation all cleared the current briefing threshold.`,
+        packet.what_to_watch,
       ],
-      whyItMatters: trustLayer.body,
+      whyItMatters: packet.why_it_matters,
       sources: relatedArticles.map((article) => ({
         title: article.sourceName,
         url: article.url,
@@ -600,11 +626,14 @@ export async function generateDailyBriefing(
       importanceScore: ranked.score,
       importanceLabel: ranked.score >= 80 ? "Critical" : ranked.score >= 65 ? "High" : "Watch",
       rankingSignals: [
+        packet.why_this_ranks_here,
         buildPublicRankingSignal(cluster.cluster_size, sourceCount, intelligence),
         `Recent coverage and source agreement kept this event near the top of the briefing.`,
-        `The event still looks fresh enough to matter now, rather than as background context.`,
+        `Confidence ${packet.confidence}.`,
       ],
       eventIntelligence: intelligence,
+      explanationPacket: packet,
+      trustDebug,
     };
   });
   const items = selectPublicBriefingItems(candidateItems).map((item, index) => ({
@@ -1167,6 +1196,16 @@ export async function buildMatchedBriefing(
         sourceCount,
         rankingSignals: rankedCluster?.rankingSignals,
       });
+      const { packet, trustDebug } = assembleExplanationPacket({
+        title: intelligence.title,
+        topicName: topic.name,
+        intelligence,
+        sourceNames: eventArticles.map((article) => article.sourceName),
+        sourceCount,
+        whyItMatters: trustLayer.body,
+        rankingSignals: rankedCluster?.rankingSignals,
+      });
+      const keyPoints = buildKeyPoints(intelligence, freshest.sourceName, freshest.published_at, matchedKeywords);
 
       if (!intelligence.isHighSignal) {
         return null;
@@ -1177,9 +1216,13 @@ export async function buildMatchedBriefing(
         topicId: topic.id,
         topicName: topic.name,
         title: intelligence.title,
-        whatHappened: intelligence.summary,
-        keyPoints: buildKeyPoints(intelligence, freshest.sourceName, freshest.published_at, matchedKeywords),
-        whyItMatters: trustLayer.body,
+        whatHappened: packet.what_happened,
+        keyPoints: [
+          keyPoints[0],
+          keyPoints[1],
+          packet.what_to_watch,
+        ],
+        whyItMatters: packet.why_it_matters,
         sources: relatedArticles.map((article) => ({
           title: article.sourceName,
           url: article.url,
@@ -1196,11 +1239,13 @@ export async function buildMatchedBriefing(
         importanceScore: intelligence.rankingScore,
         importanceLabel: getImportanceLabel(intelligence.rankingScore),
         rankingSignals: [
-          intelligence.rankingReason,
+          packet.why_this_ranks_here,
           `Confidence ${intelligence.confidenceScore}/100.`,
           ...buildSignalBreakdown(intelligence),
         ],
         eventIntelligence: intelligence,
+        explanationPacket: packet,
+        trustDebug,
       } satisfies BriefingItem;
     })
     .filter((item): item is NonNullable<typeof item> => Boolean(item))

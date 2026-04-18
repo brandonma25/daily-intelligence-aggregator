@@ -212,12 +212,70 @@ export interface RankingDebug {
   notes: string[];
 }
 
+export type ExplanationMode = "deterministic" | "enriched" | "fallback";
+
+export interface CitationSupportSummary {
+  source_count: number;
+  source_names: string[];
+  corroboration: "single_source" | "multi_source";
+  strongest_trust_tier: TrustTier | "unknown";
+}
+
+export interface ExplanationPacket {
+  what_happened: string;
+  why_it_matters: string;
+  why_this_ranks_here: string;
+  what_to_watch: string;
+  confidence: "high" | "medium" | "low";
+  unknowns: string[];
+  citation_support_summary: CitationSupportSummary;
+  explanation_mode: ExplanationMode;
+}
+
+export interface TrustLayerDebug {
+  evidence_used: string[];
+  material_ranking_features: Array<keyof RankingFeatureSet>;
+  explanation_mode: ExplanationMode;
+  confidence_notes: string[];
+  uncertainty_notes: string[];
+  deterministic_path_reason: string;
+  enrichment: {
+    provider: string | null;
+    status: "unused" | "used" | "skipped" | "unavailable";
+    reason: string;
+  };
+}
+
+export interface EnrichmentRequest {
+  cluster_id: string;
+  title: string;
+  summary: string;
+  what_to_watch: string;
+  why_it_matters: string;
+  source_count: number;
+  material_ranking_features: Array<keyof RankingFeatureSet>;
+  unknowns: string[];
+}
+
+export interface EnrichmentResult {
+  provider: string;
+  status: "used" | "skipped" | "unavailable";
+  output?: Partial<Pick<ExplanationPacket, "why_it_matters" | "what_to_watch" | "unknowns">>;
+  notes: string[];
+}
+
 export interface EnrichmentSupport {
   enabled: boolean;
-  prepareEnrichmentPacket(cluster: SignalCluster): {
-    clusterId: string;
-    title: string;
-    summary: string;
-    sourceCount: number;
-  } | null;
+  describeCapabilities(): {
+    provider: string;
+    bounded: boolean;
+    schema_safe: boolean;
+    output_fields: Array<keyof Pick<ExplanationPacket, "why_it_matters" | "what_to_watch" | "unknowns">>;
+  };
+  prepareEnrichmentPacket(input: {
+    cluster: SignalCluster;
+    rankingDebug: RankingDebug;
+    deterministicExplanation: ExplanationPacket;
+  }): EnrichmentRequest | null;
+  getStructuredEnrichment(request: EnrichmentRequest): EnrichmentResult;
 }

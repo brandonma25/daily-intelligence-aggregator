@@ -1,3 +1,8 @@
+import type {
+  ExplanationPacket,
+  TrustLayerDebug,
+} from "@/lib/integration/subsystem-contracts";
+
 export type Topic = {
   id: string;
   userId?: string;
@@ -108,6 +113,8 @@ export type BriefingItem = {
   importanceLabel?: "Critical" | "High" | "Watch";
   rankingSignals?: string[];
   eventIntelligence?: EventIntelligence;
+  explanationPacket?: ExplanationPacket;
+  trustDebug?: TrustLayerDebug;
   displayState?: EventDisplayState;
   continuityKey?: string;
   continuityFingerprint?: string;

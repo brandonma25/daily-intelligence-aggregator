@@ -553,13 +553,34 @@ function createRankingFeatureProvider(feeds: DonorFeed[], donor: DonorId): Ranki
 }
 
 const horizonEnrichmentSupport: EnrichmentSupport = {
-  enabled: false,
-  prepareEnrichmentPacket(cluster) {
+  enabled: true,
+  describeCapabilities() {
     return {
-      clusterId: cluster.cluster_id,
-      title: cluster.representative_article.title,
-      summary: cluster.representative_article.content.slice(0, 220),
-      sourceCount: cluster.cluster_size,
+      provider: "horizon",
+      bounded: true,
+      schema_safe: true,
+      output_fields: ["why_it_matters", "what_to_watch", "unknowns"],
+    };
+  },
+  prepareEnrichmentPacket(input) {
+    return {
+      cluster_id: input.cluster.cluster_id,
+      title: input.cluster.representative_article.title,
+      summary: input.cluster.representative_article.content.slice(0, 220),
+      what_to_watch: input.deterministicExplanation.what_to_watch,
+      why_it_matters: input.deterministicExplanation.why_it_matters,
+      source_count: input.cluster.cluster_size,
+      material_ranking_features: input.rankingDebug.active_features.slice(0, 6),
+      unknowns: input.deterministicExplanation.unknowns,
+    };
+  },
+  getStructuredEnrichment() {
+    return {
+      provider: "horizon",
+      status: "skipped",
+      notes: [
+        "Horizon enrichment boundary is active in schema-safe mode, but execution is intentionally skipped in this repo so deterministic explanation remains the runtime truth source.",
+      ],
     };
   },
 };
@@ -603,6 +624,7 @@ export function getDonorRegistrySnapshot() {
     clusteringCapabilities: entry.clusteringSupport?.describeCapabilities(),
     rankingFeatureSupport: entry.rankingFeatureProvider?.describeFeatureSupport(),
     diversitySupportAvailable: entry.diversitySupport?.available ?? false,
+    enrichmentCapabilities: entry.enrichmentSupport?.describeCapabilities(),
   }));
 }
 

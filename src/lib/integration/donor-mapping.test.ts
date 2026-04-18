@@ -11,7 +11,7 @@ describe("donor subsystem mapping", () => {
     expect(mappings.some((entry) => entry.donor === "after_market_agent" && entry.subsystem === "clustering" && entry.state === "active")).toBe(true);
     expect(mappings.some((entry) => entry.donor === "fns" && entry.subsystem === "ranking" && entry.state === "active")).toBe(true);
     expect(mappings.some((entry) => entry.donor === "fns" && entry.subsystem === "clustering" && entry.state === "stubbed")).toBe(true);
-    expect(mappings.some((entry) => entry.donor === "horizon" && entry.subsystem === "enrichment" && entry.state === "future_ready")).toBe(true);
+    expect(mappings.some((entry) => entry.donor === "horizon" && entry.subsystem === "enrichment" && entry.state === "active")).toBe(true);
   });
 
   it("marks pipeline stages as canonical or donor-assisted explicitly", () => {
