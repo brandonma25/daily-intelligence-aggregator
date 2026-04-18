@@ -1025,6 +1025,7 @@ function HomepageDebugPanel({ debug }: { debug: HomepageDebugModel }) {
         <DebugStat label="Candidate events" value={formatDebugValue(debug.totalCandidateEvents)} />
         <DebugStat label="Ranked events" value={String(debug.rankedEventsCount)} />
         <DebugStat label="Uncategorized events" value={String(debug.uncategorizedEventsCount)} />
+        <DebugStat label="Surface duplicates" value={String(debug.surfacedDuplicateCount)} />
       </div>
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <DebugList

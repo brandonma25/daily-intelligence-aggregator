@@ -7,10 +7,12 @@ import { ingestRawItems } from "@/lib/pipeline/ingestion";
 import { normalizeRawItems } from "@/lib/pipeline/normalization";
 import { rankSignalClusters } from "@/lib/pipeline/ranking";
 import { createEmptyPipelineRun, type PipelineRun } from "@/lib/observability/pipeline-run";
+import type { RankedClusterResult } from "@/lib/scoring/scoring-engine";
 
 export type ClusterFirstPipelineResult = {
   digest: DigestOutput;
   run: PipelineRun;
+  ranked_clusters: RankedClusterResult[];
 };
 
 export async function runClusterFirstPipeline(options: {
@@ -68,5 +70,6 @@ export async function runClusterFirstPipeline(options: {
   return {
     digest,
     run,
+    ranked_clusters: rankedClusters,
   };
 }

@@ -60,7 +60,7 @@ function createData(items: BriefingItem[]): DashboardData {
 }
 
 describe("buildHomepageViewModel", () => {
-  it("keeps a ranked finance event visible in the finance category rail", () => {
+  it("keeps a ranked finance event visible without duplicating it into the top-ranked rail", () => {
     const financeItem = createItem({
       id: "finance-1",
       topicId: "finance",
@@ -77,7 +77,8 @@ describe("buildHomepageViewModel", () => {
     const model = buildHomepageViewModel(createData([financeItem]));
     const financeSection = model.categorySections.find((section) => section.key === "finance");
 
-    expect(model.topRanked.map((event) => event.id)).toContain("finance-1");
+    expect(model.featured?.id).toBe("finance-1");
+    expect(model.topRanked.map((event) => event.id)).not.toContain("finance-1");
     expect(financeSection?.events.map((event) => event.id)).toContain("finance-1");
     expect(financeSection?.state).toBe("sparse");
   });
@@ -136,7 +137,7 @@ describe("buildHomepageViewModel", () => {
     expect(financeSection?.placeholderCount).toBe(1);
   });
 
-  it("borrows early signals when a category has no confirmed fallback coverage", () => {
+  it("keeps early signals in their primary category instead of duplicating them into unrelated empty rails", () => {
     const earlySignal = createItem({
       id: "early-tech",
       topicId: "tech",
@@ -150,10 +151,12 @@ describe("buildHomepageViewModel", () => {
     });
 
     const model = buildHomepageViewModel(createData([earlySignal]));
+    const techSection = model.categorySections.find((section) => section.key === "tech");
     const financeSection = model.categorySections.find((section) => section.key === "finance");
 
-    expect(financeSection?.fallbackEvents.map((event) => event.id)).toContain("early-tech");
-    expect(financeSection?.emptyReason).toContain("best available ranked coverage");
+    expect(model.featured?.id).toBe("early-tech");
+    expect(techSection?.events.map((event) => event.id)).toContain("early-tech");
+    expect(financeSection?.fallbackEvents).toHaveLength(0);
   });
 
   it("does not repeat the same fallback card across multiple empty rails or reuse top-ranked cards", () => {
@@ -189,7 +192,46 @@ describe("buildHomepageViewModel", () => {
 
     expect(new Set(fallbackIds).size).toBe(fallbackIds.length);
     expect(fallbackIds).not.toContain("finance-fallback");
-    expect(fallbackIds).toContain("politics-early");
+    expect(politicsSection?.events.map((event) => event.id)).toContain("politics-early");
+  });
+
+  it("keeps surfaced event ids unique across featured, top-ranked, category, and watchlist rails", () => {
+    const financeLead = createItem({
+      id: "finance-lead",
+      topicId: "finance",
+      topicName: "Finance",
+      title: "Markets absorb a rates surprise",
+      matchedKeywords: ["rates", "markets", "fed"],
+      sourceCount: 4,
+    });
+    const techFollow = createItem({
+      id: "tech-follow",
+      topicId: "tech",
+      topicName: "Tech",
+      title: "Chip makers expand AI capacity",
+      matchedKeywords: ["chips", "ai", "data center"],
+      sourceCount: 3,
+    });
+    const politicsFollow = createItem({
+      id: "politics-follow",
+      topicId: "politics",
+      topicName: "Geopolitics",
+      title: "White House weighs new sanctions package",
+      matchedKeywords: ["white house", "sanctions", "policy"],
+      sourceCount: 3,
+    });
+
+    const model = buildHomepageViewModel(createData([financeLead, techFollow, politicsFollow]));
+    const surfacedIds = [
+      model.featured?.id,
+      ...model.topRanked.map((event) => event.id),
+      ...model.categorySections.flatMap((section) => section.events.map((event) => event.id)),
+      ...model.categorySections.flatMap((section) => section.fallbackEvents.map((event) => event.id)),
+      ...model.trending.map((event) => event.id),
+    ].filter((eventId): eventId is string => Boolean(eventId));
+
+    expect(new Set(surfacedIds).size).toBe(surfacedIds.length - 1);
+    expect(model.debug.surfacedDuplicateCount).toBe(0);
   });
 
   it("keeps single-source items out of the top-ranked event rail", () => {
@@ -294,8 +336,8 @@ describe("buildHomepageViewModel", () => {
 
     const model = buildHomepageViewModel(createData([weakTop, strongerNormal]));
 
-    expect(model.topRanked.map((event) => event.id).slice(0, 2)).toEqual([
-      "strong-normal",
+    expect(model.featured?.id).toBe("strong-normal");
+    expect(model.topRanked.map((event) => event.id).slice(0, 1)).toEqual([
       "weak-top",
     ]);
   });
@@ -380,8 +422,8 @@ describe("buildHomepageViewModel", () => {
 
     const model = buildHomepageViewModel(createData([financeItem, techItem, weakEarly]), profile);
 
-    expect(model.topRanked.map((event) => event.id).slice(0, 2)).toEqual([
-      "tech-personalization",
+    expect(model.featured?.id).toBe("tech-personalization");
+    expect(model.topRanked.map((event) => event.id).slice(0, 1)).toEqual([
       "finance-personalization",
     ]);
     expect(model.topRanked.map((event) => event.id)).not.toContain("weak-early-personalization");

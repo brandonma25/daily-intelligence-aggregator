@@ -3,7 +3,10 @@ import { formatISO } from "date-fns";
 
 import { demoDashboardData, demoHistory, demoSources, demoTopics } from "@/lib/demo-data";
 import { buildEventIntelligence } from "@/lib/event-intelligence";
-import { countSourcesByHomepageCategory } from "@/lib/homepage-taxonomy";
+import {
+  classifyHomepageCategory,
+  countSourcesByHomepageCategory,
+} from "@/lib/homepage-taxonomy";
 import { logServerEvent } from "@/lib/observability";
 import { runClusterFirstPipeline } from "@/lib/pipeline";
 import { selectRelatedCoverage } from "@/lib/related-coverage";
@@ -115,6 +118,12 @@ type IngestionRunSummary = {
 };
 
 type DashboardDataPath = "public_pipeline" | "personalized_query" | "personalized_fallback_to_public";
+
+const PIPELINE_TOPIC_ALIASES: Record<"tech" | "finance" | "politics", string[]> = {
+  tech: ["tech", "technology", "ai", "software", "cybersecurity"],
+  finance: ["finance", "markets", "macro", "business", "economy"],
+  politics: ["politics", "policy", "government", "geopolitics", "world"],
+};
 
 function createEmptyBriefing(): DailyBriefing {
   return {
@@ -530,55 +539,81 @@ export async function generateDailyBriefing(
   topics: Topic[] = demoTopics,
   sources: Source[] = demoSources,
 ): Promise<{ briefing: DailyBriefing; pipelineRun: Awaited<ReturnType<typeof runClusterFirstPipeline>>["run"] }> {
-  const { digest, run } = await runClusterFirstPipeline({ sources });
-  const topicByName = new Map(topics.map((topic) => [topic.name.toLowerCase(), topic]));
+  const { run, ranked_clusters } = await runClusterFirstPipeline({ sources });
   const topicFallback = topics[0] ?? demoTopics[0];
 
-  const items: BriefingItem[] = digest.most_important_now.map((entry, index) => {
-    const inferredTopic =
-      entry.topic_keywords.find((keyword) => topicByName.has(keyword.toLowerCase()))
-        ? topicByName.get(entry.topic_keywords.find((keyword) => topicByName.has(keyword.toLowerCase()))?.toLowerCase() ?? "")
-        : undefined;
-    const topic =
-      inferredTopic ??
-      (/market|fed|tariff|trade|inflation|rate/.test(entry.topic_keywords.join(" ")) ? topics.find((candidate) => candidate.name === "Finance") : undefined) ??
-      topicFallback;
+  const candidateItems: BriefingItem[] = ranked_clusters.map(({ cluster, ranked }) => {
+    const feedArticles = cluster.articles.map((article) => ({
+      title: article.title,
+      url: article.url,
+      summaryText: article.content,
+      contentText: article.content,
+      sourceName: article.source,
+      publishedAt: article.published_at,
+    }));
+    const provisionalTopic = resolvePipelineTopic(topics, cluster, topicFallback);
+    const intelligence = buildEventIntelligence(feedArticles, {
+      topicName: provisionalTopic.name,
+      matchedKeywords: cluster.topic_keywords,
+      createdAt: cluster.representative_article.published_at,
+    });
+    const topic = resolvePipelineTopic(topics, cluster, topicFallback, intelligence);
+    const sourceCount = new Set(cluster.articles.map((article) => article.source)).size;
+    const trustLayer = buildTrustLayerPresentation(intelligence, {
+      title: intelligence.title,
+      topicName: topic.name,
+      sourceCount,
+      rankingSignals: [intelligence.rankingReason],
+    });
+    const relatedArticles = cluster.articles.slice(0, 4).map((article, articleIndex) => ({
+      title: article.title,
+      url: article.url,
+      sourceName: article.source,
+      note: articleIndex === 0 ? "Lead coverage" : "Corroborating coverage",
+    }));
+    const mergeReason =
+      cluster.cluster_debug.merge_decisions.find((decision) => decision.decision === "merged")?.reasons[0] ??
+      "multiple articles reinforced the same event signature";
 
     return {
-      id: `generated-${entry.cluster_id}`,
-      topicId: topic?.id ?? "topic-tech",
-      topicName: topic?.name ?? "Tech",
-      title: entry.title,
-      whatHappened: entry.short_summary,
+      id: `generated-${cluster.cluster_id}`,
+      topicId: topic.id,
+      topicName: topic.name,
+      title: intelligence.title,
+      whatHappened: intelligence.summary,
       keyPoints: [
-        `Credibility ${Math.round(entry.score_breakdown.credibility)}/100 with ${entry.cluster_size} related articles in the cluster.`,
-        `Urgency ${Math.round(entry.score_breakdown.urgency)}/100 based on recency and event language in the latest coverage.`,
-        `Topic keywords: ${entry.topic_keywords.slice(0, 4).join(", ")}.`,
+        `${cluster.cluster_size} related articles across ${sourceCount} ${sourceCount === 1 ? "source" : "sources"} converged on this event.`,
+        `Cluster evidence centered on ${cluster.topic_keywords.slice(0, 4).join(", ")} with ${mergeReason}.`,
+        `Deterministic score ${ranked.score}/100 from credibility ${Math.round(ranked.score_breakdown.credibility)}, urgency ${Math.round(ranked.score_breakdown.urgency)}, and reinforcement ${Math.round(ranked.score_breakdown.reinforcement)}.`,
       ],
-      whyItMatters: `Deterministic ranking placed this cluster at ${entry.score}/100 because multiple sources reinforced the signal without relying on LLM scoring.`,
-      sources: entry.source_links,
-      relatedArticles: entry.source_links.map((link) => ({
-        title: entry.title,
-        url: link.url,
-        sourceName: link.title,
+      whyItMatters: trustLayer.body,
+      sources: relatedArticles.map((article) => ({
+        title: article.sourceName,
+        url: article.url,
       })),
-      sourceCount: new Set(entry.source_links.map((link) => link.title)).size,
-      estimatedMinutes: Math.min(6, Math.max(3, entry.cluster_size + 1)),
+      relatedArticles,
+      sourceCount,
+      estimatedMinutes: Math.min(6, Math.max(3, cluster.cluster_size + 1)),
       read: false,
-      priority: index < 5 ? ("top" as const) : ("normal" as const),
-      matchedKeywords: entry.topic_keywords,
-      matchScore: entry.score,
-      publishedAt: new Date().toISOString(),
-      importanceScore: entry.score,
-      importanceLabel: entry.score >= 80 ? "Critical" : entry.score >= 65 ? "High" : "Watch",
+      priority: "normal" as const,
+      matchedKeywords: cluster.topic_keywords,
+      matchScore: ranked.score,
+      publishedAt: cluster.representative_article.published_at,
+      importanceScore: ranked.score,
+      importanceLabel: ranked.score >= 80 ? "Critical" : ranked.score >= 65 ? "High" : "Watch",
       rankingSignals: [
-        `Credibility ${Math.round(entry.score_breakdown.credibility)}/100`,
-        `Novelty ${Math.round(entry.score_breakdown.novelty)}/100`,
-        `Urgency ${Math.round(entry.score_breakdown.urgency)}/100`,
-        `Reinforcement ${Math.round(entry.score_breakdown.reinforcement)}/100`,
+        intelligence.rankingReason,
+        `Deterministic score ${ranked.score}/100.`,
+        `Novelty ${Math.round(ranked.score_breakdown.novelty)}/100.`,
+        `Reinforcement ${Math.round(ranked.score_breakdown.reinforcement)}/100 across ${sourceCount} ${sourceCount === 1 ? "source" : "sources"}.`,
       ],
+      eventIntelligence: intelligence,
     };
   });
+  const items = selectPublicBriefingItems(candidateItems).map((item, index) => ({
+    ...item,
+    priority: index < 5 ? ("top" as const) : ("normal" as const),
+  }));
 
   const briefing =
     items.length > 0
@@ -598,6 +633,106 @@ export async function generateDailyBriefing(
     briefing,
     pipelineRun: run,
   };
+}
+
+function resolvePipelineTopic(
+  topics: Topic[],
+  cluster: Awaited<ReturnType<typeof runClusterFirstPipeline>>["ranked_clusters"][number]["cluster"],
+  fallbackTopic: Topic,
+  intelligence?: ReturnType<typeof buildEventIntelligence>,
+) {
+  const topicByName = new Map(topics.map((topic) => [topic.name.toLowerCase(), topic]));
+  const classification = classifyHomepageCategory({
+    topicName: intelligence?.topics?.[0] ?? cluster.representative_article.source,
+    title: intelligence?.title ?? cluster.representative_article.title,
+    summary: intelligence?.summary ?? cluster.representative_article.content,
+    matchedKeywords: cluster.topic_keywords,
+    rankingSignals: intelligence ? [intelligence.rankingReason] : [],
+    sourceNames: cluster.articles.map((article) => article.source),
+  });
+  const candidates = [
+    ...(intelligence?.topics ?? []),
+    ...cluster.topic_keywords,
+    ...(classification.primaryCategory ? PIPELINE_TOPIC_ALIASES[classification.primaryCategory] : []),
+  ].map((value) => value.toLowerCase());
+
+  for (const candidate of candidates) {
+    const directMatch = topicByName.get(candidate);
+    if (directMatch) {
+      return directMatch;
+    }
+
+    if (PIPELINE_TOPIC_ALIASES.tech.includes(candidate)) {
+      const techTopic = topicByName.get("tech");
+      if (techTopic) return techTopic;
+    }
+
+    if (PIPELINE_TOPIC_ALIASES.finance.includes(candidate)) {
+      const financeTopic = topicByName.get("finance");
+      if (financeTopic) return financeTopic;
+    }
+
+    if (PIPELINE_TOPIC_ALIASES.politics.includes(candidate)) {
+      const politicsTopic = topicByName.get("politics");
+      if (politicsTopic) return politicsTopic;
+    }
+  }
+
+  return fallbackTopic;
+}
+
+function selectPublicBriefingItems(items: BriefingItem[], limit = 5) {
+  const sorted = items
+    .slice()
+    .sort((left, right) => {
+      const highSignalDelta =
+        Number(Boolean(right.eventIntelligence?.isHighSignal)) -
+        Number(Boolean(left.eventIntelligence?.isHighSignal));
+      if (highSignalDelta !== 0) {
+        return highSignalDelta;
+      }
+
+      return compareBriefingItemsByRanking(left, right);
+    });
+  const selected: BriefingItem[] = [];
+  const topicCounts = new Map<string, number>();
+  const skippedForSecondPass: BriefingItem[] = [];
+
+  for (const item of sorted) {
+    const topicKey = item.topicName.toLowerCase();
+    const topicCount = topicCounts.get(topicKey) ?? 0;
+    const isNonSignal = item.eventIntelligence?.eventType === "non_signal";
+
+    if (isNonSignal && selected.length < limit) {
+      skippedForSecondPass.push(item);
+      continue;
+    }
+
+    if (topicCount >= 2) {
+      skippedForSecondPass.push(item);
+      continue;
+    }
+
+    selected.push(item);
+    topicCounts.set(topicKey, topicCount + 1);
+
+    if (selected.length === limit) {
+      return selected;
+    }
+  }
+
+  for (const item of skippedForSecondPass) {
+    if (selected.some((selectedItem) => selectedItem.id === item.id)) {
+      continue;
+    }
+
+    selected.push(item);
+    if (selected.length === limit) {
+      break;
+    }
+  }
+
+  return selected;
 }
 
 export async function syncTopicMatches(

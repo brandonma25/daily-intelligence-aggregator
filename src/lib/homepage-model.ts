@@ -76,6 +76,7 @@ export type HomepageDebugModel = {
   totalCandidateEvents: number | null;
   rankedEventsCount: number;
   uncategorizedEventsCount: number;
+  surfacedDuplicateCount: number;
   categoryCounts: Record<HomepageCategoryKey, number>;
   sourceCountsByCategory: Record<HomepageCategoryKey, number>;
   lastSuccessfulFetchTime?: string;
@@ -109,10 +110,16 @@ export function buildHomepageViewModel(
   const confirmedEvents = events.filter((event) => !event.intelligence.isEarlySignal);
   const earlySignals = events.filter((event) => event.intelligence.isEarlySignal);
   const featured = confirmedEvents[0] ?? events[0] ?? null;
-  const topRanked = confirmedEvents.slice(0, TOP_EVENTS_LIMIT);
-  const reservedFallbackIds = new Set(topRanked.map((event) => event.id));
+  const topRanked = confirmedEvents
+    .filter((event) => event.id !== featured?.id)
+    .slice(0, TOP_EVENTS_LIMIT);
+  const reservedPrimaryIds = new Set(topRanked.map((event) => event.id));
   const sectionDrafts = HOMEPAGE_CATEGORY_CONFIG.map((category) => {
-    const eligibleEvents = events.filter((event) => event.classification.primaryCategory === category.key);
+    const eligibleEvents = events.filter(
+      (event) =>
+        event.classification.primaryCategory === category.key &&
+        !topRanked.some((topEvent) => topEvent.id === event.id),
+    );
     const displayEvents = eligibleEvents.slice(0, CATEGORY_EVENT_LIMIT);
     const heldBackEvents = eligibleEvents.slice(CATEGORY_EVENT_LIMIT);
     const placeholderCount =
@@ -144,10 +151,14 @@ export function buildHomepageViewModel(
       excludedReasons: dedupeStrings(excludedReasons).slice(0, 6),
     } satisfies HomepageCategorySection;
   });
+  const reservedFallbackIds = new Set([
+    ...reservedPrimaryIds,
+    ...sectionDrafts.flatMap((section) => section.events.map((event) => event.id)),
+  ]);
   const categorySections = sectionDrafts.map((section) => {
     const fallbackEvents =
       section.events.length === 0
-        ? allocateFallbackEvents(section.key, confirmedEvents, earlySignals, reservedFallbackIds)
+        ? allocateFallbackEvents(section.key, confirmedEvents, earlySignals, reservedFallbackIds, featured)
         : [];
 
     return {
@@ -157,7 +168,13 @@ export function buildHomepageViewModel(
     };
   });
 
-  const reservedIds = new Set(topRanked.map((event) => event.id));
+  const reservedIds = new Set([
+    ...reservedPrimaryIds,
+    ...categorySections.flatMap((section) => [
+      ...section.events.map((event) => event.id),
+      ...section.fallbackEvents.map((event) => event.id),
+    ]),
+  ]);
   const trending = confirmedEvents
     .filter((event) => !reservedIds.has(event.id))
     .slice(0, TRENDING_EVENT_LIMIT);
@@ -175,6 +192,14 @@ export function buildHomepageViewModel(
       totalCandidateEvents: data.homepageDiagnostics?.totalCandidateEvents ?? null,
       rankedEventsCount: events.length,
       uncategorizedEventsCount: events.filter((event) => !event.classification.primaryCategory).length,
+      surfacedDuplicateCount: countDuplicateSurfaceIds(
+        [
+          ...topRanked.map((event) => event.id),
+          ...categorySections.flatMap((section) => section.events.map((event) => event.id)),
+          ...categorySections.flatMap((section) => section.fallbackEvents.map((event) => event.id)),
+          ...trending.map((event) => event.id),
+        ].filter((eventId): eventId is string => Boolean(eventId)),
+      ),
       categoryCounts: {
         tech: events.filter((event) => event.classification.primaryCategory === "tech").length,
         finance: events.filter((event) => event.classification.primaryCategory === "finance").length,
@@ -401,11 +426,17 @@ function dedupeStrings(values: string[]) {
   return values.filter((value, index) => values.indexOf(value) === index);
 }
 
+function countDuplicateSurfaceIds(ids: string[]) {
+  const uniqueIds = new Set(ids);
+  return ids.length - uniqueIds.size;
+}
+
 function allocateFallbackEvents(
   categoryKey: HomepageCategoryKey,
   confirmedEvents: HomepageEvent[],
   earlySignals: HomepageEvent[],
   reservedIds: Set<string>,
+  featured?: HomepageEvent | null,
 ) {
   const rankedCandidates = confirmedEvents.filter(
     (event) =>
@@ -416,6 +447,10 @@ function allocateFallbackEvents(
       event.classification.primaryCategory !== categoryKey && !reservedIds.has(event.id),
   );
   const selected = [...rankedCandidates, ...earlyCandidates].slice(0, 2);
+
+  if (!selected.length && featured && !reservedIds.has(featured.id) && featured.classification.primaryCategory !== categoryKey) {
+    selected.push(featured);
+  }
 
   selected.forEach((event) => reservedIds.add(event.id));
   return selected;

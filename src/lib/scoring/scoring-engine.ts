@@ -3,7 +3,7 @@ import type { SignalCluster } from "@/lib/models/signal-cluster";
 import type { ClusterScoreLog } from "@/lib/observability/pipeline-run";
 import { clipSentence, tokenize } from "@/lib/pipeline/shared/text";
 
-type RankedClusterResult = {
+export type RankedClusterResult = {
   ranked: RankedSignal;
   cluster: SignalCluster;
   scoringLog: ClusterScoreLog;
