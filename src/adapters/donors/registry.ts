@@ -116,6 +116,14 @@ function countOverlap(left: string[], right: string[]) {
   return [...new Set(left)].filter((token) => rightSet.has(token)).length;
 }
 
+function average(values: number[]) {
+  if (!values.length) {
+    return 0;
+  }
+
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
 function buildClusterCandidate(article: NormalizedArticle): ClusterCandidate {
   const titleTokens = article.title_tokens.length ? article.title_tokens : tokenize(article.title);
   const contentTokens = article.content_tokens.length ? article.content_tokens : tokenize(article.content);
@@ -379,11 +387,38 @@ const fnsDiversitySupport: DiversitySupport = {
         } satisfies DiversityAdjustment;
       }
 
+      const importanceComposite = average([
+        entry.features.structural_impact,
+        entry.features.downstream_consequence,
+        entry.features.actor_significance,
+        entry.features.cross_domain_relevance,
+        entry.features.actionability_or_decision_value,
+        entry.features.persistence_or_endurance,
+      ]);
+
+      let scoreDelta = entry.baseScore > 82 ? -4.5 : -6;
+
+      if (
+        importanceComposite >= 84
+        || (entry.features.structural_impact >= 78 && entry.features.downstream_consequence >= 58)
+      ) {
+        scoreDelta = -1.5;
+      } else if (
+        importanceComposite >= 70
+        || (entry.features.structural_impact >= 70 && entry.features.cross_domain_relevance >= 60)
+        || (entry.features.structural_impact >= 76 && entry.features.persistence_or_endurance >= 68)
+      ) {
+        scoreDelta = Math.max(scoreDelta, -3);
+      }
+
       return {
         cluster_id: entry.cluster.cluster_id,
         action: "penalize",
-        scoreDelta: entry.baseScore > 82 ? -4.5 : -6,
-        reason: "Penalized because a higher-ranked cluster already covers a similar event family.",
+        scoreDelta,
+        reason:
+          importanceComposite >= 70 || entry.features.structural_impact >= 70
+            ? "Penalized lightly because a higher-ranked cluster already covers a similar event family, but the event remains important."
+            : "Penalized because a higher-ranked cluster already covers a similar event family.",
         relatedClusterId: collision.clusterId,
       } satisfies DiversityAdjustment;
     });
@@ -393,6 +428,11 @@ const fnsDiversitySupport: DiversitySupport = {
 function createRankingFeatureProvider(feeds: DonorFeed[], donor: DonorId): RankingFeatureProvider {
   const knownSources = feeds.map(normalizeFeedMetadata);
   const sourceIndex = new Map(knownSources.map((source) => [source.source.toLowerCase(), source]));
+
+  function scoreKeywordPresence(corpus: string, keywords: string[], base = 20, hitWeight = 14, max = 100) {
+    const hits = keywords.filter((keyword) => corpus.includes(keyword)).length;
+    return Math.min(max, base + hits * hitWeight);
+  }
 
   return {
     describeFeatureSupport() {
@@ -404,8 +444,14 @@ function createRankingFeatureProvider(feeds: DonorFeed[], donor: DonorId): Ranki
           "source_confirmation",
           "representative_quality",
           "reinforcement",
+          "structural_impact",
+          "downstream_consequence",
+          "actor_significance",
+          "cross_domain_relevance",
+          "actionability_or_decision_value",
+          "persistence_or_endurance",
         ] satisfies Array<keyof RankingFeatureSet>,
-        trustSignals: ["source metadata", "trust tier", "source diversity"],
+        trustSignals: ["source metadata", "trust tier", "source diversity", "system-level actor and impact heuristics"],
       };
     },
     getKnownSources() {
@@ -432,6 +478,60 @@ function createRankingFeatureProvider(feeds: DonorFeed[], donor: DonorId): Ranki
         100,
         32 + cluster.cluster_size * 18 + new Set(cluster.articles.map((article) => article.source)).size * 10,
       );
+      const corpus = `${cluster.representative_article.title} ${cluster.representative_article.content} ${cluster.topic_keywords.join(" ")}`.toLowerCase();
+      const actors = [
+        ...cluster.representative_article.entities,
+        ...cluster.articles.flatMap((article) => article.entities),
+      ].map((entry) => entry.toLowerCase());
+      const actorHits = actors.filter((actor) =>
+        /(federal reserve|ecb|bank of japan|china|u\.s\.|united states|european union|apple|microsoft|google|amazon|openai|nvidia|tesla|congress|white house|sec|doj|opec|taiwan)/.test(actor),
+      ).length;
+      const structuralImpact = scoreKeywordPresence(
+        corpus,
+        [
+          "policy",
+          "regulation",
+          "tariff",
+          "export",
+          "trade",
+          "sanction",
+          "infrastructure",
+          "supply chain",
+          "platform",
+          "central bank",
+          "interest rate",
+          "military",
+          "security",
+          "geopolit",
+        ],
+        18,
+        12,
+      );
+      const downstreamConsequence = scoreKeywordPresence(
+        corpus,
+        ["pricing", "repric", "guidance", "outlook", "forecast", "supply chain", "capital", "procurement", "compliance", "rollout", "export", "trade", "chip", "semiconductor"],
+        16,
+        11,
+      );
+      const actorSignificance = Math.min(100, 24 + actorHits * 16 + (matches.some((entry) => entry.trustTier === "tier_1") ? 10 : 0));
+      const crossDomainRelevance = scoreKeywordPresence(
+        corpus,
+        ["market", "policy", "enterprise", "consumer", "developer", "government", "bank", "cloud", "trade", "security", "chip", "supply chain"],
+        18,
+        9,
+      );
+      const actionability = scoreKeywordPresence(
+        corpus,
+        ["review", "restrict", "control", "raise", "cut", "delay", "approve", "launch", "guidance", "forecast", "hearing", "tariff", "export"],
+        24,
+        8,
+      );
+      const persistence = scoreKeywordPresence(
+        corpus,
+        ["roadmap", "policy", "regulation", "supply chain", "infrastructure", "guidance", "investment", "capacity", "platform", "trade", "export", "security"],
+        20,
+        10,
+      );
 
       return {
         source_credibility: matches.length
@@ -441,6 +541,12 @@ function createRankingFeatureProvider(feeds: DonorFeed[], donor: DonorId): Ranki
         source_confirmation: Number(sourceConfirmation.toFixed(2)),
         representative_quality: Number(representativeQuality.toFixed(2)),
         reinforcement: Number(reinforcement.toFixed(2)),
+        structural_impact: Number(structuralImpact.toFixed(2)),
+        downstream_consequence: Number(downstreamConsequence.toFixed(2)),
+        actor_significance: Number(actorSignificance.toFixed(2)),
+        cross_domain_relevance: Number(crossDomainRelevance.toFixed(2)),
+        actionability_or_decision_value: Number(actionability.toFixed(2)),
+        persistence_or_endurance: Number(persistence.toFixed(2)),
       };
     },
   };

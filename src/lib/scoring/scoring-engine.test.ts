@@ -72,6 +72,9 @@ describe("rankSignalClusters", () => {
     expect(ranked?.ranked.ranking_debug.features.source_credibility).toBeGreaterThan(0);
     expect(ranked?.ranked.ranking_debug.features.trust_tier).toBeGreaterThan(0);
     expect(ranked?.ranked.ranking_debug.features.source_confirmation).toBeGreaterThanOrEqual(0);
+    expect(ranked?.ranked.ranking_debug.features.structural_impact).toBeGreaterThan(0);
+    expect(ranked?.ranked.ranking_debug.grouped_scores.event_importance).toBeGreaterThan(0);
+    expect(ranked?.ranked.ranking_debug.active_features).toContain("structural_impact");
     expect(ranked?.scoringLog.diversity_action).toBe("none");
   });
 
@@ -87,5 +90,57 @@ describe("rankSignalClusters", () => {
     expect(ranked[1]?.ranked.ranking_debug.diversity.action).toBe("penalize");
     expect(ranked[1]?.ranked.ranking_debug.diversity.scoreDelta).toBeLessThan(0);
     expect(ranked[1]?.scoringLog.diversity_reason).toContain("similar event family");
+  });
+
+  it("lets a high-consequence event outrank a fresher but trivial item", () => {
+    const criticalCluster = createCluster(
+      "cluster-critical",
+      "Federal Reserve launches emergency liquidity review for major banks",
+      ["policy", "liquidity", "banks", "market", "rates", "guidance"],
+      ["Federal Reserve"],
+    );
+    const trivialFreshCluster = createCluster(
+      "cluster-trivial",
+      "Popular handheld fan launches in new spring colors",
+      ["launch", "consumer", "product", "colors"],
+      ["Dyson"],
+    );
+
+    trivialFreshCluster.representative_article = {
+      ...trivialFreshCluster.representative_article,
+      published_at: "2026-04-19T06:00:00.000Z",
+      content: "The new consumer gadget color update is generating social buzz and fresh coverage.",
+      source: "The Verge",
+    };
+    trivialFreshCluster.articles = [trivialFreshCluster.representative_article];
+
+    const ranked = rankSignalClusters([trivialFreshCluster, criticalCluster]);
+
+    expect(ranked[0]?.cluster.cluster_id).toBe("cluster-critical");
+    expect(ranked[0]?.ranked.ranking_debug.grouped_scores.event_importance).toBeGreaterThan(
+      ranked[1]?.ranked.ranking_debug.grouped_scores.event_importance ?? 0,
+    );
+  });
+
+  it("keeps a critical overlapping story visible with only a light diversity penalty", () => {
+    const primary = createCluster(
+      "cluster-primary",
+      "US and China weigh new export controls for advanced chips",
+      ["policy", "export", "chips", "trade", "supply chain", "security"],
+      ["United States", "China"],
+    );
+    const adjacentCritical = createCluster(
+      "cluster-adjacent",
+      "China responds as US export-control review hits chip supply chain",
+      ["policy", "export", "chips", "trade", "supply chain", "security"],
+      ["United States", "China"],
+    );
+
+    const ranked = rankSignalClusters([primary, adjacentCritical]);
+    const penalized = ranked.find((entry) => entry.cluster.cluster_id === "cluster-adjacent");
+
+    expect(penalized?.ranked.ranking_debug.diversity.action).toBe("penalize");
+    expect(penalized?.ranked.ranking_debug.diversity.scoreDelta).toBeGreaterThanOrEqual(-3);
+    expect(penalized?.ranked.ranking_debug.explanation).toContain("stayed visible");
   });
 });

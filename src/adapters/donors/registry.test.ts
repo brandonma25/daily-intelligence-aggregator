@@ -103,7 +103,11 @@ describe("donor registry", () => {
     expect(provider).toBeDefined();
     expect(provider!.getKnownSources().map((entry) => entry.source)).toContain("Associated Press");
     expect(provider!.describeFeatureSupport().supportedFeatures).toContain("source_credibility");
-    expect(provider!.mapClusterToRankingFeatures(cluster, [cluster]).source_credibility).toBe(88);
+    expect(provider!.describeFeatureSupport().supportedFeatures).toContain("structural_impact");
+    const features = provider!.mapClusterToRankingFeatures(cluster, [cluster]);
+    expect(features.source_credibility).toBe(88);
+    expect(features.structural_impact).toBeGreaterThan(0);
+    expect(features.actionability_or_decision_value).toBeGreaterThan(0);
     expect(getCanonicalSourceMetadata().map((entry) => entry.source)).toContain("Reuters World");
   });
 
@@ -154,6 +158,12 @@ describe("donor registry", () => {
           reinforcement: 68,
           cluster_size: 1,
           representative_quality: 72,
+          structural_impact: 72,
+          downstream_consequence: 70,
+          actor_significance: 74,
+          cross_domain_relevance: 66,
+          actionability_or_decision_value: 71,
+          persistence_or_endurance: 69,
         },
         baseScore: 80,
       },

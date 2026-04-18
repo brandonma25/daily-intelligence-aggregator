@@ -32,6 +32,7 @@ The post-cluster selection layer now has explicit donor-backed ranking feature s
 - FNS feature support mapping
 - active post-cluster diversity penalty path
 - ranking/trust debug output in ranked results and pipeline run logs
+- grouped importance-aware ranking families with deterministic explanations
 
 ## Future-Ready
 

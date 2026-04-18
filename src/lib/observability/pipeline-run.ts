@@ -5,10 +5,15 @@ export type ClusterScoreLog = {
   novelty: number;
   urgency: number;
   reinforcement: number;
+  trust_timeliness: number;
+  event_importance: number;
+  support_and_novelty: number;
+  importance_adjustment: number;
   cluster_size: number;
   final_score: number;
   diversity_action: string;
   diversity_reason: string;
+  ranking_explanation: string;
 };
 
 export type PipelineRun = {

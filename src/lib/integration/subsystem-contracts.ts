@@ -176,6 +176,12 @@ export interface RankingFeatureSet {
   reinforcement: number;
   cluster_size: number;
   representative_quality: number;
+  structural_impact: number;
+  downstream_consequence: number;
+  actor_significance: number;
+  cross_domain_relevance: number;
+  actionability_or_decision_value: number;
+  persistence_or_endurance: number;
 }
 
 export interface DiversityAdjustment {
@@ -195,7 +201,14 @@ export interface RankingDebug {
     urgency: number;
     reinforcement: number;
   };
+  grouped_scores: {
+    trust_timeliness: number;
+    event_importance: number;
+    support_and_novelty: number;
+  };
   diversity: DiversityAdjustment;
+  explanation: string;
+  active_features: Array<keyof RankingFeatureSet>;
   notes: string[];
 }
 

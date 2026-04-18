@@ -80,6 +80,13 @@ The product needs an end-to-end intelligence path that can ingest live news, nor
 - diversity adjustments now run after canonical base scoring to reduce overcrowded near-duplicate outputs
 - final score calculation and ranked output remain canonical website logic
 
+## Importance Ranking V2 Note
+
+- Phase 1 ranking now includes a bounded importance layer on top of the existing canonical score path.
+- The scorer still preserves the legacy credibility / novelty / urgency / reinforcement view for continuity.
+- New grouped score families now help distinguish merely fresh stories from stories with stronger structural importance and downstream consequence.
+- Importance remains deterministic, inspectable, and conservative rather than model-driven or opaque.
+
 ## Known Limitations
 
 - Clustering is materially stricter, but adjacent macro or policy stories can still require threshold tuning as feed mix changes.
