@@ -3,7 +3,11 @@
 This repository uses a controlled documentation system. The goal is to keep docs useful, short, and non-duplicated.
 
 ## Core Rules
-- `docs/product/feature-system.csv` is the control layer and source of truth for feature tracking.
+- Google Sheets workbook `Features Table` is the live source of truth for feature-tracking status.
+- `Sheet1` is the governed approved feature table and `Intake Queue` is the quarantine lane for unmapped or ambiguous work.
+- `Record ID` in `Sheet1` is immutable and may only be used as the governed lookup key for automation.
+- Automation must never write formula/computed columns or silently overwrite human-managed fields in Google Sheets.
+- `docs/product/feature-system.csv` is the repo-side control layer for PRD mapping, build order, and durable governance metadata.
 - The CSV is the product control layer and its schema is locked to exactly 12 columns in this exact order:
   `Layer, Feature Name, Priority, Status, Description, Owner, Dependency, Build Order, Decision, Last Updated, prd_id, prd_file`
 - No additional columns are allowed.
@@ -46,9 +50,11 @@ This repository uses a controlled documentation system. The goal is to keep docs
 2. Work from the next feature marked `decision = build` with the lowest `build_order`.
 3. Respect dependencies before implementation.
 4. If the feature already has a PRD, update that file instead of creating a new one.
-5. During active branch work, set `status = In Progress`.
-6. When implementation is complete but awaiting merge or review, set `status = In Review`.
-7. After merge or explicit user acceptance, set `status = Built`, `decision = keep`, and update `last_updated`.
+5. Preserve the Google Sheets governance model: mapped work belongs in `Sheet1`, while unmapped or ambiguous work must go to `Intake Queue`.
+6. Do not create governed `Sheet1` rows automatically from GitHub merges or repo automation.
+7. During active branch work, set `status = In Progress`.
+8. When implementation is complete but awaiting merge or review, set `status = In Review`.
+9. After merge or explicit user acceptance, set `status = Built`, `decision = keep`, and update `last_updated`.
 
 ## Change Control
 - Do not implement features marked `delay` or `kill`.

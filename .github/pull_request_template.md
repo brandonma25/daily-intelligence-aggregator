@@ -3,6 +3,8 @@
 ## Branch
 - [ ] Correct branch used
 - [ ] No unrelated changes included
+- [ ] PR title or branch includes canonical `PRD-XX` when this work maps to a governed feature
+- [ ] If this work is intentionally unmapped, expect Intake Queue review instead of direct `Sheet1` insertion
 
 ## Local Validation
 - [ ] App runs locally
@@ -30,6 +32,7 @@
 - [ ] `docs/product/briefs/` updated if applicable
 - [ ] `docs/product/prd/` updated if applicable
 - [ ] relevant `docs/engineering/` bucket updated if applicable
+- [ ] Google Sheets governance rules preserved: `Sheet1` for mapped work, `Intake Queue` for unmapped or ambiguous work
 - [ ] No sensitive information included
 
 ## Security Check

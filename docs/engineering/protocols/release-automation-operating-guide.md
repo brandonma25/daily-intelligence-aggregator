@@ -26,6 +26,18 @@
 - Build failure is blocking.
 - Lint, unit-test, and Playwright failures are reported explicitly and still return a non-zero exit code.
 
+### 1a. Feature Tracking Sync Gate
+- Workflow: [github-sheets-status-sync.yml](/Users/bm/Documents/daily-intelligence-aggregator-main/.github/workflows/github-sheets-status-sync.yml)
+- Script entrypoint: `node scripts/github-sheets-sync.mjs --event pr-merge --payload-file <path>`
+- Permanent rules:
+  - Google Sheets workbook `Features Table` is the live feature-tracking system.
+  - `Sheet1` is the governed table for approved mapped work.
+  - `Intake Queue` is the only destination for unmapped, spontaneous, or ambiguous merged work.
+  - `Record ID` in `Sheet1` is immutable and may only be used as the exact-match lookup key.
+  - The automation must validate the expected headers before writing and may update only approved automation-managed columns.
+  - A merge to `main` may update one exact `Record ID` match to `Merged`.
+  - A merge must never auto-create a new governed `Sheet1` row.
+
 ### 2. PR Gate
 - Workflow: [ci.yml](/Users/bm/Documents/daily-intelligence-aggregator-main/.github/workflows/ci.yml)
 - Required protected-branch checks:
@@ -83,6 +95,9 @@
 - Standard wrapper: `node scripts/prod-check.js https://app.example.com`
 - Runs after merge to `main` or manually with a supplied production URL.
 - Confirms `/` and `/dashboard` return `200` and do not expose obvious deployment failure markers.
+- On success, the workflow may run `node scripts/github-sheets-sync.mjs --event production-verify ...` to promote a uniquely matched Google Sheets row from `Merged` to `Built`.
+- If production verification fails or no unique governed row exists, the status must remain `Merged`.
+- The promotion job prefers the merged PR whose `merge_commit_sha` exactly matches the verified `main` commit and falls back to the broader associated-PR lookup only if needed.
 
 ### 6. Release Documentation Gate
 - Template scaffolder: `npm run release:docs -- --slug your-release-slug --title "Your Release Title"`
@@ -124,7 +139,8 @@
 ## Required External Configuration
 - GitHub branch protection must require the PR checks listed above.
 - Vercel preview automation must provide a preview URL to the Preview Gate workflow.
-- GitHub repo variable `PRODUCTION_BASE_URL` should point at the canonical production URL for automatic post-merge verification.
+- GitHub repo variable `PRODUCTION_BASE_URL` is optional overall and should point at the canonical production URL only if automatic post-merge verification and `Merged -> Built` promotion are desired.
+- GitHub secrets `GOOGLE_SERVICE_ACCOUNT_JSON` and `GOOGLE_SHEET_ID` must be configured for Google Sheets status sync.
 - No secrets are stored in repo scripts or workflows; placeholder env values are used for build-safe automation.
 
 ## Branch Protection Verification Checklist
