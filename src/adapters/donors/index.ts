@@ -3,6 +3,7 @@ export {
   getCanonicalSourceMetadata,
   getClusteringSupportAdapters,
   getDefaultDonorFeeds,
+  getDiversitySupports,
   getDonorModule,
   getDonorRegistry,
   getDonorRegistrySnapshot,

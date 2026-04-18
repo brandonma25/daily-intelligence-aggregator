@@ -92,10 +92,56 @@ export interface NormalizationAdapter<TInput = unknown> {
   convertToCanonicalArticle(input: TInput): NormalizedArticle;
 }
 
+export interface ClusterCandidate {
+  article: NormalizedArticle;
+  title_tokens: string[];
+  content_tokens: string[];
+  keywords: string[];
+  specific_keywords: string[];
+  normalized_entities: string[];
+  event_terms: string[];
+  published_at_ms: number;
+}
+
+export interface SimilaritySignals {
+  title_overlap: number;
+  keyword_overlap: number;
+  entity_overlap: number;
+  content_similarity: number;
+  time_proximity: number;
+  source_confirmation: number;
+  weighted_score: number;
+}
+
+export interface MergeDecisionSupport {
+  canMerge: boolean;
+  reasons: string[];
+  similaritySignals: SimilaritySignals;
+  representativeArticleId: string;
+}
+
+export interface RepresentativeSelectionSupport {
+  representativeArticle: NormalizedArticle;
+  scores: Array<{
+    article_id: string;
+    score: number;
+    reasons: string[];
+  }>;
+  reason: string;
+}
+
 export interface ClusteringSupport {
-  describeSimilarityStrategy(): string[];
-  buildCandidateFingerprint(article: NormalizedArticle): string[];
-  describeRepresentativeStrategy(cluster: SignalCluster): string;
+  prepareClusterCandidates(articles: NormalizedArticle[]): ClusterCandidate[];
+  buildCandidateFingerprint(candidate: ClusterCandidate): string[];
+  computeSimilaritySignals(candidate: ClusterCandidate, clusterCandidates: ClusterCandidate[]): SimilaritySignals;
+  supportMergeDecision(candidate: ClusterCandidate, clusterCandidates: ClusterCandidate[]): MergeDecisionSupport;
+  selectRepresentativeArticle(clusterCandidates: ClusterCandidate[]): RepresentativeSelectionSupport;
+  describeCapabilities(): {
+    provider: string;
+    similaritySignals: Array<keyof SimilaritySignals>;
+    representativeSelection: string;
+    diversitySupportAvailable: boolean;
+  };
 }
 
 export interface RankingFeatureProvider {
@@ -105,6 +151,11 @@ export interface RankingFeatureProvider {
     sourceClasses: SourceClass[];
     notes: string[];
   };
+}
+
+export interface DiversitySupport {
+  available: boolean;
+  describeRole(): string;
 }
 
 export interface EnrichmentSupport {

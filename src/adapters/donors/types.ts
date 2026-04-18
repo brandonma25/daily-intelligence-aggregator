@@ -1,6 +1,7 @@
 import type {
   ClusteringSupport,
   ContractState,
+  DiversitySupport,
   EnrichmentSupport,
   IngestionAdapter,
   RankingFeatureProvider,
@@ -52,6 +53,7 @@ export type DonorDefinition = {
 export type DonorModule = DonorDefinition & {
   ingestionAdapter: IngestionAdapter<DonorFeed>;
   clusteringSupport?: ClusteringSupport;
+  diversitySupport?: DiversitySupport;
   rankingFeatureProvider?: RankingFeatureProvider;
   enrichmentSupport?: EnrichmentSupport;
 };

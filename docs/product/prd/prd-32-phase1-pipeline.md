@@ -82,7 +82,7 @@ The product needs an end-to-end intelligence path that can ingest live news, nor
 - `Horizon` is now the secondary ingestion/source-breadth donor:
   - contributes Reuters-backed source definitions and richer canonical source context
 - `after-market-agent` is the active clustering-support donor:
-  - contributes support strategies and representative-selection boundaries
+  - contributes cluster candidate preparation, similarity-signal support, merge-decision support, and representative-selection support
 - `FINANCIAL-NEWS-SUMMARIZER` is the active ranking-feature donor:
   - contributes source-quality metadata that flows into deterministic scoring
 - `Horizon` enrichment is future-ready only:
@@ -120,6 +120,17 @@ The product needs an end-to-end intelligence path that can ingest live news, nor
 - Inspectability:
   - clusters now keep merge decisions, prevented-merge counts, and representative selection reasons
   - pipeline runs now expose average cluster size, singleton count, prevented merges, and sample cluster rationale
+
+## Clustering Support Note
+
+- clustering now has explicit canonical contracts for:
+  - cluster candidates
+  - similarity signals
+  - merge support
+  - representative selection support
+- after-market-agent is the active clustering support owner
+- final `SignalCluster` assembly remains canonical website logic
+- FNS diversity-aware post-cluster support is future-ready only
 
 ## Homepage Quality Note
 

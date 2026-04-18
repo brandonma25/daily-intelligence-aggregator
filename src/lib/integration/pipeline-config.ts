@@ -39,8 +39,8 @@ export const PIPELINE_STAGE_CONFIG: PipelineStageConfig[] = [
     stage: "clustering",
     ownership: "donor_assisted",
     canonicalModule: "src/lib/pipeline/clustering/index.ts",
-    donorIds: ["after_market_agent"],
-    notes: "Canonical clusterer stays local while exposing donor-derived support strategy boundaries.",
+    donorIds: ["after_market_agent", "fns"],
+    notes: "Canonical clusterer stays local while after-market-agent owns clustering support and FNS exposes a future-ready diversity hook.",
   },
   {
     stage: "ranking",

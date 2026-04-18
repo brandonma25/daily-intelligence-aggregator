@@ -1,3 +1,4 @@
+import { getClusteringSupportAdapters, getDiversitySupports } from "@/adapters/donors";
 import type {
   ClusterMergeDecision,
   ClusterRepresentativeScore,
@@ -5,335 +6,195 @@ import type {
   SignalCluster,
 } from "@/lib/models/signal-cluster";
 import type { NormalizedArticle } from "@/lib/models/normalized-article";
-import {
-  computeTimeProximityScore,
-  extractKeywords,
-  jaccardSimilarity,
-  keywordSpecificity,
-  normalizeEntity,
-  overlapSimilarity,
-  stableId,
-  tokenize,
-} from "@/lib/pipeline/shared/text";
+import type {
+  ClusterCandidate,
+  ClusteringSupport,
+  MergeDecisionSupport,
+  RepresentativeSelectionSupport,
+  SimilaritySignals,
+} from "@/lib/integration/subsystem-contracts";
+import { extractKeywords, stableId } from "@/lib/pipeline/shared/text";
 
-type ArticleProfile = {
-  article: NormalizedArticle;
-  title_tokens: string[];
-  content_tokens: string[];
-  keywords: string[];
-  specific_keywords: string[];
-  normalized_entities: string[];
-  event_terms: string[];
-  published_at_ms: number;
-};
-
-type ClusterEvaluation = {
-  can_merge: boolean;
-  breakdown: ClusterSimilarityBreakdown;
-  reasons: string[];
-  representative_article_id: string;
-};
-
-function buildArticleProfile(article: NormalizedArticle): ArticleProfile {
-  const titleTokens = article.title_tokens.length ? article.title_tokens : tokenize(article.title);
-  const contentTokens = article.content_tokens.length ? article.content_tokens : tokenize(article.content);
-  const keywords = article.keywords.length
-    ? article.keywords
-    : extractKeywords(`${article.title} ${article.content}`, 10);
-  const specificKeywords = keywordSpecificity(keywords);
-  const normalizedEntities = article.normalized_entities.length
-    ? article.normalized_entities
-    : article.entities.map(normalizeEntity).filter(Boolean);
-  const entityTokens = normalizedEntities.flatMap((entity) => entity.split(/\s+/));
-  const eventTerms = specificKeywords.filter((keyword) => !entityTokens.includes(keyword)).slice(0, 6);
-
-  return {
-    article,
-    title_tokens: titleTokens,
-    content_tokens: contentTokens,
-    keywords,
-    specific_keywords: specificKeywords,
-    normalized_entities: normalizedEntities,
-    event_terms: eventTerms,
-    published_at_ms: new Date(article.published_at).getTime(),
-  };
-}
-
-function buildClusterKeywords(profiles: ArticleProfile[]) {
+function buildClusterKeywords(candidates: ClusterCandidate[]) {
   return extractKeywords(
-    profiles
-      .map((profile) => `${profile.article.title} ${profile.article.content}`)
+    candidates
+      .map((candidate) => `${candidate.article.title} ${candidate.article.content}`)
       .join(" "),
     10,
   );
 }
 
-function buildClusterEntitySet(profiles: ArticleProfile[]) {
-  return [...new Set(profiles.flatMap((profile) => profile.normalized_entities))];
-}
-
-function buildClusterEventTerms(profiles: ArticleProfile[]) {
-  return [...new Set(profiles.flatMap((profile) => profile.event_terms))];
-}
-
-function buildClusterContentTokens(profiles: ArticleProfile[]) {
-  return [...new Set(profiles.flatMap((profile) => profile.content_tokens).slice(0, 40))];
-}
-
-function countOverlap(left: string[], right: string[]) {
-  const rightSet = new Set(right);
-  return [...new Set(left)].filter((token) => rightSet.has(token)).length;
-}
-
-function compareTokenSets(left: string[], right: string[]) {
-  return Math.max(jaccardSimilarity(left, right), overlapSimilarity(left, right));
-}
-
-function getRepresentativeCandidateScores(profiles: ArticleProfile[]): ClusterRepresentativeScore[] {
-  const newestTimestamp = Math.max(...profiles.map((profile) => profile.published_at_ms));
-
-  return profiles.map((profile) => {
-    const averageSimilarity =
-      profiles.length === 1
-        ? 1
-        : profiles
-            .filter((candidate) => candidate.article.id !== profile.article.id)
-            .reduce((sum, candidate) => {
-              const titleSimilarity = jaccardSimilarity(profile.title_tokens, candidate.title_tokens);
-              const keywordSimilarity = jaccardSimilarity(profile.keywords, candidate.keywords);
-              const entitySimilarity = jaccardSimilarity(
-                profile.normalized_entities,
-                candidate.normalized_entities,
-              );
-
-              return sum + 0.45 * titleSimilarity + 0.35 * keywordSimilarity + 0.2 * entitySimilarity;
-            }, 0) / Math.max(1, profiles.length - 1);
-
-    const recencyScore =
-      newestTimestamp === profile.published_at_ms
-        ? 1
-        : computeTimeProximityScore(profile.published_at_ms, newestTimestamp);
-    const specificityBonus = Math.min(1, profile.specific_keywords.length / 6);
-    const score = Number((0.6 * averageSimilarity + 0.25 * specificityBonus + 0.15 * recencyScore).toFixed(3));
-
-    return {
-      article_id: profile.article.id,
-      score,
-      reasons: [
-        `avg similarity ${averageSimilarity.toFixed(2)}`,
-        `specific keywords ${profile.specific_keywords.length}`,
-        `recency ${recencyScore.toFixed(2)}`,
-      ],
-    };
-  });
-}
-
-function selectRepresentativeArticle(profiles: ArticleProfile[]) {
-  const scores = getRepresentativeCandidateScores(profiles).sort((left, right) => {
-    if (right.score !== left.score) {
-      return right.score - left.score;
-    }
-
-    return left.article_id.localeCompare(right.article_id);
-  });
-  const selected = profiles.find((profile) => profile.article.id === scores[0]?.article_id) ?? profiles[0];
-
+function buildSimilarityBreakdown(similaritySignals: SimilaritySignals): ClusterSimilarityBreakdown {
   return {
-    representative_article: selected.article,
-    representative_scores: scores,
-    representative_selection_reason:
-      scores[0]
-        ? `Selected article ${scores[0].article_id} with score ${scores[0].score.toFixed(2)} (${scores[0].reasons.join(", ")}).`
-        : "Selected the only article in the cluster.",
+    title_similarity: Number(similaritySignals.title_overlap.toFixed(3)),
+    keyword_overlap: Number(similaritySignals.keyword_overlap.toFixed(3)),
+    entity_overlap: Number(similaritySignals.entity_overlap.toFixed(3)),
+    content_similarity: Number(similaritySignals.content_similarity.toFixed(3)),
+    time_proximity: Number(similaritySignals.time_proximity.toFixed(3)),
+    source_confirmation: Number(similaritySignals.source_confirmation.toFixed(3)),
+    weighted_score: Number(similaritySignals.weighted_score.toFixed(3)),
   };
 }
 
-function evaluateClusterFit(article: ArticleProfile, clusterProfiles: ArticleProfile[]): ClusterEvaluation {
-  const clusterKeywords = buildClusterKeywords(clusterProfiles);
-  const clusterSpecificKeywords = keywordSpecificity(clusterKeywords);
-  const clusterEntities = buildClusterEntitySet(clusterProfiles);
-  const clusterEventTerms = buildClusterEventTerms(clusterProfiles);
-  const clusterContentTokens = buildClusterContentTokens(clusterProfiles);
-  const representative = selectRepresentativeArticle(clusterProfiles).representative_article;
-  const representativeProfile = buildArticleProfile(representative);
-  const titleSimilarity = compareTokenSets(article.title_tokens, representativeProfile.title_tokens);
-  const keywordOverlap = Math.max(
-    compareTokenSets(article.keywords, clusterKeywords),
-    compareTokenSets(article.specific_keywords, clusterSpecificKeywords),
-  );
-  const entityOverlap = compareTokenSets(article.normalized_entities, clusterEntities);
-  const contentSimilarity = compareTokenSets(
-    article.content_tokens.slice(0, 30),
-    clusterContentTokens.slice(0, 30),
-  );
-  const timeProximity = computeTimeProximityScore(
-    article.published_at_ms,
-    representativeProfile.published_at_ms,
-  );
-  const weightedScore = Number(
-    (
-      0.33 * titleSimilarity +
-      0.27 * keywordOverlap +
-      0.15 * entityOverlap +
-      0.15 * contentSimilarity +
-      0.1 * timeProximity
-    ).toFixed(3),
-  );
-  const sharedSpecificKeywords = countOverlap(article.specific_keywords, clusterSpecificKeywords);
-  const sharedEntities = countOverlap(article.normalized_entities, clusterEntities);
-  const sharedEventTerms = countOverlap(article.event_terms, clusterEventTerms);
-  const reasons: string[] = [];
-
-  if (weightedScore < 0.32) {
-    reasons.push("weighted similarity below 0.32");
-  }
-
-  if (titleSimilarity < 0.18 && keywordOverlap < 0.28) {
-    reasons.push("title and keyword overlap are both weak");
-  }
-
-  if (
-    clusterEntities.length > 0 &&
-    article.normalized_entities.length > 0 &&
-    sharedEntities === 0 &&
-    sharedSpecificKeywords < 2 &&
-    titleSimilarity < 0.52
-  ) {
-    reasons.push("entity mismatch against existing cluster");
-  }
-
-  if (sharedSpecificKeywords === 0 && titleSimilarity < 0.58 && contentSimilarity < 0.35) {
-    reasons.push("overlap is too generic and not event-specific");
-  }
-
-  if (sharedEntities > 0 && sharedEventTerms === 0 && keywordOverlap < 0.45 && titleSimilarity < 0.62) {
-    reasons.push("same entity but different event signature");
-  }
-
-  if (timeProximity < 0.2 && titleSimilarity < 0.65 && keywordOverlap < 0.5) {
-    reasons.push("stories are too far apart in time for a confident merge");
-  }
-
-  return {
-    can_merge: reasons.length === 0,
-    breakdown: {
-      title_similarity: Number(titleSimilarity.toFixed(3)),
-      keyword_overlap: Number(keywordOverlap.toFixed(3)),
-      entity_overlap: Number(entityOverlap.toFixed(3)),
-      content_similarity: Number(contentSimilarity.toFixed(3)),
-      time_proximity: Number(timeProximity.toFixed(3)),
-      weighted_score: weightedScore,
-    },
-    reasons: reasons.length
-      ? reasons
-      : [
-          `weighted similarity ${weightedScore.toFixed(2)}`,
-          `specific keyword overlap ${sharedSpecificKeywords}`,
-          `entity overlap ${sharedEntities}`,
-        ],
-    representative_article_id: representative.id,
-  };
+function buildRepresentativeScores(support: RepresentativeSelectionSupport): ClusterRepresentativeScore[] {
+  return support.scores.map((score) => ({
+    article_id: score.article_id,
+    score: score.score,
+    reasons: score.reasons,
+  }));
 }
 
-function createCluster(articleProfile: ArticleProfile): SignalCluster {
+function getClusteringSupportProvider(): { donor: string; support: ClusteringSupport } {
+  const provider = getClusteringSupportAdapters()[0];
+
+  if (!provider) {
+    throw new Error("No clustering support provider is registered");
+  }
+
+  return provider;
+}
+
+function createCluster(
+  candidate: ClusterCandidate,
+  provider: { donor: string; support: ClusteringSupport },
+): SignalCluster {
+  const capabilities = provider.support.describeCapabilities();
+
   return {
-    cluster_id: stableId(articleProfile.article.title, articleProfile.article.url),
-    articles: [articleProfile.article],
-    representative_article: articleProfile.article,
-    topic_keywords: articleProfile.keywords,
+    cluster_id: stableId(candidate.article.title, candidate.article.url),
+    articles: [candidate.article],
+    representative_article: candidate.article,
+    topic_keywords: candidate.keywords,
     cluster_size: 1,
     cluster_debug: {
+      provider: provider.donor,
+      clustering_capabilities: capabilities.similaritySignals.map((signal) => `${signal}`),
+      candidate_snapshots: [
+        {
+          article_id: candidate.article.id,
+          fingerprint: provider.support.buildCandidateFingerprint(candidate),
+        },
+      ],
       merge_decisions: [],
       prevented_merge_count: 0,
       representative_selection_reason: "Selected the only article in the cluster.",
       representative_scores: [
         {
-          article_id: articleProfile.article.id,
+          article_id: candidate.article.id,
           score: 1,
           reasons: ["only article in cluster"],
         },
       ],
+      diversity_support_available: capabilities.diversitySupportAvailable,
     },
   };
 }
 
-function refreshCluster(cluster: SignalCluster) {
-  const profiles = cluster.articles.map(buildArticleProfile);
-  const representative = selectRepresentativeArticle(profiles);
+function refreshCluster(cluster: SignalCluster, provider: { donor: string; support: ClusteringSupport }) {
+  const candidates = provider.support.prepareClusterCandidates(cluster.articles);
+  const representativeSupport = provider.support.selectRepresentativeArticle(candidates);
+  const capabilities = provider.support.describeCapabilities();
 
   cluster.cluster_size = cluster.articles.length;
-  cluster.topic_keywords = buildClusterKeywords(profiles);
-  cluster.representative_article = representative.representative_article;
-  cluster.cluster_debug.representative_scores = representative.representative_scores;
-  cluster.cluster_debug.representative_selection_reason = representative.representative_selection_reason;
+  cluster.topic_keywords = buildClusterKeywords(candidates);
+  cluster.representative_article = representativeSupport.representativeArticle;
+  cluster.cluster_debug.provider = provider.donor;
+  cluster.cluster_debug.clustering_capabilities = capabilities.similaritySignals.map((signal) => `${signal}`);
+  cluster.cluster_debug.candidate_snapshots = candidates.map((candidate) => ({
+    article_id: candidate.article.id,
+    fingerprint: provider.support.buildCandidateFingerprint(candidate),
+  }));
+  cluster.cluster_debug.representative_scores = buildRepresentativeScores(representativeSupport);
+  cluster.cluster_debug.representative_selection_reason = representativeSupport.reason;
+  cluster.cluster_debug.diversity_support_available = capabilities.diversitySupportAvailable;
+}
+
+function recordPreventedMerge(
+  cluster: SignalCluster,
+  candidate: ClusterCandidate,
+  decisionSupport: MergeDecisionSupport,
+) {
+  const preventedDecision: ClusterMergeDecision = {
+    article_id: candidate.article.id,
+    compared_to_article_id: decisionSupport.representativeArticleId,
+    decision: "prevented",
+    reasons: decisionSupport.reasons,
+    breakdown: buildSimilarityBreakdown(decisionSupport.similaritySignals),
+  };
+
+  cluster.cluster_debug.merge_decisions.push(preventedDecision);
+  cluster.cluster_debug.prevented_merge_count += 1;
+}
+
+function recordAcceptedMerge(
+  cluster: SignalCluster,
+  candidate: ClusterCandidate,
+  decisionSupport: MergeDecisionSupport,
+) {
+  cluster.cluster_debug.merge_decisions.push({
+    article_id: candidate.article.id,
+    compared_to_article_id: decisionSupport.representativeArticleId,
+    decision: "merged",
+    reasons: decisionSupport.reasons,
+    breakdown: buildSimilarityBreakdown(decisionSupport.similaritySignals),
+  });
 }
 
 export function clusterNormalizedArticles(articles: NormalizedArticle[]): SignalCluster[] {
+  const provider = getClusteringSupportProvider();
+  const diversitySupports = getDiversitySupports();
   const clusters: SignalCluster[] = [];
-  const sortedProfiles = articles
-    .slice()
-    .sort(
-      (left, right) =>
-        new Date(right.published_at).getTime() - new Date(left.published_at).getTime(),
-    )
-    .map(buildArticleProfile);
+  const sortedCandidates = provider.support.prepareClusterCandidates(
+    articles
+      .slice()
+      .sort(
+        (left, right) =>
+          new Date(right.published_at).getTime() - new Date(left.published_at).getTime(),
+      ),
+  );
 
-  sortedProfiles.forEach((articleProfile) => {
-    const evaluations = clusters.map((cluster) => ({
-      cluster,
-      evaluation: evaluateClusterFit(articleProfile, cluster.articles.map(buildArticleProfile)),
-    }));
+  sortedCandidates.forEach((candidate) => {
+    const evaluations = clusters.map((cluster) => {
+      const clusterCandidates = provider.support.prepareClusterCandidates(cluster.articles);
+      const decisionSupport = provider.support.supportMergeDecision(candidate, clusterCandidates);
+
+      return {
+        cluster,
+        decisionSupport,
+      };
+    });
 
     evaluations
-      .filter((entry) => !entry.evaluation.can_merge)
+      .filter((entry) => !entry.decisionSupport.canMerge)
       .forEach((entry) => {
-        const preventedDecision: ClusterMergeDecision = {
-          article_id: articleProfile.article.id,
-          compared_to_article_id: entry.evaluation.representative_article_id,
-          decision: "prevented",
-          reasons: entry.evaluation.reasons,
-          breakdown: entry.evaluation.breakdown,
-        };
-        entry.cluster.cluster_debug.merge_decisions.push(preventedDecision);
-        entry.cluster.cluster_debug.prevented_merge_count += 1;
+        recordPreventedMerge(entry.cluster, candidate, entry.decisionSupport);
       });
 
     const bestMergeCandidate = evaluations
-      .filter((entry) => entry.evaluation.can_merge)
-      .sort((left, right) => right.evaluation.breakdown.weighted_score - left.evaluation.breakdown.weighted_score)[0];
+      .filter((entry) => entry.decisionSupport.canMerge)
+      .sort(
+        (left, right) =>
+          right.decisionSupport.similaritySignals.weighted_score - left.decisionSupport.similaritySignals.weighted_score,
+      )[0];
 
     if (!bestMergeCandidate) {
-      clusters.push(createCluster(articleProfile));
+      clusters.push(createCluster(candidate, provider));
       return;
     }
 
-    bestMergeCandidate.cluster.articles.push(articleProfile.article);
-    bestMergeCandidate.cluster.cluster_debug.merge_decisions.push({
-      article_id: articleProfile.article.id,
-      compared_to_article_id: bestMergeCandidate.evaluation.representative_article_id,
-      decision: "merged",
-      reasons: bestMergeCandidate.evaluation.reasons,
-      breakdown: bestMergeCandidate.evaluation.breakdown,
-    });
-    refreshCluster(bestMergeCandidate.cluster);
+    bestMergeCandidate.cluster.articles.push(candidate.article);
+    recordAcceptedMerge(bestMergeCandidate.cluster, candidate, bestMergeCandidate.decisionSupport);
+    refreshCluster(bestMergeCandidate.cluster, provider);
   });
 
-  return clusters.sort((left, right) => {
-    const sizeDelta = right.cluster_size - left.cluster_size;
-    if (sizeDelta !== 0) {
-      return sizeDelta;
-    }
+  return clusters
+    .map((cluster) => {
+      if (cluster.cluster_size !== cluster.articles.length) {
+        refreshCluster(cluster, provider);
+      }
 
-    const representativeScoreDelta =
-      (right.cluster_debug.representative_scores[0]?.score ?? 0) -
-      (left.cluster_debug.representative_scores[0]?.score ?? 0);
-    if (representativeScoreDelta !== 0) {
-      return representativeScoreDelta;
-    }
-
-    return (
-      new Date(right.representative_article.published_at).getTime() -
-      new Date(left.representative_article.published_at).getTime()
-    );
-  });
+      cluster.cluster_debug.diversity_support_available = diversitySupports.some((support) => support.support.available);
+      return cluster;
+    })
+    .sort((left, right) => right.cluster_size - left.cluster_size);
 }

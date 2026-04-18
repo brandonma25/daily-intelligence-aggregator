@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { getClusteringSupportAdapters } from "@/adapters/donors";
 import type { RawItem } from "@/lib/models/raw-item";
 import { clusterNormalizedArticles } from "@/lib/pipeline/clustering";
 import { normalizeRawItems } from "@/lib/pipeline/normalization";
@@ -9,6 +10,15 @@ function clusterRawItems(items: RawItem[]) {
 }
 
 describe("clusterNormalizedArticles", () => {
+  it("exposes an explicit clustering support provider contract", () => {
+    const provider = getClusteringSupportAdapters().find((entry) => entry.donor === "after_market_agent");
+
+    expect(provider).toBeDefined();
+    expect(provider!.support.describeCapabilities().provider).toBe("after_market_agent");
+    expect(provider!.support.describeCapabilities().similaritySignals).toContain("title_overlap");
+    expect(provider!.support.describeCapabilities().representativeSelection).toContain("centrality");
+  });
+
   it("clusters near-identical event coverage together", () => {
     const clusters = clusterRawItems([
       {
@@ -31,6 +41,8 @@ describe("clusterNormalizedArticles", () => {
 
     expect(clusters).toHaveLength(1);
     expect(clusters[0]?.cluster_size).toBe(2);
+    expect(clusters[0]?.cluster_debug.provider).toBe("after_market_agent");
+    expect(clusters[0]?.cluster_debug.candidate_snapshots.length).toBe(2);
     expect(clusters[0]?.cluster_debug.merge_decisions.some((decision) => decision.decision === "merged")).toBe(true);
   });
 
@@ -88,6 +100,36 @@ describe("clusterNormalizedArticles", () => {
     expect(preventedReasons.some((reason) => reason.includes("same entity") || reason.includes("generic"))).toBe(true);
   });
 
+  it("computes normalized similarity signals with source confirmation support", () => {
+    const articles = normalizeRawItems([
+      {
+        id: "s1",
+        source: "Reuters World",
+        title: "OpenAI delays GPT-6 release after expanded safety checks",
+        url: "https://example.com/s1",
+        published_at: "2026-04-18T08:00:00.000Z",
+        raw_content: "OpenAI delayed the GPT-6 launch after a larger internal safety review.",
+      },
+      {
+        id: "s2",
+        source: "The Verge",
+        title: "Safety review pushes back OpenAI GPT-6 launch timeline",
+        url: "https://example.com/s2",
+        published_at: "2026-04-18T08:20:00.000Z",
+        raw_content: "Expanded safety checks have pushed back the GPT-6 launch timeline.",
+      },
+    ]);
+    const provider = getClusteringSupportAdapters().find((entry) => entry.donor === "after_market_agent")!;
+    const candidates = provider.support.prepareClusterCandidates(articles);
+    const signals = provider.support.computeSimilaritySignals(candidates[1], [candidates[0]]);
+
+    expect(signals.title_overlap).toBeGreaterThan(0);
+    expect(signals.keyword_overlap).toBeGreaterThan(0);
+    expect(signals.time_proximity).toBeGreaterThan(0);
+    expect(signals.source_confirmation).toBeGreaterThanOrEqual(0);
+    expect(signals.weighted_score).toBeGreaterThan(0);
+  });
+
   it("selects a stable representative article with an inspectable reason", () => {
     const items: RawItem[] = [
       {
@@ -123,5 +165,6 @@ describe("clusterNormalizedArticles", () => {
     expect(firstRun[0]?.representative_article.id).toBe(secondRun[0]?.representative_article.id);
     expect(firstRun[0]?.cluster_debug.representative_selection_reason).toContain("Selected article");
     expect(firstRun[0]?.cluster_debug.representative_scores.length).toBe(3);
+    expect(firstRun[0]?.cluster_debug.diversity_support_available).toBe(true);
   });
 });

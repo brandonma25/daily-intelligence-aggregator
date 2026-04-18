@@ -19,10 +19,10 @@ The website repo now owns a formal donor integration framework for the cluster-f
 - `after-market-agent`
   - active now: clustering support contract
   - future/stubbed: ingestion, ranking, enrichment
-  - boundary: candidate similarity and representative-selection support only
+  - boundary: candidate preparation, similarity-signal support, merge-decision support, and representative-selection support
 - `FINANCIAL-NEWS-SUMMARIZER`
   - active now: ranking feature provider
-  - future/stubbed: ingestion, clustering, enrichment
+  - future/stubbed: ingestion, clustering execution, enrichment
   - boundary: deterministic source-quality feature mapping only
 - `Horizon`
   - active now: secondary ingestion/source-breadth donor
@@ -38,9 +38,13 @@ The website repo now owns a formal donor integration framework for the cluster-f
 - `NormalizationAdapter`
   - `convertToCanonicalArticle()`
 - `ClusteringSupport`
-  - similarity strategy description
+  - cluster candidate preparation
+  - similarity-signal computation
+  - merge-decision support
   - candidate fingerprint helper
-  - representative selection description
+  - representative selection support
+- `DiversitySupport`
+  - optional post-cluster diversity hook only
 - `RankingFeatureProvider`
   - known-source metadata
   - cluster feature mapping into deterministic scoring inputs
@@ -56,7 +60,7 @@ The website repo now owns a formal donor integration framework for the cluster-f
   - final deterministic scoring formula
 - Donor-assisted now:
   - ingestion source registry, feed metadata, and transport boundary
-  - clustering support strategy boundary
+  - clustering support boundary
   - ranking source-feature mapping
 - Stubbed / future-ready:
   - Horizon enrichment execution

@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   getActiveSourceRegistry,
   getCanonicalSourceMetadata,
+  getClusteringSupportAdapters,
+  getDiversitySupports,
   getDonorModule,
   getDonorRegistrySnapshot,
   getRankingFeatureProviders,
@@ -42,6 +44,8 @@ describe("donor registry", () => {
     expect(registry.find((entry) => entry.donor === "after_market_agent")?.contractStates.clustering).toBe("active");
     expect(registry.find((entry) => entry.donor === "fns")?.contractStates.ranking).toBe("active");
     expect(registry.find((entry) => entry.donor === "horizon")?.contractStates.enrichment).toBe("future_ready");
+    expect(registry.find((entry) => entry.donor === "after_market_agent")?.clusteringCapabilities?.provider).toBe("after_market_agent");
+    expect(registry.find((entry) => entry.donor === "fns")?.diversitySupportAvailable).toBe(true);
   });
 
   it("normalizes donor feed metadata through the canonical ingestion contract", async () => {
@@ -105,5 +109,14 @@ describe("donor registry", () => {
     expect(sourceRegistry.some((source) => source.sourceId === "horizon-reuters-world" && source.donor === "horizon")).toBe(true);
     expect(sourceRegistry.some((source) => source.trustTier === "tier_1" && source.provenance === "aggregated_wire")).toBe(true);
     expect(activeSources.every((source) => source.status === "active")).toBe(true);
+  });
+
+  it("exposes after-market-agent clustering support and future-ready FNS diversity support", () => {
+    const clusteringSupport = getClusteringSupportAdapters().find((entry) => entry.donor === "after_market_agent");
+    const diversitySupport = getDiversitySupports().find((entry) => entry.donor === "fns");
+
+    expect(clusteringSupport).toBeDefined();
+    expect(clusteringSupport!.support.describeCapabilities().similaritySignals).toContain("source_confirmation");
+    expect(diversitySupport?.support.available).toBe(true);
   });
 });
