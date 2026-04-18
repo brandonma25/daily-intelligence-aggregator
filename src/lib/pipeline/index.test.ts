@@ -16,7 +16,11 @@ describe("runClusterFirstPipeline", () => {
     expect(result.run.used_seed_fallback).toBe(true);
     expect(result.run.num_raw_items).toBe(seedRawItems.length);
     expect(result.run.num_after_dedup).toBeLessThanOrEqual(seedRawItems.length);
-    expect(result.run.num_clusters).toBeGreaterThanOrEqual(3);
+    expect(result.run.num_clusters).toBe(5);
+    expect(result.run.avg_cluster_size).toBe(2);
+    expect(result.run.singleton_count).toBe(0);
+    expect(result.run.prevented_merge_count).toBeGreaterThan(0);
+    expect(result.run.sample_cluster_rationale.length).toBeGreaterThan(0);
     expect(result.digest.most_important_now).toHaveLength(5);
     expect(new Set(result.digest.most_important_now.map((item) => item.score)).size).toBeGreaterThan(1);
   });

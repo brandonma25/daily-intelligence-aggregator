@@ -6,4 +6,8 @@ export interface NormalizedArticle {
   published_at: string;
   content: string;
   entities: string[];
+  normalized_entities: string[];
+  keywords: string[];
+  title_tokens: string[];
+  content_tokens: string[];
 }

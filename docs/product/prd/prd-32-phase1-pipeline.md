@@ -32,6 +32,7 @@ The product needs an end-to-end intelligence path that can ingest live news, nor
 
 - `src/lib/pipeline/` now owns the staged deterministic processing flow.
 - `src/lib/models/` defines the phase-specific pipeline contracts.
+- `src/lib/pipeline/clustering/index.ts` now uses weighted similarity plus anti-merge guardrails instead of a single loose overlap rule.
 - `src/lib/scoring/scoring-engine.ts` centralizes ranking math.
 - `src/lib/observability/pipeline-run.ts` records run counts, failures, and scoring logs.
 - `src/adapters/donors/` defines the 4 donor families and their default RSS feeds.
@@ -49,7 +50,8 @@ The product needs an end-to-end intelligence path that can ingest live news, nor
 - The pipeline fetches 3 to 5 feeds with retry logic.
 - Inputs normalize into a common `NormalizedArticle` model.
 - Duplicate or near-duplicate items are removed deterministically.
-- Related articles are grouped into clusters with keyword/similarity matching.
+- Related articles are grouped into clusters with weighted title, keyword, entity, content, and time-proximity matching.
+- Anti-merge guardrails block generic broad-topic merges and same-entity/different-event collisions when evidence is weak.
 - Ranking produces explainable non-identical scores.
 - Digest output returns the top 5 ranked clusters with title, summary, and source links.
 - Observability captures run counts and score breakdowns per cluster.
@@ -65,10 +67,28 @@ The product needs an end-to-end intelligence path that can ingest live news, nor
 
 ## Known Limitations
 
-- Title and keyword overlap can still confuse adjacent macro or policy stories.
+- Clustering is materially stricter, but adjacent macro or policy stories can still require threshold tuning as feed mix changes.
 - The dashboard summary is deterministic and intentionally basic.
 - Topic assignment for public digest cards is heuristic in Phase 1.
 - Observability currently logs to runtime output instead of a persistent analytics store.
+
+## Clustering Upgrade Note
+
+- Previous weakness:
+  - clustering relied on a permissive keyword/title overlap rule
+  - generic terms like `market`, `review`, or `world` could influence grouping too much
+  - representative article choice defaulted to freshness rather than best-fit cluster summary
+- Current merge logic:
+  - weighted similarity blends title overlap, keyword overlap, entity overlap, content overlap, and publish-time proximity
+  - overlap uses containment-aware comparison rather than raw Jaccard alone for short headlines
+- Anti-merge guardrails:
+  - reject merges when overlap is too generic
+  - reject weak same-entity but different-event matches
+  - reject time-distant weak matches
+  - reject low-weighted-score candidates
+- Inspectability:
+  - clusters now keep merge decisions, prevented-merge counts, and representative selection reasons
+  - pipeline runs now expose average cluster size, singleton count, prevented merges, and sample cluster rationale
 
 ## Evidence and Confidence
 
