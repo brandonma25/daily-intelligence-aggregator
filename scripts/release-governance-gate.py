@@ -12,12 +12,25 @@ from pathlib import Path
 
 
 MONITORED_PREFIXES = (
-    "src/app/",
-    "src/components/",
-    "src/lib/",
+    "src/",
     "supabase/",
     "scripts/",
     ".github/workflows/",
+)
+MONITORED_EXACT_PATHS = (
+    "package.json",
+    "package-lock.json",
+    "next.config.ts",
+    "tsconfig.json",
+    "playwright.config.ts",
+    "vitest.config.ts",
+    "eslint.config.mjs",
+    "postcss.config.mjs",
+    "src/proxy.ts",
+)
+NEW_FEATURE_PREFIXES = (
+    "src/",
+    "supabase/",
 )
 RELEVANT_DOC_PREFIXES = (
     "docs/product/briefs/",
@@ -27,6 +40,10 @@ RELEVANT_DOC_PREFIXES = (
     "docs/engineering/change-records/",
     "docs/engineering/testing/",
     "docs/engineering/protocols/",
+)
+RELEVANT_DOC_FILES = (
+    "AGENTS.md",
+    "docs/product/documentation-rules.md",
 )
 CSV_PATH = "docs/product/feature-system.csv"
 PRD_DIR = "docs/product/prd"
@@ -122,15 +139,15 @@ def load_changes(repo_root: Path, diff_range: str) -> dict[str, Change]:
 
 
 def is_docs_file(path: str) -> bool:
-    return path.startswith("docs/")
+    return path.startswith("docs/") or path == "AGENTS.md"
 
 
 def is_monitored_file(path: str) -> bool:
-    return path.startswith(MONITORED_PREFIXES)
+    return path.startswith(MONITORED_PREFIXES) or path in MONITORED_EXACT_PATHS
 
 
 def is_relevant_doc_file(path: str) -> bool:
-    return path.startswith(RELEVANT_DOC_PREFIXES)
+    return path.startswith(RELEVANT_DOC_PREFIXES) or path in RELEVANT_DOC_FILES
 
 
 def is_test_file(path: str) -> bool:
@@ -141,17 +158,32 @@ def is_canonical_prd(path: str) -> bool:
     return path.startswith("docs/product/prd/prd-") and path.endswith(".md")
 
 
+def is_new_feature_path(path: str) -> bool:
+    return path.startswith(NEW_FEATURE_PREFIXES)
+
+
+def is_high_risk_trivial_path(path: str) -> bool:
+    return (
+        path.startswith(("src/app/", "supabase/", ".github/workflows/"))
+        or path in MONITORED_EXACT_PATHS
+        or path == "src/lib/auth.ts"
+    )
+
+
 def classify_pr(changes: dict[str, Change]) -> tuple[str, list[Change], list[Change], list[str]]:
     changed_paths = list(changes)
     monitored_changes = [change for change in changes.values() if is_monitored_file(change.path)]
     non_test_monitored = [change for change in monitored_changes if not is_test_file(change.path)]
-    added_non_test_monitored = [change for change in non_test_monitored if change.is_added]
+    added_new_feature_files = [
+        change for change in non_test_monitored if change.is_added and is_new_feature_path(change.path)
+    ]
     new_prd_files = [path for path, change in changes.items() if change.is_added and is_canonical_prd(path)]
+    relevant_doc_updates_present = any(is_relevant_doc_file(path) for path in changed_paths)
 
     if changed_paths and all(is_docs_file(path) for path in changed_paths):
         return "docs-only", monitored_changes, non_test_monitored, new_prd_files
 
-    if new_prd_files or added_non_test_monitored:
+    if new_prd_files or added_new_feature_files:
         return "new-feature-or-system", monitored_changes, non_test_monitored, new_prd_files
 
     if not monitored_changes:
@@ -161,7 +193,8 @@ def classify_pr(changes: dict[str, Change]) -> tuple[str, list[Change], list[Cha
     single_small_modification = (
         len(non_test_monitored) == 1
         and not non_test_monitored[0].is_added
-        and not non_test_monitored[0].path.startswith(("supabase/", ".github/workflows/"))
+        and not is_high_risk_trivial_path(non_test_monitored[0].path)
+        and not relevant_doc_updates_present
         and non_test_monitored[0].total_changed_lines <= TRIVIAL_MAX_CHANGED_LINES
     )
 
