@@ -1,7 +1,7 @@
-# PRD-32 — Settings shell cleanup
+# PRD-33 — Settings shell cleanup
 
-- PRD ID: `PRD-32`
-- Canonical file: `docs/product/prd/prd-32-settings-shell-cleanup.md`
+- PRD ID: `PRD-33`
+- Canonical file: `docs/product/prd/prd-33-settings-shell-cleanup.md`
 - Filename rule: use lowercase kebab-case and zero-pad `1` through `9` as `prd-01-...` through `prd-09-...`
 - Feature system row: update `docs/product/feature-system.csv` with matching `prd_id` and `prd_file`
 

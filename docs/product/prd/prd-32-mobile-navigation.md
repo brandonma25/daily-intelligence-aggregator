@@ -1,7 +1,7 @@
-# PRD-33 — Mobile Navigation
+# PRD-32 — Mobile Navigation
 
-- PRD ID: `PRD-33`
-- Canonical file: `docs/product/prd/prd-33-mobile-navigation.md`
+- PRD ID: `PRD-32`
+- Canonical file: `docs/product/prd/prd-32-mobile-navigation.md`
 - Feature system row: `docs/product/feature-system.csv`
 
 ## Objective
