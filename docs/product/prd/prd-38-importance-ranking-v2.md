@@ -1,7 +1,7 @@
-# PRD-33 — Importance Ranking V2
+# PRD-38 — Importance Ranking V2
 
-- PRD ID: `PRD-33`
-- Canonical file: `docs/product/prd/prd-33-importance-ranking-v2.md`
+- PRD ID: `PRD-38`
+- Canonical file: `docs/product/prd/prd-38-importance-ranking-v2.md`
 - Feature system row: `docs/product/feature-system.csv`
 
 ## Objective

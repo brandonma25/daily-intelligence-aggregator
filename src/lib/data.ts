@@ -3,6 +3,7 @@ import { formatISO } from "date-fns";
 
 import { demoDashboardData, demoHistory, demoSources, demoTopics } from "@/lib/demo-data";
 import { assembleExplanationPacket } from "@/lib/explanation-support";
+import { isAiConfigured } from "@/lib/env";
 import { buildEventIntelligence } from "@/lib/event-intelligence";
 import {
   classifyHomepageCategory,
@@ -23,6 +24,7 @@ import {
   type HeadlineQuality,
   type SourceTier,
 } from "@/lib/signal-filtering";
+import { summarizeCluster } from "@/lib/summarizer";
 import { withServerFallback } from "@/lib/server-safety";
 import { createSupabaseServerClient, safeGetUser } from "@/lib/supabase/server";
 import { buildTimelineGroups } from "@/lib/timeline-builder";
@@ -36,7 +38,11 @@ import type {
   Topic,
   ViewerAccount,
 } from "@/lib/types";
-import { buildTrustLayerPresentation, generateWhyThisMatters } from "@/lib/why-it-matters";
+import {
+  buildTrustLayerPresentation,
+  generateWhyThisMatters,
+  isUsableWhyItMattersText,
+} from "@/lib/why-it-matters";
 
 type SupabaseServerClient = NonNullable<Awaited<ReturnType<typeof createSupabaseServerClient>>>;
 
@@ -125,6 +131,13 @@ const PIPELINE_TOPIC_ALIASES: Record<"tech" | "finance" | "politics", string[]> 
   finance: ["finance", "markets", "macro", "business", "economy"],
   politics: ["politics", "policy", "government", "geopolitics", "world"],
 };
+
+type BriefingSummaryFields = Pick<
+  BriefingItem,
+  "title" | "whatHappened" | "keyPoints" | "whyItMatters" | "estimatedMinutes"
+>;
+
+const LLM_SUMMARY_TIMEOUT_MS = 7000;
 
 function createEmptyBriefing(): DailyBriefing {
   return {
@@ -1162,8 +1175,8 @@ export async function buildMatchedBriefing(
     articlesByEvent.set(article.event_id, bucket);
   });
 
-  const items = events
-    .map((event) => {
+  const items = (await Promise.all(
+    events.map(async (event) => {
       const eventArticles = (articlesByEvent.get(event.id) ?? []).sort(
         (left, right) =>
           new Date(right.published_at ?? 0).getTime() -
@@ -1219,15 +1232,7 @@ export async function buildMatchedBriefing(
         rankingSignals: rankedCluster?.rankingSignals,
       });
       const keyPoints = buildKeyPoints(intelligence, freshest.sourceName, freshest.published_at, matchedKeywords);
-
-      if (!intelligence.isHighSignal) {
-        return null;
-      }
-
-      return {
-        id: `generated-event-${event.id}`,
-        topicId: topic.id,
-        topicName: topic.name,
+      const fallbackSummary = {
         title: intelligence.title,
         whatHappened: packet.what_happened,
         keyPoints: [
@@ -1236,6 +1241,27 @@ export async function buildMatchedBriefing(
           packet.what_to_watch,
         ],
         whyItMatters: packet.why_it_matters,
+        estimatedMinutes: Math.min(6, Math.max(3, Math.ceil(eventArticles.length * 1.5))),
+      } satisfies BriefingSummaryFields;
+
+      if (!intelligence.isHighSignal) {
+        return null;
+      }
+
+      const summary = await resolveClusterSummary({
+        topicName: topic.name,
+        articles: feedArticles,
+        fallback: fallbackSummary,
+      });
+
+      return {
+        id: `generated-event-${event.id}`,
+        topicId: topic.id,
+        topicName: topic.name,
+        title: summary.title,
+        whatHappened: summary.whatHappened,
+        keyPoints: summary.keyPoints,
+        whyItMatters: summary.whyItMatters,
         sources: relatedArticles.map((article) => ({
           title: article.sourceName,
           url: article.url,
@@ -1243,7 +1269,7 @@ export async function buildMatchedBriefing(
         relatedArticles,
         timeline,
         sourceCount,
-        estimatedMinutes: Math.min(6, Math.max(3, Math.ceil(eventArticles.length * 1.5))),
+        estimatedMinutes: summary.estimatedMinutes,
         read: false,
         priority: "normal" as const,
         matchedKeywords,
@@ -1261,7 +1287,8 @@ export async function buildMatchedBriefing(
         trustDebug,
         signalRole: packet.signal_role,
       } satisfies BriefingItem;
-    })
+    }),
+  ))
     .filter((item): item is NonNullable<typeof item> => Boolean(item))
     // Product ordering should follow the same ranking activation rules everywhere.
     .sort(compareBriefingItemsByRanking)
@@ -1293,6 +1320,111 @@ export async function buildMatchedBriefing(
     readingWindow: `${items.reduce((sum, item) => sum + item.estimatedMinutes, 0)} minutes`,
     items,
   };
+}
+
+async function resolveClusterSummary(input: {
+  topicName: string;
+  articles: FeedArticle[];
+  fallback: BriefingSummaryFields;
+  timeoutMs?: number;
+}): Promise<BriefingSummaryFields> {
+  if (
+    !isAiConfigured ||
+    !input.articles.length ||
+    !input.articles.some((article) => article.title.trim() || article.summaryText.trim())
+  ) {
+    return input.fallback;
+  }
+
+  try {
+    const summary = await withTimeout(
+      summarizeCluster(input.topicName, input.articles),
+      input.timeoutMs ?? LLM_SUMMARY_TIMEOUT_MS,
+    );
+
+    return {
+      title: summary.headline.trim() || input.fallback.title,
+      whatHappened: summary.whatHappened.trim() || input.fallback.whatHappened,
+      keyPoints: normalizeSummaryKeyPoints(summary.keyPoints, input.fallback.keyPoints),
+      whyItMatters: normalizeWhyItMatters(summary.whyItMatters, {
+        fallback: input.fallback.whyItMatters,
+        title: summary.headline.trim() || input.fallback.title,
+        whatHappened: summary.whatHappened.trim() || input.fallback.whatHappened,
+      }),
+      estimatedMinutes: normalizeEstimatedMinutes(summary.estimatedMinutes, input.fallback.estimatedMinutes),
+    };
+  } catch {
+    return input.fallback;
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error(`Timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timeoutId);
+        reject(error);
+      },
+    );
+  });
+}
+
+function normalizeSummaryKeyPoints(
+  keyPoints: unknown,
+  fallback: BriefingSummaryFields["keyPoints"],
+): BriefingSummaryFields["keyPoints"] {
+  if (!Array.isArray(keyPoints)) {
+    return fallback;
+  }
+
+  const normalized = keyPoints
+    .map((point) => (typeof point === "string" ? point.trim() : ""))
+    .filter(Boolean)
+    .slice(0, 3);
+
+  if (normalized.length !== 3) {
+    return fallback;
+  }
+
+  return [normalized[0], normalized[1], normalized[2]];
+}
+
+function normalizeEstimatedMinutes(value: number, fallback: number) {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return Math.min(6, Math.max(3, Math.round(value)));
+}
+
+function normalizeWhyItMatters(
+  value: unknown,
+  input: {
+    fallback: string;
+    title: string;
+    whatHappened: string;
+  },
+) {
+  const text = typeof value === "string" ? value.trim() : "";
+
+  if (
+    isUsableWhyItMattersText(text, {
+      title: input.title,
+      whatHappened: input.whatHappened,
+    })
+  ) {
+    return text;
+  }
+
+  return input.fallback;
 }
 
 export async function persistRawArticles(
@@ -1959,6 +2091,7 @@ function dedupeFeedArticles(articles: FeedArticle[]) {
 export const __testing__ = {
   buildSourceFetchAttempts,
   fetchSourceArticlesWithFallback,
+  resolveClusterSummary,
 };
 
 function normalizeSignal(value: string) {

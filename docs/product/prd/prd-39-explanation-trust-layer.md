@@ -1,7 +1,7 @@
-# PRD-34 — Explanation Trust Layer
+# PRD-39 — Explanation Trust Layer
 
-- PRD ID: `PRD-34`
-- Canonical file: `docs/product/prd/prd-34-explanation-trust-layer.md`
+- PRD ID: `PRD-39`
+- Canonical file: `docs/product/prd/prd-39-explanation-trust-layer.md`
 - Feature system row: `docs/product/feature-system.csv`
 
 ## Objective

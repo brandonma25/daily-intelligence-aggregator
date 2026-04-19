@@ -1,7 +1,7 @@
-# PRD-32 — Phase 1 Pipeline
+# PRD-37 — Phase 1 Pipeline
 
-- PRD ID: `PRD-32`
-- Canonical file: `docs/product/prd/prd-32-phase1-pipeline.md`
+- PRD ID: `PRD-37`
+- Canonical file: `docs/product/prd/prd-37-phase1-pipeline.md`
 - Feature system row: `docs/product/feature-system.csv`
 
 ## Objective

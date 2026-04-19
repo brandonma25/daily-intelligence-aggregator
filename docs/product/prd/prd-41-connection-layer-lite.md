@@ -1,7 +1,7 @@
-# PRD-36 — Connection Layer Lite
+# PRD-41 — Connection Layer Lite
 
-- PRD ID: `PRD-36`
-- Canonical file: `docs/product/prd/prd-36-connection-layer-lite.md`
+- PRD ID: `PRD-41`
+- Canonical file: `docs/product/prd/prd-41-connection-layer-lite.md`
 
 ## Objective
 
@@ -36,7 +36,7 @@ The current MVP can explain what happened and why it matters, but it still leave
 
 ## Dependencies / Risks
 
-- Depends on `PRD-32`, `PRD-34`, and `PRD-35`.
+- Depends on `PRD-37`, `PRD-39`, and `PRD-40`.
 - Risk: overclaiming connections from weak evidence.
 - Risk: turning optional donor enrichment into implied truth.
 - Mitigation: deterministic-first assembly, explicit fallback mode, and conservative unknown handling.

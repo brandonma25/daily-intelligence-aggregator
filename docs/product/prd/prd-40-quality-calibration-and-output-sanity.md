@@ -1,7 +1,7 @@
-# PRD-35 — Quality Calibration and Output Sanity
+# PRD-40 — Quality Calibration and Output Sanity
 
-- PRD ID: `PRD-35`
-- Canonical file: `docs/product/prd/prd-35-quality-calibration-and-output-sanity.md`
+- PRD ID: `PRD-40`
+- Canonical file: `docs/product/prd/prd-40-quality-calibration-and-output-sanity.md`
 - Feature system row: `docs/product/feature-system.csv`
 
 ## Objective
