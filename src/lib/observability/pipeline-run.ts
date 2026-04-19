@@ -1,3 +1,5 @@
+import type { RuntimeSourceResolutionSnapshot } from "@/lib/observability/runtime-source-resolution";
+
 export type ClusterScoreLog = {
   cluster_id: string;
   provider: string;
@@ -49,6 +51,7 @@ export type PipelineRun = {
     feedUrl: string;
     error: string;
   }>;
+  source_resolution: RuntimeSourceResolutionSnapshot | null;
   active_sources: Array<{
     source_id: string;
     source: string;
@@ -84,6 +87,7 @@ export function createEmptyPipelineRun(runId: string): PipelineRun {
     suppressed_ranked_clusters: [],
     sample_cluster_rationale: [],
     feed_failures: [],
+    source_resolution: null,
     active_sources: [],
     source_contributions: [],
     used_seed_fallback: false,
