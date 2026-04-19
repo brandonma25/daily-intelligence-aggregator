@@ -92,6 +92,10 @@ Before a task is considered complete, Codex must update the Google Sheets workbo
 Required tracker closeout:
 - If direct Sheets access is available, update the existing mapped row and verify the row after writing.
 - If the work is unmapped or ambiguous, route it to the appropriate review lane instead of creating a duplicate governed row.
+- Update governed `Sheet1` rows only by exact `Record ID`; do not create duplicate governed rows for existing PRDs.
+- Status fields must use normalized tracker values, not prose sentences, PR numbers, or malformed variants.
+- If a canonical repo PRD file exists, populate the live `PRD File` field with the exact `docs/product/prd/...` path.
+- Codex may claim tracker closeout only after rereading the live row and confirming the intended values are visible.
 - If direct Sheets access is unavailable, create a concise fallback tracker-sync markdown file in `docs/operations/tracker-sync/` with the exact manual update payload.
 - Do not mark the task complete until the live sheet is verified or the fallback file exists.
 
@@ -189,7 +193,12 @@ For serious implementation or release work, Codex should report in a structured 
 ---
 
 ## 11. Reusable Codex Closeout Block
-Before closing this task, update the Google Sheets tracker. If direct update is unavailable, create a tracker-sync markdown file in the repo with the exact manual update payload. Do not mark the task complete until one of these two paths is done.
+Before closing any feature, fix, refactor, governance, or UX task:
+1. Update required repo docs.
+2. Update the Google Sheets tracker using the existing governed `Sheet1` row, or route unmapped work to `Intake Queue`.
+3. Reread the live tracker row and verify the intended status, owner, PRD file path, notes, and other changed fields are visible.
+4. If direct Sheets update is unavailable, create `docs/operations/tracker-sync/YYYY-MM-DD-<slug>.md` with the exact manual update payload.
+5. Do not mark the task complete or claim tracker closeout until the live row is verified or the fallback tracker-sync file exists.
 
 ---
 
