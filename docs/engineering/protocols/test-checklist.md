@@ -40,10 +40,12 @@
 - Bug-fix, incident, or change-record doc created if applicable.
 - Testing note added if meaningful validation was performed.
 - Google Sheets tracker updated and verified, or fallback tracker-sync file created in `docs/operations/tracker-sync/`.
+- Live tracker verification confirms normalized `Status`, correct `Owner`, and canonical `PRD File` path when a PRD file exists.
 - No sensitive information is included.
 
 ## 8. Merge Readiness
 - Build passes.
 - Preview validation is complete.
 - Tracker closeout is complete: live Google Sheets row verified or exact manual update payload recorded in repo fallback.
+- Codex has not claimed tracker closeout from intent alone; the live row was reread after write, or the fallback file exists.
 - No known blockers remain.
