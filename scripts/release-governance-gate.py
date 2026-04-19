@@ -80,7 +80,7 @@ def format_missing_doc_failure(context: GovernanceContext, missing_doc_groups: l
         base.append(
             "Fastest valid fix: this PR changes a governance hotspot. Add or update one governance-facing "
             "document, usually a concise `docs/engineering/change-records/...` note, a relevant protocol update, "
-            "or `AGENTS.md` when the operating rule itself changed."
+            "or another approved governance-root document when the operating rule itself changed."
         )
     elif context.classification == "bug-fix":
         base.append(
