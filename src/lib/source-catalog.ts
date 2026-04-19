@@ -233,7 +233,7 @@ export const recommendedSources: RecommendedSource[] = [
   {
     id: "mit-technology-review",
     name: "MIT Technology Review",
-    topicLabel: "AI",
+    topicLabel: "Technology",
     description: "Research-grounded technology and AI coverage from MIT Technology Review.",
     homepageUrl: "https://www.technologyreview.com",
     feedUrl: "https://www.technologyreview.com/feed/",
@@ -292,11 +292,11 @@ export const recommendedSources: RecommendedSource[] = [
     sourceType: "news",
     sourceFormat: "rss",
     importStatus: "ready",
-    lifecycleStatus: "active_optional",
+    lifecycleStatus: "probationary",
     validationStatus: "validated",
     mvpDefaultAllowed: false,
     editorialPreference: "none",
-    note: "Validated on 2026-04-19. Broad world feed; keep optional to avoid diluting default clusters.",
+    note: "Validated on 2026-04-19. Broad world feed; keep probationary until duplicate and clustering impact are reviewed.",
   },
   {
     id: "foreign-policy",
@@ -335,7 +335,7 @@ export const recommendedSources: RecommendedSource[] = [
   {
     id: "hacker-news-best",
     name: "Hacker News Best",
-    topicLabel: "AI",
+    topicLabel: "Technology",
     description: "Community-curated technology and startup links from Hacker News Best.",
     homepageUrl: "https://news.ycombinator.com",
     feedUrl: "https://hnrss.org/best",
