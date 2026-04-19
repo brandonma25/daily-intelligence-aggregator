@@ -39,7 +39,10 @@
   - The automation must validate the expected headers before writing and may update only approved automation-managed columns.
   - A merge to `main` may update one exact `Record ID` match to `Merged`.
   - A merge must never auto-create a new governed `Sheet1` row.
-  - Codex closeout must verify a live sheet update, or create a fallback tracker-sync markdown file in `docs/operations/tracker-sync/` with the exact manual update payload.
+  - Status values must stay normalized, concise tracker values; do not write prose sentences, PR commentary, or malformed variants into `Status`.
+  - If a canonical PRD file exists in the repo, the live `PRD File` value must contain the exact `docs/product/prd/...` path.
+  - Owner, dependency, notes, execution stage, and build-readiness fields must be reconciled against repo source-of-truth when they are stale, placeholder-only, or misleading.
+  - Codex closeout must reread and verify the exact live row after writing, or create a fallback tracker-sync markdown file in `docs/operations/tracker-sync/` with the exact manual update payload.
 
 ### 2. PR Gate
 - Workflow: [ci.yml](/Users/bm/Documents/daily-intelligence-aggregator-main/.github/workflows/ci.yml)
@@ -130,8 +133,9 @@
 - Production sanity check run only after preview is good.
 - PRD summary stored in repo when applicable.
 - Bug-fix report stored in repo when applicable.
-- Google Sheets tracker updated and verified.
-- If direct Sheets update is unavailable, fallback tracker-sync file created in `docs/operations/tracker-sync/`.
+- Google Sheets tracker updated and verified by rereading the exact live row.
+- Corrected tracker values use normalized status text and include the canonical PRD file path when one exists.
+- If direct Sheets update is unavailable, fallback tracker-sync file created in `docs/operations/tracker-sync/` with the exact manual payload.
 
 ## Automated Versus Human
 ### Automated

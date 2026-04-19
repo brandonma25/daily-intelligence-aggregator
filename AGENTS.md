@@ -123,10 +123,17 @@ Rules:
 - Only explicitly approved automation-managed columns may be updated automatically.
 - Formula or computed columns must never be written by automation.
 - Codex must never auto-create unmapped rows directly in `Sheet1`.
+- Tracker closeout is part of Definition of Done for feature, fix, refactor, UX, and governance work.
+- Codex must not claim a tracker update unless it has reread and verified the exact live row after writing, or created a fallback tracker-sync artifact.
+- Existing governed rows in `Sheet1` must be updated by `Record ID`; do not duplicate governed rows.
+- Unmapped or ambiguous work must go to `Intake Queue`, not a made-up governed row.
+- `Status` must use normalized tracker values such as `Not Built`, `In Progress`, `In Review`, `Merged`, `Built`, or `Deprecated`; do not write prose sentences or malformed status variants.
+- If a canonical PRD file exists in `docs/product/prd/`, the live `PRD File` column must contain that path.
 - For mapped work, merge to `main` may update status to `Merged`.
 - `Merged` may move to `Built` only after production verification succeeds.
 - Any workflow or automation that touches feature tracking must preserve `Sheet1` and `Intake Queue` separation.
 - Automation changes must fail safely and must not silently write to the wrong row.
+- If direct Sheets access fails, Codex must create `docs/operations/tracker-sync/YYYY-MM-DD-<slug>.md` with the exact manual update payload before final closeout.
 
 ## 8. Merge Conditions
 - Do not recommend merge unless build passes, local validation is complete, preview validation is confirmed, and docs are updated.
