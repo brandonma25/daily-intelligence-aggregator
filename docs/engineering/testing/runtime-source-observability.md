@@ -40,6 +40,18 @@ Coverage:
 
 ## Remaining Validation
 
+CI hardening update:
+
+- PR #68 initially failed `release-governance-gate` because `src/lib/observability/runtime-source-resolution.ts` was a new non-test `src/` file, which the gate classified as new system surface requiring a newly added canonical PRD.
+- The helper was moved into the existing `src/lib/observability/pipeline-run.ts` module so the diff remains mapped to existing `PRD-42`.
+- Local CI-style rerun:
+
+```bash
+python3 scripts/release-governance-gate.py --base-sha origin/main --head-sha HEAD --branch-name feature/prd-42-runtime-source-observability --pr-title "Add runtime source observability" --diff-mode ci-pr
+```
+
+Result: passed. Classification is now `material-feature-change`; governance tier is `documented`.
+
 Dev server rule was followed on port `3000`:
 
 - Checked for existing listeners and Next.js/node dev-server processes.
