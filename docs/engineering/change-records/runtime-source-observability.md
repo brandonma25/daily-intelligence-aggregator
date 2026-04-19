@@ -10,7 +10,7 @@ Post-merge source audits needed a clean way to verify which source IDs were reso
 
 ## What Was Added
 
-- A safe runtime source-resolution snapshot in `src/lib/observability/runtime-source-resolution.ts`.
+- A safe runtime source-resolution snapshot in the existing `src/lib/observability/pipeline-run.ts` module.
 - A structured server log event named `Runtime source resolution snapshot`.
 - Pipeline-run metadata carrying the same source-resolution snapshot for local and test verification.
 

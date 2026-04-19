@@ -12,7 +12,7 @@ import { logPipelineEvent } from "@/lib/observability/logger";
 import {
   buildRuntimeSourceResolutionSnapshot,
   type RuntimeSourceResolutionSnapshot,
-} from "@/lib/observability/runtime-source-resolution";
+} from "@/lib/observability/pipeline-run";
 import { fetchFeedArticles } from "@/lib/rss";
 import { cleanText, stableId } from "@/lib/pipeline/shared/text";
 

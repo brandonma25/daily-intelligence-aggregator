@@ -12,7 +12,7 @@ import {
   getMvpDefaultPublicSources,
   MVP_DEFAULT_PUBLIC_SOURCE_IDS,
 } from "@/lib/demo-data";
-import { buildRuntimeSourceResolutionSnapshot } from "@/lib/observability/runtime-source-resolution";
+import { buildRuntimeSourceResolutionSnapshot } from "@/lib/observability/pipeline-run";
 import { recommendedSources } from "@/lib/source-catalog";
 
 describe("MVP default source governance", () => {
