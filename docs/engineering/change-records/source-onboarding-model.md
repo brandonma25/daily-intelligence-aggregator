@@ -4,11 +4,26 @@
 
 The source system has separate layers:
 
-- Public default ingestion is currently driven by `demoSources` and the cluster-first pipeline's five-source cap.
+- Public default ingestion is configured by explicit source IDs in `MVP_DEFAULT_PUBLIC_SOURCE_IDS`.
 - Donor-backed source definitions live in the donor registry and are used when the pipeline is called without explicit sources.
+- Donor fallback defaults are configured by explicit source IDs in `DEFAULT_DONOR_FEED_IDS`.
 - User-created sources live in Supabase `sources` rows and are treated as custom RSS inputs.
 - The source catalog is an optional import surface. A catalog entry is not active ingestion.
 - Source preference logic is centralized in `src/lib/source-policy.ts` and consumed by filtering and event-intelligence scoring.
+
+## Explicit MVP Defaults
+
+The current public MVP default ingestion set is:
+
+- The Verge
+- Ars Technica
+- TLDR
+- TechCrunch
+- Financial Times
+
+These are resolved from `src/lib/demo-data.ts` through `MVP_DEFAULT_PUBLIC_SOURCE_IDS` and `getMvpDefaultPublicSources()`. Adding another `demoSources` entry or adding a source catalog entry does not promote that source into public default ingestion.
+
+The donor fallback path uses `DEFAULT_DONOR_FEED_IDS` in `src/adapters/donors/registry.ts`. This prevents registry ordering from silently changing the no-argument pipeline default.
 
 ## Source States
 
@@ -36,6 +51,18 @@ The source system has separate layers:
 - `importStatus: "ready"` means importable by the current UI, not automatically default. It must not be used for failed, key-gated, or manual-only sources.
 - Broad general-news or broad market-news sources should not be promoted into the MVP backbone without a product decision.
 - BBC and CNBC remain intentionally excluded from catalog recommendations and source preference logic for the current MVP.
+
+## Promotion Rules
+
+To promote a source into public default ingestion:
+
+1. Add or verify the source definition in `demoSources`.
+2. Add the source ID to `MVP_DEFAULT_PUBLIC_SOURCE_IDS`.
+3. Update catalog metadata only if the source should also appear in the optional source catalog.
+4. Add source preference in `src/lib/source-policy.ts` only if the source is intentionally approved for tier treatment.
+5. Update tests that assert the exact MVP default set.
+
+Do not use catalog presence, `importStatus: "ready"`, or source-policy preference as a proxy for default runtime activation.
 
 ## Adding New Candidate Sources
 
