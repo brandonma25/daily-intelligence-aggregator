@@ -1,5 +1,7 @@
 # Source Onboarding Model
 
+Governed feature: `PRD-42` (`docs/product/prd/prd-42-source-governance-and-defaults.md`).
+
 ## Current Architecture
 
 The source system has separate layers:
