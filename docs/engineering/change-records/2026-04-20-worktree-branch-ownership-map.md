@@ -15,18 +15,18 @@ No feature branch, rebuild branch, stash, recovery artifact, or worktree is reti
 
 ## Current Canonical Feature Lanes
 
-These are the only currently approved owner worktrees for PRD-44 through PRD-49 feature continuation.
+These were the approved owner worktrees for PRD-44 through PRD-49 feature continuation during merge sequencing. They are now retired post-merge lanes.
 
 | PRD | Canonical owner worktree | Canonical branch | Upstream | Head | Lane state |
 | --- | --- | --- | --- | --- | --- |
-| PRD-44 | `/Users/bm/Documents/daily-intelligence-aggregator-auth-forms` | `feature/prd-44-auth-entry-forms` | `origin/feature/prd-44-auth-entry-forms` | `1d40359` | Merged to `main` via PR #79 at `be5b75f`; retained only until post-merge cleanup |
-| PRD-45 | `/Users/bm/Documents/daily-intelligence-aggregator-password-reset` | `feature/prd-45-password-reset-flow` | `origin/feature/prd-45-password-reset-flow` | `8d450a4` | Merged to `main` via PR #80 at `c48f8ca`; retained only until post-merge cleanup |
-| PRD-46 | `/Users/bm/Documents/daily-intelligence-aggregator-home-categories` | `feature/prd-46-home-category-tabs` | `origin/feature/prd-46-home-category-tabs` | `67491c3` | Merged to `main` via PR #81 at `78733c3`; retained only until post-merge cleanup |
-| PRD-47 | `/Users/bm/Documents/daily-intelligence-aggregator-home-states` | `feature/prd-47-home-states` | `origin/feature/prd-47-home-states` | `5afa0a7` | Merged to `main` via PR #78 at `0ff8d92`; retained only until post-merge cleanup |
-| PRD-48 | `/Users/bm/Documents/daily-intelligence-aggregator-history-components` | `feature/prd-48-history-components` | `origin/feature/prd-48-history-components` | `219ecbb` | Merged to `main` via PR #82 at `b30d10f`; retained only until post-merge cleanup |
-| PRD-49 | `/Users/bm/Documents/daily-intelligence-aggregator-account-components` | `feature/prd-49-account-components` | `origin/feature/prd-49-account-components` | `863a447` | Merged to `main` via PR #83 at `25887bd`; retained only until post-merge cleanup |
+| PRD-44 | `/Users/bm/Documents/daily-intelligence-aggregator-auth-forms` | `feature/prd-44-auth-entry-forms` | Deleted after merge | `1d40359` | Merged to `main` via PR #79 at `be5b75f`; worktree, local branch, and remote branch retired after proof and explicit approval |
+| PRD-45 | `/Users/bm/Documents/daily-intelligence-aggregator-password-reset` | `feature/prd-45-password-reset-flow` | Deleted after merge | `8d450a4` | Merged to `main` via PR #80 at `c48f8ca`; worktree, local branch, and remote branch retired after proof and explicit approval |
+| PRD-46 | `/Users/bm/Documents/daily-intelligence-aggregator-home-categories` | `feature/prd-46-home-category-tabs` | Deleted after merge | `67491c3` | Merged to `main` via PR #81 at `78733c3`; worktree, local branch, and remote branch retired after proof and explicit approval |
+| PRD-47 | `/Users/bm/Documents/daily-intelligence-aggregator-home-states` | `feature/prd-47-home-states` | Deleted after merge | `5afa0a7` | Merged to `main` via PR #78 at `0ff8d92`; worktree, local branch, and remote branch retired after proof and explicit approval |
+| PRD-48 | `/Users/bm/Documents/daily-intelligence-aggregator-history-components` | `feature/prd-48-history-components` | Deleted after merge | `219ecbb` | Merged to `main` via PR #82 at `b30d10f`; worktree, local branch, and remote branch retired after proof and explicit approval |
+| PRD-49 | `/Users/bm/Documents/daily-intelligence-aggregator-account-components` | `feature/prd-49-account-components` | Deleted after merge | `863a447` | Merged to `main` via PR #83 at `25887bd`; worktree, local branch, and remote branch retired after proof and explicit approval |
 
-Operational rule: if a prompt names one of these PRDs and asks to continue the same branch, Codex must use the listed owner worktree directly. Codex must not open the main worktree and must not propose a different branch unless the listed owner worktree is unavailable or the branch has already merged.
+Operational rule: these PRD-44 through PRD-49 branches have already merged and been retired. Codex must not recreate these old branch names or worktree paths for follow-up work. Future follow-up in these product areas should start from current `main` with a new explicitly scoped branch, unless a newer ownership map identifies an active successor lane.
 
 ## Rebuild and Duplicate Lanes
 
@@ -70,6 +70,7 @@ The purpose of this audit is to identify which names are safe retirement candida
 
 | Branch or worktree | Evidence | Retirement status | Rule |
 | --- | --- | --- | --- |
+| PRD-44 through PRD-49 post-merge feature lanes | Each former owner worktree was clean; each local and remote branch was contained in `origin/main` at `25887bd`; each branch had zero branch-only commits; PRs #79, #80, #81, #78, #82, and #83 were merged | Retired after explicit approval on 2026-04-21 | Removed the six former feature worktrees, deleted the six local branches, and deleted the six remote branches; do not recreate old branch names for follow-up work |
 | `/Users/bm/Documents/daily-intelligence-aggregator-worktree-attachment-enforcement` on `docs/worktree-attachment-enforcement` | Worktree was clean; branch head `c124f56` matched `origin/main`; no remote branch ref; `origin/main...docs/worktree-attachment-enforcement` had no diff | Retired after explicit approval on 2026-04-21 | Removed zero-diff worktree and deleted local branch; do not recreate for PRD-44 through PRD-49 work |
 | `codexfeature/prd-43-49-mvp-ui-artifact-alignment` | Local branch only; head `c124f56` matched `origin/main`; no remote branch ref; `origin/main...codexfeature/prd-43-49-mvp-ui-artifact-alignment` had no diff | Retired after explicit approval on 2026-04-21 | Misleading zero-diff PRD-43-49-like branch name removed; do not recreate |
 | `fix/settings-shell-cleanup` | Local and remote branch at `d8d9807`; no current `origin/main...fix/settings-shell-cleanup` diff; branch is behind `origin/main` | Candidate for retirement after approval and PR/merge confirmation | Semantically adjacent to Account/settings work; remove local and remote refs only after explicit approval |
@@ -89,6 +90,28 @@ Phase 3 retirement proof for `codexfeature/prd-43-49-mvp-ui-artifact-alignment`:
 - No remote branch `origin/codexfeature/prd-43-49-mvp-ui-artifact-alignment` existed before retirement.
 - The local branch `codexfeature/prd-43-49-mvp-ui-artifact-alignment` was deleted.
 - No PRD-44 through PRD-49 feature branch, recovery artifact, stash entry, or protected evidence lane was touched.
+
+Phase 3 retirement proof for PRD-44 through PRD-49 post-merge lanes:
+- `origin/main` was fetched and confirmed at `25887bd`.
+- The six former owner worktrees were clean before retirement.
+- The six local branches were all ancestors of `origin/main`.
+- The six remote branches were all ancestors of `origin/main`.
+- `origin/main...<branch>` showed zero branch-only commits for each retired branch.
+- The following worktree paths were absent after retirement:
+  - `/Users/bm/Documents/daily-intelligence-aggregator-auth-forms`
+  - `/Users/bm/Documents/daily-intelligence-aggregator-password-reset`
+  - `/Users/bm/Documents/daily-intelligence-aggregator-home-categories`
+  - `/Users/bm/Documents/daily-intelligence-aggregator-home-states`
+  - `/Users/bm/Documents/daily-intelligence-aggregator-history-components`
+  - `/Users/bm/Documents/daily-intelligence-aggregator-account-components`
+- The following local branches and remote branch refs were absent after retirement:
+  - `feature/prd-44-auth-entry-forms`
+  - `feature/prd-45-password-reset-flow`
+  - `feature/prd-46-home-category-tabs`
+  - `feature/prd-47-home-states`
+  - `feature/prd-48-history-components`
+  - `feature/prd-49-account-components`
+- No recovery artifact, stash entry, stale evidence branch, or non-PRD-44-through-PRD-49 worktree was touched.
 
 ## Docs and Governance Lanes
 
@@ -112,16 +135,11 @@ Phase 3 retirement proof for `codexfeature/prd-43-49-mvp-ui-artifact-alignment`:
 
 ## Continuation Rules
 
-1. For PRD-44, continue only in `/Users/bm/Documents/daily-intelligence-aggregator-auth-forms` on `feature/prd-44-auth-entry-forms`.
-2. For PRD-45, continue only in `/Users/bm/Documents/daily-intelligence-aggregator-password-reset` on `feature/prd-45-password-reset-flow`.
-3. For PRD-46, continue only in `/Users/bm/Documents/daily-intelligence-aggregator-home-categories` on `feature/prd-46-home-category-tabs`.
-4. For PRD-47, continue only in `/Users/bm/Documents/daily-intelligence-aggregator-home-states` on `feature/prd-47-home-states`.
-5. For PRD-48, continue only in `/Users/bm/Documents/daily-intelligence-aggregator-history-components` on `feature/prd-48-history-components`.
-6. For PRD-49, continue only in `/Users/bm/Documents/daily-intelligence-aggregator-account-components` on `feature/prd-49-account-components`.
-7. If Codex is not already in the listed owner worktree, it must use `git -C <owner-worktree>` for inspection or tell the user to open that owner worktree before implementation.
-8. If another branch name appears to match the same PRD, treat it as blocked until this ownership map or a newer ownership map identifies it as canonical.
-9. Rebuild branches are allowed only after the canonical feature lane has been compared and a human explicitly approves rebuild over continuation.
-10. Retirement is allowed only after preservation evidence, remote branch state, and explicit human approval are all present.
+1. PRD-44 through PRD-49 original feature branches are retired and must not be reused.
+2. If follow-up work is needed in a PRD-44 through PRD-49 product area, start from current `main` with a new explicitly scoped branch unless a newer ownership map identifies an active successor branch.
+3. If another branch name appears to match the same PRD, treat it as blocked until this ownership map or a newer ownership map identifies it as canonical.
+4. Rebuild branches are allowed only after the retired feature lane has been compared against `main` and a human explicitly approves rebuild over follow-up-from-main.
+5. Retirement is allowed only after preservation evidence, remote branch state, and explicit human approval are all present.
 
 ## Final Remediation Step: Hotspot Feature Merge Sequencing
 
@@ -150,6 +168,6 @@ Example: the PRD-47 failure in GitHub Actions job `72159412287` should be fixed 
 
 ## Phase 1 Result
 
-PRD-44 through PRD-49 now have one stated owner worktree and one stated canonical branch per PRD, and all six canonical feature branches have merged to `main` through PRs #79, #80, #81, #78, #82, and #83. The empty PRD-44 rebuild placeholder has been retired. The zero-diff `docs/worktree-attachment-enforcement` and `codexfeature/prd-43-49-mvp-ui-artifact-alignment` placeholder lanes have also been retired after explicit approval. Remaining ambiguity is concentrated in protected recovery artifacts, stale evidence branches, post-merge feature branch/worktree retirement, and approval-gated zero-diff placeholder lanes.
+PRD-44 through PRD-49 had one stated owner worktree and one stated canonical branch per PRD, and all six canonical feature branches merged to `main` through PRs #79, #80, #81, #78, #82, and #83. After post-merge proof and explicit approval, the six former feature worktrees, six local branches, and six remote branches were retired. The empty PRD-44 rebuild placeholder has been retired. The zero-diff `docs/worktree-attachment-enforcement` and `codexfeature/prd-43-49-mvp-ui-artifact-alignment` placeholder lanes have also been retired after explicit approval. Remaining ambiguity is concentrated in protected recovery artifacts, stale evidence branches, and approval-gated zero-diff placeholder lanes.
 
-Next phase: do not retire additional remote, local, worktree, or evidence-bearing lanes without a separate proof-and-approval pass. The remaining practical path is a post-merge retirement audit for the former PRD-44 through PRD-49 feature worktrees and branches, with proof that `main` contains each feature payload before any deletion.
+Next phase: do not retire additional remote, local, worktree, or evidence-bearing lanes without a separate proof-and-approval pass. The remaining practical path is a focused audit of still-attached non-PRD-44-through-PRD-49 worktrees and stale evidence lanes, especially protected recovery artifacts and unrelated scoped branches.
