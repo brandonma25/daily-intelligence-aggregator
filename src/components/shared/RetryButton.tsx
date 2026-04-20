@@ -13,18 +13,13 @@ export function RetryButton({ onRetry, isRetrying }: RetryButtonProps) {
   return (
     <Button
       type="button"
-      className="min-h-11 w-full px-5 hover:translate-y-0 lg:w-auto lg:hover:-translate-y-0.5"
-      disabled={isRetrying}
       onClick={onRetry}
+      disabled={isRetrying}
+      aria-busy={isRetrying}
+      className="min-h-11 w-full gap-2 px-5 hover:translate-y-0 lg:w-auto lg:hover:-translate-y-0.5"
     >
-      {isRetrying ? (
-        <span className="inline-flex items-center gap-2">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Try again
-        </span>
-      ) : (
-        "Try again"
-      )}
+      {isRetrying ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+      Try again
     </Button>
   );
 }
