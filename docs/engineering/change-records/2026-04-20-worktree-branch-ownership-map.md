@@ -62,8 +62,8 @@ Retirement proof:
 | `stash@{0}` | `feature/prd-43-collapsible-sidebar: pre-cleanup-main-worktree-snapshot` | Protected historical fallback | Preserve; do not pop or drop without explicit approval |
 | `stash@{1}` | `chore/release-governance-gate-velocity: preserve unrelated pre-source-onboarding worktree state` | Protected historical fallback | Preserve; do not pop or drop without explicit approval |
 | `stash@{2}` | `feature/importance-scoring-engine-v1: backup before clean PRD14 branch recreation 2026-04-17` | Protected historical fallback | Preserve; do not pop or drop without explicit approval |
-| `feature/prd-43-collapsible-sidebar` | Local branch at `f1967b5` | Stale evidence / placeholder feature lane | Do not use for PRD-44 through PRD-49 continuation |
-| `docs/artifact3-backend-contract-audit` | Local branch at `f1967b5` | Stale evidence / docs lane | Do not use for PRD-44 through PRD-49 continuation |
+| `feature/prd-43-collapsible-sidebar` | Retired local branch at `f1967b5` | Stale zero-diff placeholder feature lane; stash evidence remains protected | Retired after proof and explicit approval; do not recreate for PRD-43 continuation |
+| `docs/artifact3-backend-contract-audit` | Retired local branch at `f1967b5` | Stale zero-diff docs lane; recovery evidence remains protected | Retired after proof and explicit approval; do not recreate for docs work |
 | `fix/settings-shell-cleanup` | Retired local and remote branch at `d8d9807` | Merged semantically adjacent non-owner lane; PR #56 was merged and local/remote refs had zero branch-only commits | Retired after proof and explicit approval; do not recreate for PRD-49 Account continuation |
 
 ## Phase 3 Pre-Retirement Audit
@@ -78,7 +78,7 @@ The purpose of this audit was to identify which names were safe retirement candi
 | `fix/settings-shell-cleanup` | Local and remote branch at `d8d9807`; no current `origin/main...fix/settings-shell-cleanup` diff; branch was behind `origin/main`; PR #56 was merged | Retired after explicit approval on 2026-04-21 | Removed local and remote refs after containment proof |
 | `/Users/bm/Documents/daily-intelligence-aggregator-ui-audit` on `feature/ui-audit-playwright-expansion` | Branch head `c124f56` matched `origin/main`; untracked `docs/engineering/testing/ui-audit-report.md` was preserved at `docs/engineering/testing/ui-audit-report.md`; no same-name remote branch existed | Retired after preservation proof and explicit approval on 2026-04-21 | Removed worktree and local branch after preserving the report; do not recreate this audit lane |
 | `feature/prd-43-49-mvp-ui-artifact-alignment` | Protected WIP branch at `3f3c83b`; `origin/main...feature/prd-43-49-mvp-ui-artifact-alignment` still has package and route-deletion diffs | Not a retirement candidate yet | Preserve as branch-contamination evidence until a separate evidence-retention decision is made |
-| `feature/prd-43-collapsible-sidebar` and `docs/artifact3-backend-contract-audit` | Local branches at `f1967b5`; no current diff from `origin/main`, but already classified as stale evidence lanes | Not a retirement candidate yet | Preserve until the recovery audit bundle and stash retention strategy are resolved |
+| `feature/prd-43-collapsible-sidebar` and `docs/artifact3-backend-contract-audit` | Local branches at `f1967b5`; no current diff from `origin/main`; no remote refs; stash and recovery bundle remained protected | Retired after explicit approval on 2026-04-21 | Removed local branch labels only; did not touch stashes, recovery bundle, or PRD-43-49 WIP evidence branch |
 
 Phase 3 retirement proof for `docs/worktree-attachment-enforcement`:
 - The worktree path `/Users/bm/Documents/daily-intelligence-aggregator-worktree-attachment-enforcement` was absent after `git worktree remove`.
@@ -321,7 +321,7 @@ Example: the PRD-47 failure in GitHub Actions job `72159412287` should be fixed 
 
 PRD-44 through PRD-49 had one stated owner worktree and one stated canonical branch per PRD, and all six canonical feature branches merged to `main` through PRs #79, #80, #81, #78, #82, and #83. After post-merge proof and explicit approval, the six former feature worktrees, six local branches, and six remote branches were retired. The empty PRD-44 rebuild placeholder has been retired. The zero-diff `docs/worktree-attachment-enforcement` and `codexfeature/prd-43-49-mvp-ui-artifact-alignment` placeholder lanes have also been retired after explicit approval. The later non-PRD-44-through-PRD-49 attached worktree cleanup retired Artifact 10, auth-callback, PRD-50 global style, sequential docs, PRD-51 protocol, and UI audit lanes after preservation and containment proof. Remaining ambiguity is concentrated in protected recovery artifacts and stale evidence branches, not attached sibling worktrees.
 
-Next phase: do not retire additional remote, local, worktree, or evidence-bearing lanes without a separate proof-and-approval pass. The remaining practical path is a focused audit of protected recovery artifacts and evidence-bearing local branches, especially `recovery-audit-20260420-163146/`, `stash@{0}`, `stash@{1}`, `stash@{2}`, `feature/prd-43-collapsible-sidebar`, `docs/artifact3-backend-contract-audit`, and `feature/prd-43-49-mvp-ui-artifact-alignment`.
+Next phase: do not retire additional remote, local, worktree, or evidence-bearing lanes without a separate proof-and-approval pass. The remaining practical path is a focused preservation decision for protected recovery artifacts and the one remaining evidence-bearing local branch: `recovery-audit-20260420-163146/`, `stash@{0}`, `stash@{1}`, `stash@{2}`, and `feature/prd-43-49-mvp-ui-artifact-alignment`.
 
 ## Phase 4 Stale Evidence Branch Audit
 
@@ -338,10 +338,27 @@ Global state:
 | `stash@{0}` | `pre-cleanup-main-worktree-snapshot` from `feature/prd-43-collapsible-sidebar`; `--include-untracked` stat spans app shell, PRD-43 responsive app shell docs/components, generated cache files, and related tests | Protected historical fallback | Preserve until recovery bundle and PRD-43 evidence are explicitly retired or archived elsewhere |
 | `stash@{1}` | `preserve unrelated pre-source-onboarding worktree state`; `--include-untracked` stat includes one source-onboarding change record | Protected historical fallback | Preserve until source-onboarding history is explicitly reviewed |
 | `stash@{2}` | `backup before clean PRD14 branch recreation 2026-04-17`; `--include-untracked` stat spans importance-scoring docs, tests, data/ranking changes, Supabase files, and test artifacts | Protected historical fallback | Preserve until PRD-14 evidence is explicitly reviewed |
-| `feature/prd-43-collapsible-sidebar` | Local-only branch at `f1967b5`; `origin/main...feature/prd-43-collapsible-sidebar` has zero branch-only commits and no diff | Stale zero-diff evidence branch | Candidate for later local deletion only after stash/recovery evidence retention is approved; do not use for new PRD-43 work |
-| `docs/artifact3-backend-contract-audit` | Local-only branch at `f1967b5`; `origin/main...docs/artifact3-backend-contract-audit` has zero branch-only commits and no diff | Stale zero-diff evidence branch | Candidate for later local deletion only after recovery evidence retention is approved; do not use for new docs work |
+| `feature/prd-43-collapsible-sidebar` | Local-only branch at `f1967b5`; `origin/main...feature/prd-43-collapsible-sidebar` had zero branch-only commits and no diff; no same-name remote branch existed | Retired zero-diff evidence branch label | Local branch was deleted after proof and explicit approval; related `stash@{0}` remains protected |
+| `docs/artifact3-backend-contract-audit` | Local-only branch at `f1967b5`; `origin/main...docs/artifact3-backend-contract-audit` had zero branch-only commits and no diff; no same-name remote branch existed | Retired zero-diff evidence branch label | Local branch was deleted after proof and explicit approval; recovery bundle remains protected |
 | `fix/settings-shell-cleanup` | Local and remote branch at `d8d9807`; PR #56 was merged; `origin/main...fix/settings-shell-cleanup` and `origin/main...origin/fix/settings-shell-cleanup` had zero branch-only commits and no diff | Retired stale merged branch | Local and remote refs were deleted after proof and explicit approval |
 | `feature/prd-43-49-mvp-ui-artifact-alignment` | Local-only branch at `3f3c83b`; one branch-only commit remains; diff modifies `package-lock.json`, `package.json`, and deletes `src/app/settings/page.tsx`, `src/app/sources/page.tsx`, and `src/app/topics/page.tsx`; matching preservation patch exists at `recovery-audit-20260420-163146/3f3c83b-preservation.patch` | Protected branch-contamination evidence | Do not delete yet; retire only after explicit approval that the recovery patch and bundle are sufficient permanent evidence |
+
+### Zero-Diff Evidence Branch Label Retirement Audit
+
+The PRD-43 collapsible sidebar and Artifact 3 backend contract audit branch labels were stale local-only refs pointing at an ancestor of `origin/main`. They were retired only after containment proof.
+
+Findings:
+- `feature/prd-43-collapsible-sidebar` and `docs/artifact3-backend-contract-audit` both pointed at `f1967b5`.
+- Neither branch had a same-name remote branch.
+- `origin/main...feature/prd-43-collapsible-sidebar` had zero branch-only commits and no diff before retirement.
+- `origin/main...docs/artifact3-backend-contract-audit` had zero branch-only commits and no diff before retirement.
+- `stash@{0}`, `stash@{1}`, `stash@{2}`, `recovery-audit-20260420-163146/`, and `feature/prd-43-49-mvp-ui-artifact-alignment` remained present after retirement.
+
+Retirement proof:
+- Local branch `feature/prd-43-collapsible-sidebar` was absent after cleanup.
+- Local branch `docs/artifact3-backend-contract-audit` was absent after cleanup.
+- No remote branch was deleted because neither branch had a same-name remote ref.
+- No stash, recovery artifact, worktree, feature-bearing branch, or unrelated branch was touched.
 
 ### Settings Shell Cleanup Branch Retirement Audit
 
@@ -362,4 +379,4 @@ Operational conclusion:
 - Attached worktree ambiguity is currently resolved.
 - Branch ambiguity now comes from stale local/remote refs and protected evidence, not from sibling worktree ownership.
 - Future feature work should not reuse any stale evidence branch listed here.
-- Evidence-bearing PRD-43 branches and stashes should remain protected until a separate preservation decision.
+- The only remaining branch label in this audit that carries branch-only evidence is `feature/prd-43-49-mvp-ui-artifact-alignment`; stashes and recovery artifacts should remain protected until a separate preservation decision.
