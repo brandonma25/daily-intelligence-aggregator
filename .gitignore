@@ -47,3 +47,6 @@ next-env.d.ts
 project.tar.gz
 
 project.md
+
+# local remediation evidence
+/recovery-audit-*/

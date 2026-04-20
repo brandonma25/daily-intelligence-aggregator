@@ -58,7 +58,7 @@ Retirement proof:
 
 | Artifact or branch | Location | Classification | Rule |
 | --- | --- | --- | --- |
-| Recovery audit bundle | `/Users/bm/Documents/daily-intelligence-aggregator-main/recovery-audit-20260420-163146/` | Protected evidence artifact | Preserve; do not clean without explicit approval |
+| Recovery audit bundle | `/Users/bm/Documents/daily-intelligence-aggregator-main/recovery-audit-20260420-163146/` | Protected local evidence artifact; ignored by `.gitignore` after audit so it does not make the worktree appear dirty | Preserve; do not clean without explicit approval |
 | `stash@{0}` | `feature/prd-43-collapsible-sidebar: pre-cleanup-main-worktree-snapshot` | Protected historical fallback | Preserve; do not pop or drop without explicit approval |
 | `stash@{1}` | `chore/release-governance-gate-velocity: preserve unrelated pre-source-onboarding worktree state` | Protected historical fallback | Preserve; do not pop or drop without explicit approval |
 | `stash@{2}` | `feature/importance-scoring-engine-v1: backup before clean PRD14 branch recreation 2026-04-17` | Protected historical fallback | Preserve; do not pop or drop without explicit approval |
@@ -322,7 +322,7 @@ Example: the PRD-47 failure in GitHub Actions job `72159412287` should be fixed 
 
 PRD-44 through PRD-49 had one stated owner worktree and one stated canonical branch per PRD, and all six canonical feature branches merged to `main` through PRs #79, #80, #81, #78, #82, and #83. After post-merge proof and explicit approval, the six former feature worktrees, six local branches, and six remote branches were retired. The empty PRD-44 rebuild placeholder has been retired. The zero-diff `docs/worktree-attachment-enforcement` and `codexfeature/prd-43-49-mvp-ui-artifact-alignment` placeholder lanes have also been retired after explicit approval. The later non-PRD-44-through-PRD-49 attached worktree cleanup retired Artifact 10, auth-callback, PRD-50 global style, sequential docs, PRD-51 protocol, and UI audit lanes after preservation and containment proof. Remaining ambiguity is concentrated in protected recovery artifacts and stale evidence branches, not attached sibling worktrees.
 
-Next phase: do not retire additional remote, local, worktree, stash, or recovery artifacts without a separate proof-and-approval pass. The remaining practical path is a focused preservation decision for protected recovery artifacts and stashes: `recovery-audit-20260420-163146/`, `stash@{0}`, `stash@{1}`, and `stash@{2}`.
+Next phase: do not retire additional remote, local, worktree, stash, or recovery artifacts without a separate proof-and-approval pass. Protected recovery bundles are intentionally local-only and ignored by `.gitignore`; the remaining practical path is an explicit preservation or retirement decision for `stash@{0}`, `stash@{1}`, and `stash@{2}`.
 
 ## Phase 4 Stale Evidence Branch Audit
 
@@ -399,3 +399,26 @@ Operational conclusion:
 - Branch ambiguity now comes from stale local/remote refs and protected evidence, not from sibling worktree ownership.
 - Future feature work should not reuse any stale evidence branch listed here.
 - No branch labels from this audit remain as active continuation lanes; stashes and recovery artifacts should remain protected until a separate preservation decision.
+
+## Phase 5 Protected Artifact Status Normalization
+
+This pass normalized the remaining protected recovery artifact without deleting, moving, applying, popping, or dropping any preserved work.
+
+Findings:
+- `recovery-audit-20260420-163146/` contains status snapshots, tracked patches, untracked-file archives, `stash-0.patch`, `3f3c83b-preservation.patch`, `contamination-branches.bundle`, and workspace/worktree inventories.
+- The bundle verified successfully and contains refs for `feature/prd-43-49-mvp-ui-artifact-alignment`, `fix/branch-contamination-reconstruction`, `chore/branch-contamination-email-deps`, `chore/branch-contamination-route-deletions`, and `codexfeature/prd-43-49-mvp-ui-artifact-alignment`.
+- The PRD-44 through PRD-49 untracked archives contain the expected PRD docs, tracker-sync notes, component files, and tests from their former feature lanes.
+- `stash@{0}` preserves a PRD-43/sidebar and governance-doc snapshot with app-shell, responsive shell, tests, docs, generated cache files, and sample output.
+- `stash@{1}` preserves one source-onboarding tracker-sync fallback document.
+- `stash@{2}` preserves PRD-14 importance-scoring work, including docs, tests, ranking/data changes, Supabase files, and test artifacts.
+
+Normalization decision:
+- Add `/recovery-audit-*/` to `.gitignore` so local recovery bundles stop making the current worktree look dirty.
+- Keep `recovery-audit-20260420-163146/` in place as protected local evidence.
+- Keep `stash@{0}`, `stash@{1}`, and `stash@{2}` intact.
+- Do not apply, pop, drop, move, delete, or rewrite any protected artifact without a separate explicit approval.
+
+Operational conclusion:
+- Recovery evidence no longer needs to appear as branch/worktree dirt in normal `git status`.
+- The remaining stashes are preservation refs, not active continuation lanes.
+- Future feature continuation should be based on the current owning branch/worktree for that feature, not on these historical stashes.
