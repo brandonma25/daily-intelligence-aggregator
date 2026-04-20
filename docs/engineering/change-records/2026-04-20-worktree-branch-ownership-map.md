@@ -24,7 +24,7 @@ These are the only currently approved owner worktrees for PRD-44 through PRD-49 
 | PRD-46 | `/Users/bm/Documents/daily-intelligence-aggregator-home-categories` | `feature/prd-46-home-category-tabs` | `origin/feature/prd-46-home-category-tabs` | `b40e9cf` | Canonical confirmed; no duplicate PRD-46 lane found |
 | PRD-47 | `/Users/bm/Documents/daily-intelligence-aggregator-home-states` | `feature/prd-47-home-states` | `origin/feature/prd-47-home-states` | `0fba112` | Canonical confirmed; no duplicate PRD-47 lane found |
 | PRD-48 | `/Users/bm/Documents/daily-intelligence-aggregator-history-components` | `feature/prd-48-history-components` | `origin/feature/prd-48-history-components` | `d800e07` | Canonical confirmed; shared `RetryButton` overlap with PRD-47 requires sequential merge handling |
-| PRD-49 | `/Users/bm/Documents/daily-intelligence-aggregator-account-components` | `feature/prd-49-account-components` | `origin/feature/prd-49-account-components` | `84d1c3c` | Canonical feature lane |
+| PRD-49 | `/Users/bm/Documents/daily-intelligence-aggregator-account-components` | `feature/prd-49-account-components` | `origin/feature/prd-49-account-components` | `84d1c3c` | Canonical confirmed; shared `Skeleton` overlap with PRD-48 requires sequential merge handling |
 
 Operational rule: if a prompt names one of these PRDs and asks to continue the same branch, Codex must use the listed owner worktree directly. Codex must not open the main worktree and must not propose a different branch unless the listed owner worktree is unavailable or the branch has already merged.
 
@@ -52,6 +52,7 @@ Retirement proof:
 | PRD-46 | Existing home-category-tabs branch is canonical | Only one local and remote PRD-46/home-category branch exists; owner worktree is clean; `origin/main...HEAD` contains the home category tabs feature diff only | No retirement needed; continue PRD-46 only in the home-categories owner worktree |
 | PRD-47 | Existing home-states branch is canonical | Only one local and remote PRD-47/home-state branch exists; owner worktree is clean; `origin/main...HEAD` contains the home state components feature diff only | No retirement needed; continue PRD-47 only in the home-states owner worktree |
 | PRD-48 | Existing history-components branch is canonical | Only one local and remote PRD-48/history branch exists; owner worktree is clean; `origin/main...HEAD` contains the history page component diff only | No retirement needed; continue PRD-48 only in the history-components owner worktree; resolve shared `RetryButton` and `feature-system.csv` overlap during sequential merge after remediation |
+| PRD-49 | Existing account-components branch is canonical | Only one local and remote PRD-49/account branch exists; owner worktree is clean; `origin/main...HEAD` contains the account page component diff only | No retirement needed; continue PRD-49 only in the account-components owner worktree; resolve shared `Skeleton` and `feature-system.csv` overlap during sequential merge after remediation |
 
 ## Evidence and Recovery Lanes
 
@@ -61,6 +62,7 @@ Retirement proof:
 | `stash@{0}` | `feature/prd-43-collapsible-sidebar: pre-cleanup-main-worktree-snapshot` | Protected historical fallback | Preserve; do not pop or drop without explicit approval |
 | `feature/prd-43-collapsible-sidebar` | Local branch at `f1967b5` | Stale evidence / placeholder feature lane | Do not use for PRD-44 through PRD-49 continuation |
 | `docs/artifact3-backend-contract-audit` | Local branch at `f1967b5` | Stale evidence / docs lane | Do not use for PRD-44 through PRD-49 continuation |
+| `fix/settings-shell-cleanup` | Local and remote branch at `d8d9807` | Semantically adjacent non-owner lane; no current `origin/main...fix/settings-shell-cleanup` diff found during PRD-49 audit | Do not use for PRD-49 Account continuation |
 
 ## Docs and Governance Lanes
 
@@ -112,6 +114,6 @@ Example: the PRD-47 failure in GitHub Actions job `72159412287` should be fixed 
 
 ## Phase 1 Result
 
-PRD-44 through PRD-49 now have one stated owner worktree and one stated canonical branch per PRD. The empty PRD-44 rebuild placeholder has been retired. Remaining ambiguity is concentrated in protected recovery artifacts and stale evidence branches.
+PRD-44 through PRD-49 now have one stated owner worktree and one stated canonical branch per PRD. The empty PRD-44 rebuild placeholder has been retired. Remaining ambiguity is concentrated in protected recovery artifacts, stale evidence branches, and known shared-file merge sequencing.
 
-Next phase: continue canonical execution lane decisions one PRD at a time, starting with PRD-49, without deleting or bypassing preserved feature work. After the canonical-lane decisions are complete, follow the hotspot feature merge sequencing rule above before merging any PRD-44 through PRD-49 feature branch.
+Next phase: follow the hotspot feature merge sequencing rule above before merging any PRD-44 through PRD-49 feature branch. Each feature branch should be handled from its canonical owner worktree, one at a time, with feature-specific governance coverage for `docs/product/feature-system.csv` hotspot updates.
