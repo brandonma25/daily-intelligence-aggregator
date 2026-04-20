@@ -23,7 +23,7 @@ These are the only currently approved owner worktrees for PRD-44 through PRD-49 
 | PRD-45 | `/Users/bm/Documents/daily-intelligence-aggregator-password-reset` | `feature/prd-45-password-reset-flow` | `origin/feature/prd-45-password-reset-flow` | `bdc438b` | Canonical confirmed; no duplicate PRD-45 lane found |
 | PRD-46 | `/Users/bm/Documents/daily-intelligence-aggregator-home-categories` | `feature/prd-46-home-category-tabs` | `origin/feature/prd-46-home-category-tabs` | `b40e9cf` | Canonical confirmed; no duplicate PRD-46 lane found |
 | PRD-47 | `/Users/bm/Documents/daily-intelligence-aggregator-home-states` | `feature/prd-47-home-states` | `origin/feature/prd-47-home-states` | `0fba112` | Canonical confirmed; no duplicate PRD-47 lane found |
-| PRD-48 | `/Users/bm/Documents/daily-intelligence-aggregator-history-components` | `feature/prd-48-history-components` | `origin/feature/prd-48-history-components` | `d800e07` | Canonical feature lane |
+| PRD-48 | `/Users/bm/Documents/daily-intelligence-aggregator-history-components` | `feature/prd-48-history-components` | `origin/feature/prd-48-history-components` | `d800e07` | Canonical confirmed; shared `RetryButton` overlap with PRD-47 requires sequential merge handling |
 | PRD-49 | `/Users/bm/Documents/daily-intelligence-aggregator-account-components` | `feature/prd-49-account-components` | `origin/feature/prd-49-account-components` | `84d1c3c` | Canonical feature lane |
 
 Operational rule: if a prompt names one of these PRDs and asks to continue the same branch, Codex must use the listed owner worktree directly. Codex must not open the main worktree and must not propose a different branch unless the listed owner worktree is unavailable or the branch has already merged.
@@ -51,6 +51,7 @@ Retirement proof:
 | PRD-45 | Existing password-reset branch is canonical | Only one local and remote PRD-45/password-reset branch exists; owner worktree is clean; `origin/main...HEAD` contains the password-reset feature diff only | No retirement needed; continue PRD-45 only in the password-reset owner worktree |
 | PRD-46 | Existing home-category-tabs branch is canonical | Only one local and remote PRD-46/home-category branch exists; owner worktree is clean; `origin/main...HEAD` contains the home category tabs feature diff only | No retirement needed; continue PRD-46 only in the home-categories owner worktree |
 | PRD-47 | Existing home-states branch is canonical | Only one local and remote PRD-47/home-state branch exists; owner worktree is clean; `origin/main...HEAD` contains the home state components feature diff only | No retirement needed; continue PRD-47 only in the home-states owner worktree |
+| PRD-48 | Existing history-components branch is canonical | Only one local and remote PRD-48/history branch exists; owner worktree is clean; `origin/main...HEAD` contains the history page component diff only | No retirement needed; continue PRD-48 only in the history-components owner worktree; resolve shared `RetryButton` and `feature-system.csv` overlap during sequential merge after remediation |
 
 ## Evidence and Recovery Lanes
 
@@ -113,4 +114,4 @@ Example: the PRD-47 failure in GitHub Actions job `72159412287` should be fixed 
 
 PRD-44 through PRD-49 now have one stated owner worktree and one stated canonical branch per PRD. The empty PRD-44 rebuild placeholder has been retired. Remaining ambiguity is concentrated in protected recovery artifacts and stale evidence branches.
 
-Next phase: continue canonical execution lane decisions one PRD at a time, starting with PRD-48, without deleting or bypassing preserved feature work. After the canonical-lane decisions are complete, follow the hotspot feature merge sequencing rule above before merging any PRD-44 through PRD-49 feature branch.
+Next phase: continue canonical execution lane decisions one PRD at a time, starting with PRD-49, without deleting or bypassing preserved feature work. After the canonical-lane decisions are complete, follow the hotspot feature merge sequencing rule above before merging any PRD-44 through PRD-49 feature branch.
