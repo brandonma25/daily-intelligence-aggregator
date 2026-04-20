@@ -19,7 +19,7 @@ These are the only currently approved owner worktrees for PRD-44 through PRD-49 
 
 | PRD | Canonical owner worktree | Canonical branch | Upstream | Head | Lane state |
 | --- | --- | --- | --- | --- | --- |
-| PRD-44 | `/Users/bm/Documents/daily-intelligence-aggregator-auth-forms` | `feature/prd-44-auth-entry-forms` | `origin/feature/prd-44-auth-entry-forms` | `4cc21d1` | Canonical original feature lane |
+| PRD-44 | `/Users/bm/Documents/daily-intelligence-aggregator-auth-forms` | `feature/prd-44-auth-entry-forms` | `origin/feature/prd-44-auth-entry-forms` | `1d40359` | Canonical prepared for merge sequencing; governance coverage added and branch synced with `origin/main` |
 | PRD-45 | `/Users/bm/Documents/daily-intelligence-aggregator-password-reset` | `feature/prd-45-password-reset-flow` | `origin/feature/prd-45-password-reset-flow` | `bdc438b` | Canonical confirmed; no duplicate PRD-45 lane found |
 | PRD-46 | `/Users/bm/Documents/daily-intelligence-aggregator-home-categories` | `feature/prd-46-home-category-tabs` | `origin/feature/prd-46-home-category-tabs` | `b40e9cf` | Canonical confirmed; no duplicate PRD-46 lane found |
 | PRD-47 | `/Users/bm/Documents/daily-intelligence-aggregator-home-states` | `feature/prd-47-home-states` | `origin/feature/prd-47-home-states` | `0fba112` | Canonical confirmed; no duplicate PRD-47 lane found |
@@ -41,13 +41,13 @@ Retirement proof:
 - Rebuild `HEAD` matched `origin/main` at `c124f56`.
 - `origin/main...feature/prd-44-auth-entry-forms-rebuild` had no unique commits and no diff.
 - `origin/feature/prd-44-auth-entry-forms-rebuild` did not exist.
-- Canonical PRD-44 branch `feature/prd-44-auth-entry-forms` remained preserved at `4cc21d1` and tracks `origin/feature/prd-44-auth-entry-forms`.
+- Canonical PRD-44 branch `feature/prd-44-auth-entry-forms` remained preserved and tracks `origin/feature/prd-44-auth-entry-forms`; during merge sequencing it advanced to `1d40359` with governance coverage and `origin/main` sync.
 
 ## Phase 2 Canonical Lane Decisions
 
 | PRD | Decision | Evidence | Action |
 | --- | --- | --- | --- |
-| PRD-44 | Original branch is canonical | Original branch has the preserved feature commit `4cc21d1`; rebuild lane matched `origin/main` and had no unique payload | Retired the empty rebuild worktree and local rebuild branch after explicit approval |
+| PRD-44 | Original branch is canonical | Original branch has the preserved feature commit `4cc21d1`; rebuild lane matched `origin/main` and had no unique payload; merge sequencing later added PRD-44 governance coverage and synced with `origin/main` | Retired the empty rebuild worktree and local rebuild branch after explicit approval; continue PRD-44 only in the auth-forms owner worktree |
 | PRD-45 | Existing password-reset branch is canonical | Only one local and remote PRD-45/password-reset branch exists; owner worktree is clean; `origin/main...HEAD` contains the password-reset feature diff only | No retirement needed; continue PRD-45 only in the password-reset owner worktree |
 | PRD-46 | Existing home-category-tabs branch is canonical | Only one local and remote PRD-46/home-category branch exists; owner worktree is clean; `origin/main...HEAD` contains the home category tabs feature diff only | No retirement needed; continue PRD-46 only in the home-categories owner worktree |
 | PRD-47 | Existing home-states branch is canonical | Only one local and remote PRD-47/home-state branch exists; owner worktree is clean; `origin/main...HEAD` contains the home state components feature diff only | No retirement needed; continue PRD-47 only in the home-states owner worktree |
@@ -126,6 +126,9 @@ Phase 3 retirement proof for `codexfeature/prd-43-49-mvp-ui-artifact-alignment`:
 ## Final Remediation Step: Hotspot Feature Merge Sequencing
 
 Do not merge the pushed PRD-44 through PRD-49 feature branches before the canonical-lane remediation is complete. These branches each represent protected feature work and may also touch the serialized governance hotspot `docs/product/feature-system.csv`, so merging them before the worktree/branch ownership cleanup is finished would preserve the same ambiguity this remediation is trying to remove.
+
+Merge-sequencing progress:
+- PRD-44 has been processed first on the canonical owner branch. The branch now includes `docs/engineering/change-records/prd-44-auth-entry-forms-governance-coverage.md`, contains `origin/main` at merge-base `c124f56`, and passes `scripts/release-governance-gate.py` locally for the PRD-44 diff.
 
 After canonical-lane decisions are complete for PRD-44 through PRD-49:
 
