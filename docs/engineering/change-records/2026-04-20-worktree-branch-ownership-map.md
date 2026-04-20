@@ -66,16 +66,22 @@ Retirement proof:
 
 ## Phase 3 Pre-Retirement Audit
 
-No branch, worktree, stash, recovery artifact, or feature payload was retired in this pass. The purpose of this audit is to identify which names are safe retirement candidates only after explicit human approval.
+The purpose of this audit is to identify which names are safe retirement candidates only after explicit human approval. No feature payload, stash, or recovery artifact is retired by this section.
 
 | Branch or worktree | Evidence | Retirement status | Rule |
 | --- | --- | --- | --- |
-| `/Users/bm/Documents/daily-intelligence-aggregator-worktree-attachment-enforcement` on `docs/worktree-attachment-enforcement` | Worktree is clean; branch head `c124f56` matches `origin/main`; no remote branch ref; `origin/main...docs/worktree-attachment-enforcement` has no diff | Candidate for retirement after approval | Safe-looking docs placeholder; remove only after explicit approval |
+| `/Users/bm/Documents/daily-intelligence-aggregator-worktree-attachment-enforcement` on `docs/worktree-attachment-enforcement` | Worktree was clean; branch head `c124f56` matched `origin/main`; no remote branch ref; `origin/main...docs/worktree-attachment-enforcement` had no diff | Retired after explicit approval on 2026-04-21 | Removed zero-diff worktree and deleted local branch; do not recreate for PRD-44 through PRD-49 work |
 | `codexfeature/prd-43-49-mvp-ui-artifact-alignment` | Local branch only; head `c124f56` matches `origin/main`; no remote branch ref; `origin/main...codexfeature/prd-43-49-mvp-ui-artifact-alignment` has no diff | Candidate for retirement after approval | Misleading PRD-43-49-like branch name; remove only after explicit approval |
 | `fix/settings-shell-cleanup` | Local and remote branch at `d8d9807`; no current `origin/main...fix/settings-shell-cleanup` diff; branch is behind `origin/main` | Candidate for retirement after approval and PR/merge confirmation | Semantically adjacent to Account/settings work; remove local and remote refs only after explicit approval |
 | `/Users/bm/Documents/daily-intelligence-aggregator-ui-audit` on `feature/ui-audit-playwright-expansion` | Branch head `c124f56` matches `origin/main`, but the worktree has untracked `docs/engineering/testing/ui-audit-report.md` | Not a retirement candidate yet | Preserve until the untracked report is reviewed, preserved, or explicitly discarded |
 | `feature/prd-43-49-mvp-ui-artifact-alignment` | Protected WIP branch at `3f3c83b`; `origin/main...feature/prd-43-49-mvp-ui-artifact-alignment` still has package and route-deletion diffs | Not a retirement candidate yet | Preserve as branch-contamination evidence until a separate evidence-retention decision is made |
 | `feature/prd-43-collapsible-sidebar` and `docs/artifact3-backend-contract-audit` | Local branches at `f1967b5`; no current diff from `origin/main`, but already classified as stale evidence lanes | Not a retirement candidate yet | Preserve until the recovery audit bundle and stash retention strategy are resolved |
+
+Phase 3 retirement proof for `docs/worktree-attachment-enforcement`:
+- The worktree path `/Users/bm/Documents/daily-intelligence-aggregator-worktree-attachment-enforcement` was absent after `git worktree remove`.
+- The local branch `docs/worktree-attachment-enforcement` was deleted.
+- No remote branch `origin/docs/worktree-attachment-enforcement` existed before retirement.
+- No PRD-44 through PRD-49 feature branch, recovery artifact, stash entry, or protected evidence lane was touched.
 
 ## Docs and Governance Lanes
 
@@ -83,7 +89,7 @@ No branch, worktree, stash, recovery artifact, or feature payload was retired in
 | --- | --- | --- | --- |
 | `/Users/bm/Documents/daily-intelligence-aggregator-main` | `codex/update-worktree-attachment-rules` | Current remediation documentation lane | Use only for remediation docs and ownership records |
 | `/Users/bm/Documents/daily-intelligence-aggregator-docs-worktree-attachment-rules` | `codex/docs-worktree-attachment-rules` | Worktree attachment rules lane | Do not use for feature work |
-| `/Users/bm/Documents/daily-intelligence-aggregator-worktree-attachment-enforcement` | `docs/worktree-attachment-enforcement` | Governance placeholder at current `main` | Do not use for PRD-44 through PRD-49 feature work |
+| `/Users/bm/Documents/daily-intelligence-aggregator-worktree-attachment-enforcement` | `docs/worktree-attachment-enforcement` | Retired zero-diff governance placeholder | Removed after explicit approval; do not recreate for PRD-44 through PRD-49 feature work |
 | `/Users/bm/Documents/daily-intelligence-aggregator-worktree-branch-protocol` | `docs/prd-51-worktree-branch-protocol` | Branch protocol docs lane | Do not use for PRD-44 through PRD-49 feature work |
 | `/Users/bm/Documents/daily-intelligence-aggregator-main-docs-sequential` | `docs/sequential-prompt-execution-protocol` | Sequential prompt protocol docs lane | Do not use for PRD-44 through PRD-49 feature work |
 
@@ -127,6 +133,6 @@ Example: the PRD-47 failure in GitHub Actions job `72159412287` should be fixed 
 
 ## Phase 1 Result
 
-PRD-44 through PRD-49 now have one stated owner worktree and one stated canonical branch per PRD. The empty PRD-44 rebuild placeholder has been retired. Phase 3 has identified retirement candidates without deleting them. Remaining ambiguity is concentrated in protected recovery artifacts, stale evidence branches, known shared-file merge sequencing, and approval-gated zero-diff placeholder lanes.
+PRD-44 through PRD-49 now have one stated owner worktree and one stated canonical branch per PRD. The empty PRD-44 rebuild placeholder has been retired. The zero-diff `docs/worktree-attachment-enforcement` placeholder lane has also been retired after explicit approval. Remaining ambiguity is concentrated in protected recovery artifacts, stale evidence branches, known shared-file merge sequencing, and approval-gated zero-diff placeholder lanes.
 
-Next phase: if human approval is granted, retire only one zero-diff placeholder lane at a time, starting with `docs/worktree-attachment-enforcement` or `codexfeature/prd-43-49-mvp-ui-artifact-alignment`. Otherwise, follow the hotspot feature merge sequencing rule above before merging any PRD-44 through PRD-49 feature branch. Each feature branch should be handled from its canonical owner worktree, one at a time, with feature-specific governance coverage for `docs/product/feature-system.csv` hotspot updates.
+Next phase: if human approval is granted, retire only one remaining zero-diff placeholder lane at a time, starting with `codexfeature/prd-43-49-mvp-ui-artifact-alignment`. Otherwise, follow the hotspot feature merge sequencing rule above before merging any PRD-44 through PRD-49 feature branch. Each feature branch should be handled from its canonical owner worktree, one at a time, with feature-specific governance coverage for `docs/product/feature-system.csv` hotspot updates.
