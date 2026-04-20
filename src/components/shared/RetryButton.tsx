@@ -16,7 +16,7 @@ export function RetryButton({ onRetry, isRetrying }: RetryButtonProps) {
       onClick={onRetry}
       disabled={isRetrying}
       aria-busy={isRetrying}
-      className="min-h-11 w-full gap-2 px-5 lg:w-auto lg:hover:-translate-y-0.5"
+      className="min-h-11 w-full gap-2 px-5 hover:translate-y-0 lg:w-auto lg:hover:-translate-y-0.5"
     >
       {isRetrying ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
       Try again
