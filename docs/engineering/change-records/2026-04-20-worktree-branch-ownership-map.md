@@ -165,11 +165,12 @@ Findings:
 - The dirty `src/components/landing/homepage.test.tsx` assertions are already present in `origin/main`.
 - The dirty `src/components/ui/button.tsx` change is stale relative to `origin/main`: it preserves primary white text styling that already exists on `main`, but it would remove the current `asChild` support and simplified prop handling from `main`.
 - `/Users/bm/Documents/daily-intelligence-aggregator-artifact10-repair` is on `fix/prd-50-artifact-10-parity-repair`, is behind its remote, and only has untracked generated `scripts/__pycache__/` state in the worktree.
+- The exact dirty follow-up diff is archived at `docs/engineering/change-records/2026-04-21-artifact10-followup-dirty-state.patch`.
 
 Decision:
 - The Artifact 10 follow-up dirty diff is not currently classified as feature payload requiring preservation by commit.
-- Artifact 10 cleanup remains blocked until there is explicit approval to archive or discard the stale dirty diff and to remove the generated `scripts/__pycache__/` state.
-- If maximum caution is desired, create a patch artifact from the dirty follow-up diff before cleanup. Otherwise, discard the stale follow-up diff and retire both Artifact 10 worktrees and branch refs in a separate explicit cleanup pass.
+- Artifact 10 cleanup remains blocked until there is explicit approval to discard the stale dirty follow-up worktree diff and remove the generated `scripts/__pycache__/` state.
+- Because the dirty diff is now archived, the next cleanup pass can discard the stale follow-up diff and retire both Artifact 10 worktrees and branch refs after explicit human approval.
 
 ## Continuation Rules
 
