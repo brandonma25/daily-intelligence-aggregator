@@ -2,52 +2,70 @@ import {
   Children,
   cloneElement,
   isValidElement,
+  type AnchorHTMLAttributes,
   type ButtonHTMLAttributes,
-  type ReactElement,
   type PropsWithChildren,
+  type ReactElement,
 } from "react";
 
 import { cn } from "@/lib/utils";
 
-type ButtonProps = PropsWithChildren<
-  ButtonHTMLAttributes<HTMLButtonElement> & {
-    asChild?: boolean;
-    variant?: "primary" | "secondary" | "ghost";
-  }
->;
+type BaseButtonProps = PropsWithChildren<{
+  className?: string;
+  variant?: "primary" | "secondary" | "ghost";
+}>;
 
-export function Button({
-  asChild = false,
-  children,
-  className,
-  variant = "primary",
-  ...props
-}: ButtonProps) {
-  const buttonClassName = cn(
-    "inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition-transform duration-150 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50",
+type ButtonProps =
+  | (BaseButtonProps & ButtonHTMLAttributes<HTMLButtonElement> & { as?: "button"; asChild?: false })
+  | (BaseButtonProps & AnchorHTMLAttributes<HTMLAnchorElement> & { as: "a"; asChild?: false })
+  | (BaseButtonProps & { asChild: true; as?: never });
+
+export function Button(props: ButtonProps) {
+  const { children, className, variant = "primary" } = props;
+  const classes = cn(
+    "inline-flex items-center justify-center rounded-button px-4 py-2 text-sm font-medium leading-none transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40",
     variant === "primary" &&
-      "bg-[var(--foreground)] text-white shadow-[0_12px_30px_rgba(19,26,34,0.18)]",
+      "bg-[var(--accent)] !text-[#FFFFFF] hover:bg-[var(--accent-hover)] hover:!text-[#FFFFFF] active:bg-[var(--accent-hover)] active:!text-[#FFFFFF]",
     variant === "secondary" &&
-      "border border-[var(--line-strong)] bg-[var(--surface-strong)] text-[var(--foreground)]",
-    variant === "ghost" && "text-[var(--foreground)]",
+      "border border-[var(--text-primary)] bg-transparent text-[var(--text-primary)] hover:bg-[var(--bg)] active:bg-[var(--sidebar)]",
+    variant === "ghost" && "text-[var(--text-primary)] hover:bg-[var(--bg)] active:bg-[var(--sidebar)]",
     className,
   );
 
-  if (asChild) {
+  if ("asChild" in props && props.asChild) {
     const child = Children.only(children);
 
     if (isValidElement<{ className?: string }>(child)) {
       return cloneElement(child as ReactElement<{ className?: string }>, {
-        className: cn(buttonClassName, child.props.className),
+        className: cn(classes, child.props.className),
       });
     }
   }
 
+  if ("as" in props && props.as === "a") {
+    const anchorProps = { ...props } as Record<string, unknown>;
+    delete anchorProps.as;
+    delete anchorProps.asChild;
+    delete anchorProps.children;
+    delete anchorProps.className;
+    delete anchorProps.variant;
+
+    return (
+      <a className={classes} {...(anchorProps as AnchorHTMLAttributes<HTMLAnchorElement>)}>
+        {children}
+      </a>
+    );
+  }
+
+  const buttonProps = { ...props } as Record<string, unknown>;
+  delete buttonProps.as;
+  delete buttonProps.asChild;
+  delete buttonProps.children;
+  delete buttonProps.className;
+  delete buttonProps.variant;
+
   return (
-    <button
-      className={buttonClassName}
-      {...props}
-    >
+    <button className={classes} {...(buttonProps as ButtonHTMLAttributes<HTMLButtonElement>)}>
       {children}
     </button>
   );
