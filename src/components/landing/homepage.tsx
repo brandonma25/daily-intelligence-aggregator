@@ -57,7 +57,7 @@ export default function LandingHomepage({
           </Panel>
         ) : null}
 
-        <p className="text-sm font-semibold text-[var(--text-primary)]">
+        <p className="text-sm font-semibold text-[var(--text-primary)]" data-testid="home-date-label">
           {briefingDateLabel}
         </p>
 
@@ -145,7 +145,7 @@ function HomeTopEventCard({
         featured && "p-6",
       )}
     >
-      <article className="space-y-4">
+      <article className="space-y-4" data-testid="home-top-event-card">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-start gap-3">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-card bg-[var(--bg)] text-base font-semibold text-[var(--text-primary)]">
@@ -174,7 +174,10 @@ function HomeTopEventCard({
         </div>
 
         {keyPoints.length ? (
-          <ul className="list-disc space-y-2 pl-5 text-sm leading-6 text-[var(--text-primary)]">
+          <ul
+            className="list-disc space-y-2 pl-5 text-sm leading-6 text-[var(--text-primary)]"
+            data-testid="home-top-event-key-points"
+          >
             {keyPoints.map((point) => (
               <li key={point}>{point}</li>
             ))}
@@ -240,7 +243,7 @@ function CategorySoftGate({
   onDismiss: () => void;
 }) {
   return (
-    <Panel className="p-5">
+    <Panel className="p-5" data-testid="category-soft-gate">
       <div className="flex items-start justify-between gap-4">
         <div className="max-w-xl">
           <p className="text-base font-semibold text-[var(--text-primary)]">

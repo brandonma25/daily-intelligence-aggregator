@@ -146,9 +146,13 @@ describe("CategoryTabStrip", () => {
       />,
     );
 
+    expect(screen.queryByText("Create a free account to read Tech News, Finance and Politics")).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Top Events" })).toHaveAttribute("aria-selected", "true");
+
     fireEvent.click(screen.getByRole("tab", { name: "Tech News" }));
 
     expect(screen.getByText("Create a free account to read Tech News, Finance and Politics")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Tech News" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("Top ranked event")).toBeInTheDocument();
     expect(screen.queryByText("Tech category event")).not.toBeInTheDocument();
 

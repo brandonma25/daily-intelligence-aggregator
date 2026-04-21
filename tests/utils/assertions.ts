@@ -7,7 +7,7 @@ import type { AuditRoute } from "./routes";
 
 const appCrashPattern =
   /application error|unhandled runtime error|this page could not be found|500 internal server error/i;
-const interruptedNavigationPattern = /is interrupted by another navigation/i;
+const interruptedNavigationPattern = /is interrupted by another navigation|net::ERR_ABORTED/i;
 
 function isInterruptedNavigationError(error: unknown) {
   return error instanceof Error && interruptedNavigationPattern.test(error.message);

@@ -336,6 +336,7 @@ describe("buildHomepageViewModel", () => {
       whatHappened: "A single source reported a diplomatic move.",
       whyItMatters: "It may affect geopolitics.",
       matchedKeywords: ["diplomacy"],
+      priority: "normal",
       sourceCount: 1,
       sources: [{ title: "Reuters", url: "https://reuters.com/diplomacy" }],
     });
@@ -521,6 +522,88 @@ describe("buildHomepageViewModel", () => {
     expect(model.earlySignals.map((event) => event.id)).toContain("early-1");
   });
 
+  it("fills public Top Events from pipeline-selected priority top items when confirmed filtering underfills", () => {
+    const items = [
+      createItem({
+        id: "priority-top-1",
+        title: "Chip export review changes supplier plans",
+        topicId: "tech",
+        topicName: "Tech",
+        matchedKeywords: ["chips", "exports", "suppliers"],
+        sourceCount: 1,
+        sources: [{ title: "The Verge", url: "https://www.theverge.com/chips" }],
+        priority: "top",
+      }),
+      createItem({
+        id: "priority-top-2",
+        title: "Treasury auction resets rate expectations",
+        topicId: "finance",
+        topicName: "Finance",
+        matchedKeywords: ["treasury", "rates", "auction"],
+        sourceCount: 1,
+        sources: [{ title: "Financial Times", url: "https://www.ft.com/treasury" }],
+        priority: "top",
+      }),
+      createItem({
+        id: "priority-top-3",
+        title: "White House policy clock accelerates",
+        topicId: "politics",
+        topicName: "Politics",
+        matchedKeywords: ["white house", "policy", "regulation"],
+        sourceCount: 1,
+        sources: [{ title: "Reuters", url: "https://www.reuters.com/policy" }],
+        priority: "top",
+      }),
+      createItem({
+        id: "priority-top-4",
+        title: "Cloud capacity contracts tighten",
+        topicId: "tech",
+        topicName: "Tech",
+        matchedKeywords: ["cloud", "capacity", "contracts"],
+        sourceCount: 1,
+        sources: [{ title: "TechCrunch", url: "https://techcrunch.com/cloud" }],
+        priority: "top",
+      }),
+    ];
+
+    const model = buildHomepageViewModel(createData(items));
+    const visibleTopEventIds = [model.featured, ...model.topRanked]
+      .filter((event): event is NonNullable<typeof event> => Boolean(event))
+      .map((event) => event.id);
+
+    expect(visibleTopEventIds).toHaveLength(4);
+    expect(new Set(visibleTopEventIds)).toEqual(new Set(items.map((item) => item.id)));
+  });
+
+  it("does not fabricate the 3-card minimum when fewer pipeline-selected Top Events exist", () => {
+    const items = [
+      createItem({
+        id: "limited-top-1",
+        title: "Chip funding round changes capacity plans",
+        matchedKeywords: ["chips", "funding"],
+        sourceCount: 1,
+        sources: [{ title: "Reuters", url: "https://www.reuters.com/one" }],
+        priority: "top",
+      }),
+      createItem({
+        id: "limited-top-2",
+        title: "Treasury market signal shifts rate views",
+        matchedKeywords: ["treasury", "rates"],
+        sourceCount: 1,
+        sources: [{ title: "AP", url: "https://apnews.com/two" }],
+        priority: "top",
+      }),
+    ];
+
+    const model = buildHomepageViewModel(createData(items));
+    const visibleTopEventIds = [model.featured, ...model.topRanked]
+      .filter((event): event is NonNullable<typeof event> => Boolean(event))
+      .map((event) => event.id);
+
+    expect(visibleTopEventIds).toHaveLength(2);
+    expect(new Set(visibleTopEventIds)).toEqual(new Set(items.map((item) => item.id)));
+  });
+
   it("counts uncategorized events in debug mode", () => {
     const uncategorized = createItem({
       id: "uncat-1",
@@ -665,6 +748,7 @@ describe("buildHomepageViewModel", () => {
       topicId: "tech",
       topicName: "Tech",
       title: "Weak early signal",
+      priority: "normal",
       sourceCount: 1,
       sources: [{ title: "Reuters", url: "https://www.reuters.com/world/example" }],
       importanceScore: 46,

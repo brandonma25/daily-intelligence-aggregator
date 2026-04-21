@@ -47,3 +47,21 @@
 
 - Artifact 7 has a copy conflict: Flow 1 says "Sign in to read Tech News, Finance and Politics"; Flow 6 defines the gate contents as "Create a free account to read Tech News, Finance and Politics". The implementation uses Flow 6 because it is the explicit gate-content definition and matches the QA expected result.
 - The artifacts require a dismissible gate but do not specify visible dismiss-control copy. The implementation uses an icon button with the accessibility label "Dismiss category gate".
+
+## QA Reconciliation Follow-up
+
+Additional review against the signed-out QA report found two previously weak areas:
+
+- Top Events count was only proven for five-item data. The model could still underfill when a briefing had three or four pipeline-selected `priority: "top"` items but confirmed-source filtering produced fewer than three visible cards.
+- Empty `keyPoints` were safe at the card render layer, but missing `keyPoints` could still crash earlier during homepage timeline derivation.
+
+Follow-up fixes:
+
+- `homepage-model.ts` now falls back to pipeline-selected `priority: "top"` candidates whenever confirmed-event filtering would underfill the public 3-card target and the pipeline-selected pool is richer than the confirmed pool.
+- `HomepageEvent.keyPoints` is normalized to a safe `string[]` display field, and timeline derivation handles missing/non-array values without crashing.
+- Playwright route assertions were strengthened for the signed-out homepage gate and existing redirect/navigation flakes exposed by the full Chromium/WebKit runs.
+
+Still not changed:
+
+- No new canonical PRD was created; this remains remediation/alignment.
+- No signed-in-only, History, Account, login, signup, forgot-password, newsletter, or briefing-detail product behavior was remediated as part of this follow-up.

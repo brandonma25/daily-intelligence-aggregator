@@ -47,9 +47,11 @@ test.describe("V1 shell and routing", () => {
     const href = await detailLink.getAttribute("href");
     expect(href).toMatch(/^\/briefing\/\d{4}-\d{2}-\d{2}$/);
 
-    await detailLink.click();
-
-    await expect(page).toHaveURL(/\/briefing\/\d{4}-\d{2}-\d{2}$/, { timeout: 20_000 });
+    await expect(detailLink).toBeVisible();
+    await Promise.all([
+      page.waitForURL(/\/briefing\/\d{4}-\d{2}-\d{2}$/, { timeout: 20_000 }),
+      detailLink.click(),
+    ]);
     await expect(page.getByRole("tab", { name: "Top Events" })).toBeVisible();
     await expect(page.getByRole("link", { name: /back to history/i })).toBeVisible();
   });

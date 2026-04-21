@@ -41,7 +41,7 @@ export type HomepageEvent = {
   topicName: string;
   title: string;
   whatHappened: string;
-  keyPoints: BriefingItem["keyPoints"];
+  keyPoints: string[];
   summary: string;
   trustLayer: TrustLayerPresentation;
   whyItMatters: string;
@@ -108,6 +108,7 @@ export type HomepageViewModel = {
 };
 
 const TOP_EVENTS_LIMIT = 4;
+const MIN_PUBLIC_TOP_EVENTS = 3;
 const CATEGORY_EVENT_LIMIT = 2;
 const TRENDING_EVENT_LIMIT = 3;
 const EARLY_SIGNAL_LIMIT = 3;
@@ -153,9 +154,13 @@ export function buildHomepageViewModel(
   const featured = events[0] ?? null;
   const featuredContext = featured ? [featured] : [];
   const confirmedTopRankedCandidates = confirmedEvents.filter((event) => event.id !== featured?.id);
+  const priorityTopRankedCandidates = events.filter(
+    (event) => event.id !== featured?.id && event.priority === "top",
+  );
   const topRankedCandidatePool =
-    events.length >= TOP_EVENTS_LIMIT + 1 && featuredContext.length + confirmedTopRankedCandidates.length < 3
-      ? events.filter((event) => event.id !== featured?.id && event.priority === "top")
+    featuredContext.length + confirmedTopRankedCandidates.length < MIN_PUBLIC_TOP_EVENTS &&
+    priorityTopRankedCandidates.length > confirmedTopRankedCandidates.length
+      ? priorityTopRankedCandidates
       : confirmedTopRankedCandidates;
   const topRankedSelection = selectTopVisibleEvents(
     topRankedCandidatePool,
@@ -321,6 +326,7 @@ export function buildHomepageEvents(
       const sourceCount = intelligence.sourceCount;
       const whyItMatters = sanitizeWhyItMatters(item.whyItMatters, item.title);
       const signalRole = item.signalRole ?? item.explanationPacket?.signal_role ?? classifyBriefingSignalRole(item);
+      const keyPoints = normalizeKeyPoints(item.keyPoints);
 
       const personalization = buildPersonalizationMatch(item, profile);
 
@@ -329,7 +335,7 @@ export function buildHomepageEvents(
         topicName: item.topicName,
         title: item.title,
         whatHappened: item.whatHappened,
-        keyPoints: item.keyPoints,
+        keyPoints,
         summary: summarize(item.eventIntelligence?.summary ?? item.whatHappened, item.priority === "top" ? 2 : 1),
         trustLayer: buildTrustLayerPresentation(item.eventIntelligence, {
           title: item.title,
@@ -399,6 +405,12 @@ function buildHomepageRelatedArticles(item: BriefingItem) {
     }));
 }
 
+function normalizeKeyPoints(value: BriefingItem["keyPoints"] | undefined) {
+  return Array.isArray(value)
+    ? value.filter((point): point is string => typeof point === "string")
+    : [];
+}
+
 function buildEventTimeline(item: BriefingItem, siblingItems: BriefingItem[]) {
   const keywordMilestone = item.matchedKeywords?.length
     ? {
@@ -407,7 +419,7 @@ function buildEventTimeline(item: BriefingItem, siblingItems: BriefingItem[]) {
       }
     : null;
 
-  const keyPointMilestones = item.keyPoints
+  const keyPointMilestones = normalizeKeyPoints(item.keyPoints)
     .filter((point) => !point.startsWith("Matched on:"))
     .map((point, index) => ({
       label: index === 0 ? "Earlier" : index === 1 ? "Shift" : "Now",

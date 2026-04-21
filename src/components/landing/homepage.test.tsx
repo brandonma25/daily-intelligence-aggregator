@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import ErrorBoundaryPage from "@/app/error";
 import Loading from "@/app/loading";
@@ -14,7 +14,9 @@ function createItem(overrides: Partial<BriefingItem>): BriefingItem {
     topicName: overrides.topicName ?? "Tech",
     title: overrides.title ?? "AI chip demand keeps climbing",
     whatHappened: overrides.whatHappened ?? "Chip makers and cloud providers are expanding capacity.",
-    keyPoints: overrides.keyPoints ?? ["Point one", "Point two", "Point three"],
+    keyPoints: Object.prototype.hasOwnProperty.call(overrides, "keyPoints")
+      ? overrides.keyPoints as BriefingItem["keyPoints"]
+      : ["Point one", "Point two", "Point three"],
     whyItMatters: overrides.whyItMatters ?? "Capacity changes platform plans.",
     sources:
       overrides.sources ?? [
@@ -90,10 +92,97 @@ describe("LandingHomepage", () => {
     expect(screen.getByText("Point two")).toBeInTheDocument();
     expect(screen.getByText("Point three")).toBeInTheDocument();
     expect(screen.getAllByText("Reuters").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Open full briefing/i)).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Details" })).toHaveAttribute(
       "href",
       "/briefing/2026-04-15",
     );
+  });
+
+  it("renders Top Events from the supplied homepage model instead of raw briefing items", () => {
+    const rawData = createData([
+      createItem({
+        id: "raw-item",
+        title: "Raw briefing item should not render directly",
+      }),
+    ]);
+    const modelData = createData([
+      createItem({
+        id: "model-item",
+        title: "Model-selected Top Event",
+        keyPoints: ["Model key point"],
+      }),
+    ]);
+
+    render(
+      <LandingHomepage
+        data={rawData}
+        viewer={null}
+        briefingDateLabel="Wednesday, April 15, 2026"
+        homepageViewModel={buildHomepageViewModel(modelData)}
+      />,
+    );
+
+    expect(screen.getByText("Model-selected Top Event")).toBeInTheDocument();
+    expect(screen.getByText("Model key point")).toBeInTheDocument();
+    expect(screen.queryByText("Raw briefing item should not render directly")).not.toBeInTheDocument();
+  });
+
+  it("renders keyPoints from BriefingItem.keyPoints without substituting internal fields", () => {
+    const data = createData([
+      createItem({
+        id: "top-key-points",
+        title: "Top event with explicit key points",
+        keyPoints: ["Visible key point from the schema"],
+        matchedKeywords: ["INTERNAL_MATCHED_KEYWORD_ONLY"],
+        rankingSignals: ["INTERNAL_RANKING_SIGNAL_ONLY"],
+      }),
+    ]);
+
+    render(
+      <LandingHomepage
+        data={data}
+        viewer={null}
+        briefingDateLabel="Wednesday, April 15, 2026"
+        homepageViewModel={buildHomepageViewModel(data)}
+      />,
+    );
+
+    expect(screen.getByText("Visible key point from the schema")).toBeInTheDocument();
+    expect(screen.queryByText("INTERNAL_MATCHED_KEYWORD_ONLY")).not.toBeInTheDocument();
+    expect(screen.queryByText("INTERNAL_RANKING_SIGNAL_ONLY")).not.toBeInTheDocument();
+  });
+
+  it("keeps Top Events cards stable when keyPoints are empty or missing", () => {
+    const data = createData([
+      createItem({
+        id: "empty-key-points",
+        title: "Cloud capacity event with empty key points",
+        matchedKeywords: ["cloud", "capacity"],
+        keyPoints: [],
+      }),
+      createItem({
+        id: "missing-key-points",
+        title: "Treasury market event with missing key points",
+        topicId: "finance",
+        topicName: "Finance",
+        matchedKeywords: ["treasury", "markets"],
+        keyPoints: undefined as unknown as BriefingItem["keyPoints"],
+      }),
+    ]);
+
+    render(
+      <LandingHomepage
+        data={data}
+        viewer={null}
+        briefingDateLabel="Wednesday, April 15, 2026"
+        homepageViewModel={buildHomepageViewModel(data)}
+      />,
+    );
+
+    expect(screen.getByText("Cloud capacity event with empty key points")).toBeInTheDocument();
+    expect(screen.getByText("Treasury market event with missing key points")).toBeInTheDocument();
+    expect(screen.queryByTestId("home-top-event-key-points")).not.toBeInTheDocument();
   });
 
   it("renders five public Top Events when the homepage model supports them", () => {
@@ -154,7 +243,7 @@ describe("LandingHomepage", () => {
       />,
     );
 
-    expect(screen.getAllByText("Top Event")).toHaveLength(5);
+    expect(screen.getAllByTestId("home-top-event-card")).toHaveLength(5);
   });
 
   it("renders debug diagnostics for QA when enabled", () => {
@@ -201,8 +290,11 @@ describe("supporting states", () => {
   });
 
   it("renders the route error state", () => {
-    render(<ErrorBoundaryPage error={new Error("boom")} reset={() => undefined} />);
+    const reset = vi.fn();
+    render(<ErrorBoundaryPage error={new Error("boom")} reset={reset} />);
 
     expect(screen.getByText(/This page hit a server problem/i)).toBeInTheDocument();
+    screen.getByRole("button", { name: /retry page/i }).click();
+    expect(reset).toHaveBeenCalledTimes(1);
   });
 });

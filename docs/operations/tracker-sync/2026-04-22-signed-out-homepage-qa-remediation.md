@@ -23,3 +23,14 @@ Destination: `Intake Queue`
 | Repo Docs | `docs/engineering/bug-fixes/signed-out-homepage-qa-remediation-2026-04-22.md`; `docs/engineering/testing/signed-out-homepage-qa-remediation-2026-04-22.md` |
 | Validation | `npm install`; `npm run lint`; `npm run test`; `npm run build`; `npx playwright test --project=chromium`; `npx playwright test --project=webkit`; Playwright browser console check against `http://localhost:3000` |
 | Notes | No new canonical PRD was created. If a governed `Sheet1` row already exists for this remediation, update that row by immutable `Record ID` instead of duplicating it. |
+
+## Follow-up Reconciliation Sync - 2026-04-22
+
+| Field | Value |
+|---|---|
+| Status | In Review |
+| Change Type | Remediation / Alignment follow-up |
+| Summary | Adds strict signed-out Home QA reconciliation evidence, closes the remaining Top Events underfill case for three/four pipeline-selected `priority: "top"` items, normalizes missing `keyPoints` safely before render, strengthens Home DOM/console/style/gate assertions, and stabilizes Playwright redirect/navigation assertions surfaced by the full Chromium/WebKit runs. |
+| Newly Proven | Signed-out Home structure order; Top Events 3-5 supported-data behavior plus limited-data fallback; `keyPoints` correct-field rendering and empty/missing safety; soft gate copy/CTA/dismiss behavior; active tab computed underline color; fallback date/link-date consistency; no Home console/page errors in Chromium or WebKit. |
+| Remaining Blockers | None for the signed-out Home remediation scope. Preview and human auth/session validation remain required before merge/release because local Playwright does not prove Vercel environment truth. |
+| Validation | `npm install`; targeted Vitest; `npm run lint`; `npm run test`; `npm run build`; signed-out homepage Chromium tests; full Chromium Playwright; full WebKit Playwright; explicit Chromium/WebKit console and page-error probe at `http://localhost:3000/`. |
