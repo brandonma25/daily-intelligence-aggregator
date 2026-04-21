@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, X } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { BriefingCardCategory } from "@/components/home/BriefingCardCategory";
@@ -10,18 +10,20 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import {
-  buildHomepageViewModel,
   buildOverallNoDataMessage,
+  type HomepageViewModel,
   type HomepageEvent,
 } from "@/lib/homepage-model";
 import type { DashboardData, ViewerAccount } from "@/lib/types";
-import { cn, formatBriefingDate, getBriefingDateKey, minutesToLabel } from "@/lib/utils";
+import { cn, getBriefingDateKey, minutesToLabel } from "@/lib/utils";
 
 type LandingHomepageProps = {
   data: DashboardData;
   viewer: ViewerAccount | null;
   authState?: string;
   debugEnabled?: boolean;
+  briefingDateLabel: string;
+  homepageViewModel: HomepageViewModel;
 };
 
 export default function LandingHomepage({
@@ -29,10 +31,11 @@ export default function LandingHomepage({
   viewer,
   authState,
   debugEnabled = false,
+  briefingDateLabel,
+  homepageViewModel,
 }: LandingHomepageProps) {
   const signedIn = Boolean(viewer);
-  const { featured, topRanked, categorySections, earlySignals, debug } =
-    buildHomepageViewModel(data);
+  const { featured, topRanked, categorySections, debug } = homepageViewModel;
   const topEvents = dedupeEvents([featured, ...topRanked]);
   const briefingDateKey = getBriefingDateKey(data.briefing.briefingDate);
   const detailHref = `/briefing/${briefingDateKey}`;
@@ -41,36 +44,7 @@ export default function LandingHomepage({
 
   return (
     <AppShell currentPath="/" mode={data.mode} account={viewer}>
-      <div className="space-y-6 py-2">
-        <section className="flex flex-col gap-4 border-b border-[var(--border)] pb-5 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl space-y-3">
-            <Badge>Daily Intelligence</Badge>
-            <h1 className="text-2xl font-semibold tracking-normal text-[var(--text-primary)] md:text-[32px] md:leading-[1.25]">
-              Today&apos;s briefing
-            </h1>
-            <p className="max-w-2xl text-base text-[var(--text-secondary)]">
-              Top Events are public. Category briefings, saved history, and account controls unlock after sign-in.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Badge>{formatBriefingDate(data.briefing.briefingDate)}</Badge>
-              <Badge>{topEvents.length} {topEvents.length === 1 ? "top event" : "top events"}</Badge>
-              {earlySignals.length ? <Badge>{earlySignals.length} early signals</Badge> : null}
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Button asChild variant="secondary">
-              <Link href={detailHref}>Open full briefing</Link>
-            </Button>
-            {!signedIn ? (
-              <Button asChild>
-                <Link href={`/login?redirectTo=${encodeURIComponent(detailHref)}`}>
-                  Sign in
-                </Link>
-              </Button>
-            ) : null}
-          </div>
-        </section>
-
+      <div className="space-y-5 py-2">
         {authMessage ? (
           <Panel className="p-4" role="alert">
             <p className="text-sm font-semibold text-[var(--text-primary)]">{authMessage}</p>
@@ -83,11 +57,17 @@ export default function LandingHomepage({
           </Panel>
         ) : null}
 
+        <p className="text-sm font-semibold text-[var(--text-primary)]" data-testid="home-date-label">
+          {briefingDateLabel}
+        </p>
+
         <CategoryTabStrip
           topEvents={topEvents}
           categorySections={categorySections}
           isAuthenticated={signedIn}
-          gatedCategoryState={<CategorySoftGate redirectTo="/" />}
+          gatedCategoryState={({ onDismiss }) => (
+            <CategorySoftGate redirectTo="/" onDismiss={onDismiss} />
+          )}
           topEventsEmptyState={<StatusPanel title={noDataMessage.title} body={noDataMessage.body} />}
           renderTopEvent={(event, index) => (
             <HomeTopEventCard
@@ -150,6 +130,9 @@ function HomeTopEventCard({
   detailHref: string;
   featured: boolean;
 }) {
+  const keyPoints = Array.isArray(event.keyPoints)
+    ? event.keyPoints.map((point) => point.trim()).filter(Boolean)
+    : [];
   const sourceNames = event.relatedArticles
     .map((article) => article.sourceName.trim())
     .filter(Boolean)
@@ -162,7 +145,7 @@ function HomeTopEventCard({
         featured && "p-6",
       )}
     >
-      <article className="space-y-4">
+      <article className="space-y-4" data-testid="home-top-event-card">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-start gap-3">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-card bg-[var(--bg)] text-base font-semibold text-[var(--text-primary)]">
@@ -189,6 +172,17 @@ function HomeTopEventCard({
           <h2 className="briefing-title text-[var(--text-primary)]">{event.title}</h2>
           <p className="mt-3 text-base text-[var(--text-secondary)]">{event.summary}</p>
         </div>
+
+        {keyPoints.length ? (
+          <ul
+            className="list-disc space-y-2 pl-5 text-sm leading-6 text-[var(--text-primary)]"
+            data-testid="home-top-event-key-points"
+          >
+            {keyPoints.map((point) => (
+              <li key={point}>{point}</li>
+            ))}
+          </ul>
+        ) : null}
 
         <div className="rounded-card border border-[var(--border)] bg-[var(--bg)] px-4 py-3">
           <p className="section-label">Why it matters</p>
@@ -241,26 +235,38 @@ function HomeTopEventCard({
   );
 }
 
-function CategorySoftGate({ redirectTo }: { redirectTo: string }) {
+function CategorySoftGate({
+  redirectTo,
+  onDismiss,
+}: {
+  redirectTo: string;
+  onDismiss: () => void;
+}) {
   return (
-    <Panel className="p-5">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <Panel className="p-5" data-testid="category-soft-gate">
+      <div className="flex items-start justify-between gap-4">
         <div className="max-w-xl">
           <p className="text-base font-semibold text-[var(--text-primary)]">
-            Sign in to view category briefings
-          </p>
-          <p className="mt-2 text-sm text-[var(--text-secondary)]">
-            Top Events stay public. Tech, finance, and politics tabs require an account.
+            Create a free account to read Tech News, Finance and Politics
           </p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <Button asChild>
-            <Link href={`/login?redirectTo=${encodeURIComponent(redirectTo)}`}>Sign in</Link>
-          </Button>
-          <Button asChild variant="secondary">
-            <Link href={`/signup?redirectTo=${encodeURIComponent(redirectTo)}`}>Create account</Link>
-          </Button>
-        </div>
+        <Button
+          type="button"
+          variant="secondary"
+          className="h-9 w-9 shrink-0 rounded-button px-0"
+          aria-label="Dismiss category gate"
+          onClick={onDismiss}
+        >
+          <X className="h-4 w-4" aria-hidden="true" />
+        </Button>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <Button asChild>
+          <Link href={`/signup?redirectTo=${encodeURIComponent(redirectTo)}`}>Sign Up</Link>
+        </Button>
+        <Button asChild variant="secondary">
+          <Link href={`/login?redirectTo=${encodeURIComponent(redirectTo)}`}>Sign In</Link>
+        </Button>
       </div>
     </Panel>
   );

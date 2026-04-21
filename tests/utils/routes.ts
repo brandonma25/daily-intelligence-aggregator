@@ -14,13 +14,13 @@ export const coreRoutes: AuditRoute[] = [
     path: "/",
     slug: "home",
     navLabel: "Home",
-    heading: /today's briefing/i,
+    heading: /Daily Intelligence Briefing/i,
   },
   {
     name: "Dashboard",
     path: "/dashboard",
     slug: "dashboard",
-    heading: /today's briefing/i,
+    heading: /Daily Intelligence Briefing/i,
     expectedPath: "/",
   },
   {

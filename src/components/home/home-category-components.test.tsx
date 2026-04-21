@@ -11,6 +11,7 @@ function createEvent(overrides: Partial<HomepageEvent> = {}): HomepageEvent {
     topicName: overrides.topicName ?? "Tech",
     title: overrides.title ?? "AI chip capacity expands",
     whatHappened: overrides.whatHappened ?? "Chip makers are expanding capacity for AI platforms.",
+    keyPoints: overrides.keyPoints ?? ["Point one", "Point two", "Point three"],
     summary: overrides.summary ?? "Chip makers are expanding capacity.",
     trustLayer: overrides.trustLayer ?? {
       heading: "Why it matters",
@@ -126,7 +127,7 @@ describe("CategoryTabStrip", () => {
     fetchSpy.mockRestore();
   });
 
-  it("renders an inline gate for signed-out category tabs", () => {
+  it("renders a dismissible inline gate for signed-out category tabs while keeping Top Events visible", () => {
     render(
       <CategoryTabStrip
         topEvents={[createEvent({ id: "top-1", title: "Top ranked event" })]}
@@ -134,16 +135,53 @@ describe("CategoryTabStrip", () => {
           createSection({ key: "tech", label: "Tech", events: [createEvent({ id: "tech-1", title: "Tech category event" })], state: "sparse" }),
         ]}
         isAuthenticated={false}
-        gatedCategoryState={<div>Sign in to view category briefings</div>}
+        gatedCategoryState={({ onDismiss }) => (
+          <div>
+            <p>Create a free account to read Tech News, Finance and Politics</p>
+            <button type="button" onClick={onDismiss}>Dismiss</button>
+          </div>
+        )}
         renderTopEvent={(event) => <article>{event.title}</article>}
         renderCategoryEvent={(event) => <article>{event.title}</article>}
       />,
     );
 
+    expect(screen.queryByText("Create a free account to read Tech News, Finance and Politics")).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Top Events" })).toHaveAttribute("aria-selected", "true");
+
     fireEvent.click(screen.getByRole("tab", { name: "Tech News" }));
 
-    expect(screen.getByText("Sign in to view category briefings")).toBeInTheDocument();
+    expect(screen.getByText("Create a free account to read Tech News, Finance and Politics")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Tech News" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("Top ranked event")).toBeInTheDocument();
     expect(screen.queryByText("Tech category event")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+
+    expect(screen.getByRole("tab", { name: "Top Events" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByText("Create a free account to read Tech News, Finance and Politics")).not.toBeInTheDocument();
+    expect(screen.getByText("Top ranked event")).toBeInTheDocument();
+  });
+
+  it("keeps signed-out category tabs available for the inline gate even when sections are empty", () => {
+    render(
+      <CategoryTabStrip
+        topEvents={[createEvent({ id: "top-1", title: "Top ranked event" })]}
+        categorySections={[
+          createSection({ key: "tech", label: "Tech", events: [] }),
+          createSection({ key: "finance", label: "Finance", events: [] }),
+          createSection({ key: "politics", label: "Politics", events: [] }),
+        ]}
+        isAuthenticated={false}
+        gatedCategoryState={<div>Create a free account to read Tech News, Finance and Politics</div>}
+        renderTopEvent={(event) => <article>{event.title}</article>}
+        renderCategoryEvent={(event) => <article>{event.title}</article>}
+      />,
+    );
+
+    expect(screen.getByRole("tab", { name: "Tech News" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Finance" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Politics" })).toBeInTheDocument();
   });
 });
 

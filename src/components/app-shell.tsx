@@ -84,13 +84,14 @@ function SidebarPanel({
           {collapsed ? (
             <div className="flex w-full flex-col items-center gap-3">
               <Badge className="px-2.5 py-1 text-xs">DI</Badge>
-              <p className="text-center text-lg font-semibold text-[var(--text-primary)]">DIA</p>
+              <p className="text-center text-sm font-semibold text-[var(--text-primary)]">Briefing</p>
             </div>
           ) : (
-            <div className="space-y-2">
-              <Badge>Daily Intelligence</Badge>
+            <div>
               <div>
-                <h1 className="text-xl font-semibold text-[var(--text-primary)]">Aggregator</h1>
+                <h1 className="text-xl font-semibold leading-tight text-[var(--text-primary)]">
+                  Daily Intelligence Briefing
+                </h1>
                 <p className="mt-1.5 text-xs leading-5 text-[var(--text-secondary)]">
                   High-signal daily briefings for fast executive scanning.
                 </p>

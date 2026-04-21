@@ -1,6 +1,8 @@
 import LandingHomepage from "@/components/landing/homepage";
 import { getDashboardPageState } from "@/lib/data";
 import { isHomepageDebugConfigured } from "@/lib/env";
+import { buildHomepageViewModel } from "@/lib/homepage-model";
+import { formatHomeBriefingDateLabel } from "@/lib/utils";
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -18,6 +20,8 @@ export default async function Page({ searchParams }: PageProps) {
   const authState = readSingleParam(resolvedSearchParams?.auth);
   const debugParam = readSingleParam(resolvedSearchParams?.debug);
   const debugEnabled = isHomepageDebugConfigured || /^(1|true|yes|on)$/i.test(debugParam ?? "");
+  const briefingDateLabel = formatHomeBriefingDateLabel(data.briefing.briefingDate);
+  const homepageViewModel = buildHomepageViewModel(data);
 
   return (
     <LandingHomepage
@@ -25,6 +29,8 @@ export default async function Page({ searchParams }: PageProps) {
       viewer={viewer}
       authState={authState}
       debugEnabled={debugEnabled}
+      briefingDateLabel={briefingDateLabel}
+      homepageViewModel={homepageViewModel}
     />
   );
 }

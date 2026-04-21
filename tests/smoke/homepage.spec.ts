@@ -4,10 +4,9 @@ test.describe("homepage smoke", () => {
   test("loads the public V1 homepage and opens the full briefing", async ({ page }) => {
     await page.goto("/");
 
-    await expect(page.getByRole("heading", { name: /today's briefing/i })).toBeVisible();
     await expect(page.getByRole("tab", { name: "Top Events" })).toHaveAttribute("aria-selected", "true");
 
-    const detailLink = page.getByRole("link", { name: "Open full briefing" });
+    const detailLink = page.getByRole("link", { name: "Details" }).first();
 
     await expect(detailLink).toBeVisible();
     await detailLink.click();

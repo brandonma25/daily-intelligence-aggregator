@@ -1,9 +1,10 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import ErrorBoundaryPage from "@/app/error";
 import Loading from "@/app/loading";
 import LandingHomepage from "@/components/landing/homepage";
+import { buildHomepageViewModel } from "@/lib/homepage-model";
 import type { BriefingItem, DashboardData } from "@/lib/types";
 
 function createItem(overrides: Partial<BriefingItem>): BriefingItem {
@@ -13,7 +14,9 @@ function createItem(overrides: Partial<BriefingItem>): BriefingItem {
     topicName: overrides.topicName ?? "Tech",
     title: overrides.title ?? "AI chip demand keeps climbing",
     whatHappened: overrides.whatHappened ?? "Chip makers and cloud providers are expanding capacity.",
-    keyPoints: overrides.keyPoints ?? ["Point one", "Point two", "Point three"],
+    keyPoints: Object.prototype.hasOwnProperty.call(overrides, "keyPoints")
+      ? overrides.keyPoints as BriefingItem["keyPoints"]
+      : ["Point one", "Point two", "Point three"],
     whyItMatters: overrides.whyItMatters ?? "Capacity changes platform plans.",
     sources:
       overrides.sources ?? [
@@ -68,31 +71,208 @@ function createData(items: BriefingItem[]): DashboardData {
 }
 
 describe("LandingHomepage", () => {
-  it("renders the V1 Home shell with public Top Events and detail navigation", () => {
-    render(<LandingHomepage data={createData([createItem({ id: "top-1" })])} viewer={null} />);
+  it("renders the V1 Home shell with public Top Events and key points", () => {
+    const data = createData([createItem({ id: "top-1" })]);
+    render(
+      <LandingHomepage
+        data={data}
+        viewer={null}
+        briefingDateLabel="Wednesday, April 15, 2026"
+        homepageViewModel={buildHomepageViewModel(data)}
+      />,
+    );
 
-    expect(screen.getByRole("heading", { name: "Today's briefing" })).toBeInTheDocument();
+    expect(screen.getByText("Wednesday, April 15, 2026")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "Home" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("link", { name: "History" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("link", { name: "Account" }).length).toBeGreaterThan(0);
     expect(screen.getByRole("tab", { name: "Top Events" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("AI chip demand keeps climbing")).toBeInTheDocument();
+    expect(screen.getByText("Point one")).toBeInTheDocument();
+    expect(screen.getByText("Point two")).toBeInTheDocument();
+    expect(screen.getByText("Point three")).toBeInTheDocument();
     expect(screen.getAllByText("Reuters").length).toBeGreaterThan(0);
-    expect(screen.getByRole("link", { name: "Open full briefing" })).toHaveAttribute(
+    expect(screen.queryByText(/Open full briefing/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Details" })).toHaveAttribute(
       "href",
       "/briefing/2026-04-15",
     );
   });
 
+  it("renders Top Events from the supplied homepage model instead of raw briefing items", () => {
+    const rawData = createData([
+      createItem({
+        id: "raw-item",
+        title: "Raw briefing item should not render directly",
+      }),
+    ]);
+    const modelData = createData([
+      createItem({
+        id: "model-item",
+        title: "Model-selected Top Event",
+        keyPoints: ["Model key point"],
+      }),
+    ]);
+
+    render(
+      <LandingHomepage
+        data={rawData}
+        viewer={null}
+        briefingDateLabel="Wednesday, April 15, 2026"
+        homepageViewModel={buildHomepageViewModel(modelData)}
+      />,
+    );
+
+    expect(screen.getByText("Model-selected Top Event")).toBeInTheDocument();
+    expect(screen.getByText("Model key point")).toBeInTheDocument();
+    expect(screen.queryByText("Raw briefing item should not render directly")).not.toBeInTheDocument();
+  });
+
+  it("renders keyPoints from BriefingItem.keyPoints without substituting internal fields", () => {
+    const data = createData([
+      createItem({
+        id: "top-key-points",
+        title: "Top event with explicit key points",
+        keyPoints: ["Visible key point from the schema"],
+        matchedKeywords: ["INTERNAL_MATCHED_KEYWORD_ONLY"],
+        rankingSignals: ["INTERNAL_RANKING_SIGNAL_ONLY"],
+      }),
+    ]);
+
+    render(
+      <LandingHomepage
+        data={data}
+        viewer={null}
+        briefingDateLabel="Wednesday, April 15, 2026"
+        homepageViewModel={buildHomepageViewModel(data)}
+      />,
+    );
+
+    expect(screen.getByText("Visible key point from the schema")).toBeInTheDocument();
+    expect(screen.queryByText("INTERNAL_MATCHED_KEYWORD_ONLY")).not.toBeInTheDocument();
+    expect(screen.queryByText("INTERNAL_RANKING_SIGNAL_ONLY")).not.toBeInTheDocument();
+  });
+
+  it("keeps Top Events cards stable when keyPoints are empty or missing", () => {
+    const data = createData([
+      createItem({
+        id: "empty-key-points",
+        title: "Cloud capacity event with empty key points",
+        matchedKeywords: ["cloud", "capacity"],
+        keyPoints: [],
+      }),
+      createItem({
+        id: "missing-key-points",
+        title: "Treasury market event with missing key points",
+        topicId: "finance",
+        topicName: "Finance",
+        matchedKeywords: ["treasury", "markets"],
+        keyPoints: undefined as unknown as BriefingItem["keyPoints"],
+      }),
+    ]);
+
+    render(
+      <LandingHomepage
+        data={data}
+        viewer={null}
+        briefingDateLabel="Wednesday, April 15, 2026"
+        homepageViewModel={buildHomepageViewModel(data)}
+      />,
+    );
+
+    expect(screen.getByText("Cloud capacity event with empty key points")).toBeInTheDocument();
+    expect(screen.getByText("Treasury market event with missing key points")).toBeInTheDocument();
+    expect(screen.queryByTestId("home-top-event-key-points")).not.toBeInTheDocument();
+  });
+
+  it("renders five public Top Events when the homepage model supports them", () => {
+    const data = createData([
+      createItem({
+        id: "finance-1",
+        topicId: "finance",
+        topicName: "Finance",
+        title: "Treasury yields climb after inflation surprise",
+        whatHappened: "Markets repriced after a fresh inflation surprise.",
+        matchedKeywords: ["treasury", "inflation", "yields"],
+        sourceCount: 4,
+      }),
+      createItem({
+        id: "tech-1",
+        topicId: "tech",
+        topicName: "Tech",
+        title: "Cloud providers expand AI capacity plans",
+        whatHappened: "Cloud providers committed more capital to AI capacity.",
+        matchedKeywords: ["cloud", "ai", "capacity"],
+        sourceCount: 4,
+      }),
+      createItem({
+        id: "politics-1",
+        topicId: "politics",
+        topicName: "Politics",
+        title: "White House weighs new export controls",
+        whatHappened: "Officials are weighing a new export-control package.",
+        matchedKeywords: ["white house", "exports", "policy"],
+        sourceCount: 4,
+      }),
+      createItem({
+        id: "energy-1",
+        topicId: "finance",
+        topicName: "Finance",
+        title: "Oil markets react to shipping disruption",
+        whatHappened: "Energy traders reacted to shipping disruptions.",
+        matchedKeywords: ["oil", "shipping", "energy"],
+        sourceCount: 4,
+      }),
+      createItem({
+        id: "chips-1",
+        topicId: "tech",
+        topicName: "Tech",
+        title: "Chip equipment makers lift shipment outlook",
+        whatHappened: "Equipment makers lifted shipment expectations.",
+        matchedKeywords: ["chips", "equipment", "shipments"],
+        sourceCount: 4,
+      }),
+    ]);
+
+    render(
+      <LandingHomepage
+        data={data}
+        viewer={null}
+        briefingDateLabel="Wednesday, April 15, 2026"
+        homepageViewModel={buildHomepageViewModel(data)}
+      />,
+    );
+
+    expect(screen.getAllByTestId("home-top-event-card")).toHaveLength(5);
+  });
+
   it("renders debug diagnostics for QA when enabled", () => {
-    render(<LandingHomepage data={createData([createItem({ id: "top-1" })])} viewer={null} debugEnabled />);
+    const data = createData([createItem({ id: "top-1" })]);
+    render(
+      <LandingHomepage
+        data={data}
+        viewer={null}
+        debugEnabled
+        briefingDateLabel="Wednesday, April 15, 2026"
+        homepageViewModel={buildHomepageViewModel(data)}
+      />,
+    );
 
     expect(screen.getByText("Homepage diagnostics")).toBeInTheDocument();
     expect(screen.getByText("Ranked events")).toBeInTheDocument();
   });
 
   it("shows a clear auth configuration error when requested", () => {
-    render(<LandingHomepage data={createData([])} viewer={null} authState="config-error" />);
+    const data = createData([]);
+    render(
+      <LandingHomepage
+        data={data}
+        viewer={null}
+        authState="config-error"
+        briefingDateLabel="Wednesday, April 15, 2026"
+        homepageViewModel={buildHomepageViewModel(data)}
+      />,
+    );
 
     expect(
       screen.getAllByText(/Authentication is not configured for this environment yet/i).length,
@@ -110,8 +290,11 @@ describe("supporting states", () => {
   });
 
   it("renders the route error state", () => {
-    render(<ErrorBoundaryPage error={new Error("boom")} reset={() => undefined} />);
+    const reset = vi.fn();
+    render(<ErrorBoundaryPage error={new Error("boom")} reset={reset} />);
 
     expect(screen.getByText(/This page hit a server problem/i)).toBeInTheDocument();
+    screen.getByRole("button", { name: /retry page/i }).click();
+    expect(reset).toHaveBeenCalledTimes(1);
   });
 });

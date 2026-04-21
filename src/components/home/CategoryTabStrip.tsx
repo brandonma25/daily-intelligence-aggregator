@@ -21,6 +21,11 @@ type CategoryTab = {
   label: string;
 };
 
+type GatedCategoryStateArgs = {
+  onDismiss: () => void;
+  activeSection: HomepageCategorySection | null;
+};
+
 export type CategoryTabStripProps = {
   topEvents: HomepageEvent[];
   categorySections: HomepageCategorySection[];
@@ -32,7 +37,7 @@ export type CategoryTabStripProps = {
   ) => ReactNode;
   topEventsEmptyState?: ReactNode;
   isAuthenticated?: boolean;
-  gatedCategoryState?: ReactNode;
+  gatedCategoryState?: ReactNode | ((args: GatedCategoryStateArgs) => ReactNode);
   className?: string;
 };
 
@@ -54,8 +59,8 @@ export function CategoryTabStrip({
   const [activeTab, setActiveTab] = useState<HomeTabKey>(topEventsTab.key);
   const triggerRefs = useRef<Partial<Record<HomeTabKey, HTMLButtonElement | null>>>({});
   const visibleCategorySections = useMemo(
-    () => categorySections.filter((section) => section.events.length > 0),
-    [categorySections],
+    () => categorySections.filter((section) => !isAuthenticated || section.events.length > 0),
+    [categorySections, isAuthenticated],
   );
   const tabs = useMemo(
     () => [
@@ -71,6 +76,14 @@ export function CategoryTabStrip({
     activeTab === topEventsTab.key || visibleCategorySections.some((section) => section.key === activeTab);
   const safeActiveTab = activeTabIsVisible ? activeTab : topEventsTab.key;
   const activeCategoryIsGated = !isAuthenticated && safeActiveTab !== topEventsTab.key;
+  const activeSection =
+    safeActiveTab === topEventsTab.key
+      ? null
+      : visibleCategorySections.find((section) => section.key === safeActiveTab) ?? null;
+
+  const dismissGate = () => {
+    setActiveTab(topEventsTab.key);
+  };
 
   useEffect(() => {
     triggerRefs.current[safeActiveTab]?.scrollIntoView?.({
@@ -79,6 +92,22 @@ export function CategoryTabStrip({
       behavior: "smooth",
     });
   }, [safeActiveTab]);
+
+  const topEventsContent = topEvents.length ? (
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-12">
+      {topEvents.map((event, index) => (
+        <div key={event.id} className={cn(index === 0 ? "xl:col-span-7" : "xl:col-span-5")}>
+          {renderTopEvent(event, index)}
+        </div>
+      ))}
+    </div>
+  ) : (
+    topEventsEmptyState
+  );
+  const renderedGatedCategoryState =
+    typeof gatedCategoryState === "function"
+      ? gatedCategoryState({ onDismiss: dismissGate, activeSection })
+      : gatedCategoryState;
 
   return (
     <Tabs className={className}>
@@ -99,17 +128,7 @@ export function CategoryTabStrip({
       </TabsList>
 
       <TabsContent id="top-events-panel" active={safeActiveTab === topEventsTab.key}>
-        {topEvents.length ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-12">
-            {topEvents.map((event, index) => (
-              <div key={event.id} className={cn(index === 0 ? "xl:col-span-7" : "xl:col-span-5")}>
-                {renderTopEvent(event, index)}
-              </div>
-            ))}
-          </div>
-        ) : (
-          topEventsEmptyState
-        )}
+        {topEventsContent}
       </TabsContent>
 
       {visibleCategorySections.map((section) => (
@@ -119,7 +138,10 @@ export function CategoryTabStrip({
           active={safeActiveTab === section.key}
         >
           {activeCategoryIsGated ? (
-            gatedCategoryState
+            <div className="space-y-5">
+              {renderedGatedCategoryState}
+              {topEventsContent}
+            </div>
           ) : (
             <div className="grid gap-4">
               {section.events.map((event, index) => (
