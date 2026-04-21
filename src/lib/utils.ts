@@ -11,6 +11,18 @@ export function formatBriefingDate(value: string) {
   return isToday(date) ? `Today • ${format(date, "EEEE, MMMM d")}` : format(date, "EEEE, MMMM d, yyyy");
 }
 
+export function formatHomeBriefingDateLabel(value: string, now = new Date()) {
+  const date = parseISO(value);
+  const todayKey = format(now, "yyyy-MM-dd");
+  const briefingDateKey = getBriefingDateKey(value);
+
+  if (briefingDateKey === todayKey) {
+    return `Today • ${format(date, "EEEE, MMMM d")}`;
+  }
+
+  return format(date, "EEEE, MMMM d, yyyy");
+}
+
 export function getBriefingDateKey(value: string) {
   return value.trim().slice(0, 10);
 }

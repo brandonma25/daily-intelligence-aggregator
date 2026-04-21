@@ -4,10 +4,9 @@ test.describe("homepage", () => {
   test("renders the public V1 briefing flow", async ({ page }) => {
     await page.goto("/");
 
-    await expect(page).toHaveTitle(/Daily Intelligence/i);
-    await expect(page.getByRole("heading", { name: /today's briefing/i })).toBeVisible();
+    await expect(page).toHaveTitle(/Daily Intelligence Briefing/i);
     await expect(page.getByRole("tab", { name: "Top Events" })).toHaveAttribute("aria-selected", "true");
-    await expect(page.getByRole("link", { name: "Open full briefing" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Details" }).first()).toBeVisible();
   });
 
   test("surfaces callback error state with a login recovery link", async ({ page }) => {

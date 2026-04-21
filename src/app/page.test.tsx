@@ -15,7 +15,20 @@ vi.mock("@/components/landing/homepage", () => ({
 describe("homepage SSR auth snapshot", () => {
   it("uses a single dashboard page state lookup for the request", async () => {
     getDashboardPageState.mockResolvedValue({
-      data: { mode: "live", briefing: { items: [] }, topics: [], sources: [], homepageDiagnostics: {} },
+      data: {
+        mode: "live",
+        briefing: {
+          id: "briefing-1",
+          briefingDate: "2020-01-02T09:00:00.000Z",
+          title: "Today",
+          intro: "Intro",
+          readingWindow: "10 minutes",
+          items: [],
+        },
+        topics: [],
+        sources: [],
+        homepageDiagnostics: {},
+      },
       viewer: {
         id: "viewer-1",
         email: "analyst@example.com",
@@ -34,6 +47,7 @@ describe("homepage SSR auth snapshot", () => {
     expect(getDashboardPageState).toHaveBeenCalledWith("/");
     expect(landingHomepage).toHaveBeenCalledWith(
       expect.objectContaining({
+        briefingDateLabel: "Thursday, January 2, 2020",
         viewer: expect.objectContaining({
           email: "analyst@example.com",
         }),

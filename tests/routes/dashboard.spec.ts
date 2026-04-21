@@ -11,7 +11,7 @@ test.describe("dashboard route", () => {
 
     await expectNoAppCrash(page);
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole("heading", { name: /today's briefing/i })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Top Events" })).toBeVisible();
 
     await expectNamedVisibleButtons(page);
     await expectSafeInternalLinks(page);

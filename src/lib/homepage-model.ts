@@ -41,6 +41,7 @@ export type HomepageEvent = {
   topicName: string;
   title: string;
   whatHappened: string;
+  keyPoints: BriefingItem["keyPoints"];
   summary: string;
   trustLayer: TrustLayerPresentation;
   whyItMatters: string;
@@ -149,10 +150,15 @@ export function buildHomepageViewModel(
   const events = buildHomepageEvents(data.briefing.items, profile);
   const confirmedEvents = events.filter((event) => !event.intelligence.isEarlySignal);
   const earlySignals = events.filter((event) => event.intelligence.isEarlySignal);
-  const featured = confirmedEvents[0] ?? events[0] ?? null;
+  const featured = events[0] ?? null;
   const featuredContext = featured ? [featured] : [];
+  const confirmedTopRankedCandidates = confirmedEvents.filter((event) => event.id !== featured?.id);
+  const topRankedCandidatePool =
+    events.length >= TOP_EVENTS_LIMIT + 1 && featuredContext.length + confirmedTopRankedCandidates.length < 3
+      ? events.filter((event) => event.id !== featured?.id && event.priority === "top")
+      : confirmedTopRankedCandidates;
   const topRankedSelection = selectTopVisibleEvents(
-    confirmedEvents.filter((event) => event.id !== featured?.id),
+    topRankedCandidatePool,
     featuredContext,
     TOP_EVENTS_LIMIT,
     featured,
@@ -323,6 +329,7 @@ export function buildHomepageEvents(
         topicName: item.topicName,
         title: item.title,
         whatHappened: item.whatHappened,
+        keyPoints: item.keyPoints,
         summary: summarize(item.eventIntelligence?.summary ?? item.whatHappened, item.priority === "top" ? 2 : 1),
         trustLayer: buildTrustLayerPresentation(item.eventIntelligence, {
           title: item.title,

@@ -15,7 +15,7 @@ const lora = Lora({
 });
 
 export const metadata: Metadata = {
-  title: "Daily Intelligence Aggregator",
+  title: "Daily Intelligence Briefing",
   description: "A premium daily intelligence dashboard for high-signal briefings.",
 };
 
