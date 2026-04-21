@@ -1,33 +1,26 @@
 import { expect, test } from "../utils/audit-fixture";
 
 test.describe("mobile navigation", () => {
-  test("hamburger opens, closes, and closes after route navigation", async ({ page }) => {
+  test("bottom tabs route to first-class app pages", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/dashboard");
+    await page.goto("/");
 
-    const navToggle = page.locator('button[aria-controls="mobile-navigation-drawer"]');
-    const mobileDrawer = page.locator("#mobile-navigation-drawer");
+    const mobileNavigation = page.getByRole("navigation", { name: "Primary" }).last();
 
-    await expect(navToggle).toBeVisible();
-    await expect(navToggle).toHaveAttribute("aria-expanded", "false");
+    await expect(page.locator('button[aria-controls="mobile-navigation-drawer"]')).toHaveCount(0);
+    await expect(mobileNavigation).toBeVisible();
+    await expect(mobileNavigation.getByRole("link", { name: /^Home$/ })).toBeVisible();
+    await expect(mobileNavigation.getByRole("link", { name: /^History$/ })).toBeVisible();
+    await expect(mobileNavigation.getByRole("link", { name: /^Account$/ })).toBeVisible();
 
-    await navToggle.click();
+    await mobileNavigation.getByRole("link", { name: /^History$/ }).click();
+    await expect(page).toHaveURL(/\/history$/);
+    await expect(page.getByText(/sign in to view briefing history/i)).toBeVisible();
 
-    await expect(navToggle).toHaveAttribute("aria-expanded", "true");
-    await expect(mobileDrawer.getByRole("link", { name: /^Topics$/ })).toBeVisible();
-
-    await page.getByRole("button", { name: /^Close navigation$/ }).last().click();
-
-    await expect(navToggle).toHaveAttribute("aria-expanded", "false");
-    await expect(mobileDrawer.getByRole("link", { name: /^Topics$/ })).toBeHidden();
-
-    await navToggle.click();
-    await expect(navToggle).toHaveAttribute("aria-expanded", "true");
-    await expect(mobileDrawer.getByRole("link", { name: /^Topics$/ })).toBeVisible();
-    await mobileDrawer.getByRole("link", { name: /^Topics$/ }).click();
-
-    await expect(page).toHaveURL(/\/topics$/);
-    await expect(navToggle).toHaveAttribute("aria-expanded", "false");
-    await expect(page.getByRole("heading", { name: /choose the areas that deserve attention/i })).toBeVisible();
+    await page.getByRole("navigation", { name: "Primary" }).last().getByRole("link", { name: /^Account$/ }).click();
+    await expect(page).toHaveURL((url) => {
+      return url.pathname === "/login" && url.searchParams.get("redirectTo") === "/account";
+    });
+    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
   });
 });

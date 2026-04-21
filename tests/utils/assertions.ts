@@ -44,6 +44,51 @@ export async function gotoAuditPath(page: Page, path: string) {
   throw lastError;
 }
 
+export async function expectAuditRouteUrl(page: Page, route: AuditRoute) {
+  const expectedPath = route.expectedPath ?? route.path;
+
+  await page.waitForURL((url) => {
+    if (url.pathname !== expectedPath) return false;
+
+    return Object.entries(route.expectedSearchParams ?? {}).every(
+      ([key, value]) => url.searchParams.get(key) === value,
+    );
+  }, { timeout: 10_000 });
+}
+
+async function gotoAuditRoute(page: Page, route: AuditRoute) {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await waitForAuditNavigationToSettle(page);
+
+    try {
+      const response = await page.goto(route.path, { waitUntil: "load" });
+
+      await expectAuditRouteUrl(page, route);
+      await waitForAuditNavigationToSettle(page);
+
+      return response;
+    } catch (error) {
+      lastError = error;
+
+      if (!isInterruptedNavigationError(error) || attempt === 2) {
+        throw error;
+      }
+
+      try {
+        await expectAuditRouteUrl(page, route);
+        await waitForAuditNavigationToSettle(page);
+        return null;
+      } catch {
+        await page.waitForTimeout(250 * (attempt + 1));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 export async function expectNoAppCrash(page: Page) {
   await expect(page.locator("body")).not.toContainText(appCrashPattern);
 }
@@ -56,10 +101,11 @@ export async function expectRouteContent(page: Page, route: AuditRoute) {
 }
 
 export async function visitAndAssertRoute(page: Page, route: AuditRoute) {
-  const response = await gotoAuditPath(page, route.path);
+  const response = await gotoAuditRoute(page, route);
 
-  expect(response, `${route.path} should return a response`).not.toBeNull();
-  expect(response?.status(), `${route.path} should load successfully`).toBeLessThan(400);
+  if (response) {
+    expect(response.status(), `${route.path} should load successfully`).toBeLessThan(400);
+  }
   await expectRouteContent(page, route);
 }
 
