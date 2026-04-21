@@ -1,5 +1,9 @@
 import { expect, test } from "../utils/audit-fixture";
-import { expectRouteContent } from "../utils/assertions";
+import {
+  expectRouteContent,
+  gotoAuditPath,
+  waitForAuditNavigationToSettle,
+} from "../utils/assertions";
 import { coreRoutes } from "../utils/routes";
 
 test.describe("desktop navigation", () => {
@@ -7,7 +11,7 @@ test.describe("desktop navigation", () => {
     for (const route of coreRoutes) {
       const startPath = route.path === "/dashboard" ? "/settings" : "/dashboard";
 
-      await page.goto(startPath, { waitUntil: "domcontentloaded" });
+      await gotoAuditPath(page, startPath);
 
       const link = page.getByRole("link", { name: new RegExp(`^${route.navLabel}$`) }).first();
 
@@ -16,6 +20,7 @@ test.describe("desktop navigation", () => {
         page.waitForURL((url) => url.pathname === route.path),
         link.click(),
       ]);
+      await waitForAuditNavigationToSettle(page);
       await expectRouteContent(page, route);
     }
   });

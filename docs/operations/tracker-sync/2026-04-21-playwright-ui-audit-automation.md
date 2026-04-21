@@ -20,7 +20,7 @@
 - Owner: Codex
 - Dependency: Release automation system
 - PRD File: none
-- Notes: Added Playwright UI audit structure, route traversal screenshots, diagnostics capture, Chromium/WebKit audit execution, HTML report generation, and structured `test-results/ui-audit-summary.json` output.
+- Notes: Added Playwright UI audit structure, route traversal screenshots, diagnostics capture, Chromium/WebKit audit execution, HTML report generation, structured `test-results/ui-audit-summary.json` output, and PR88 WebKit navigation-race remediation.
 
 ## Verification
 
