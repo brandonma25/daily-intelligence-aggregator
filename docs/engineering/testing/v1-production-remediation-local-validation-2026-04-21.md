@@ -3,7 +3,7 @@
 ## Release Metadata
 - Date: 2026-04-21
 - Branch: `fix/v1-production-remediation`
-- PR: not opened in this local session
+- PR: `#89`
 
 ## Commands Run
 - `npm install`
@@ -14,6 +14,14 @@
 - Local URL: `http://localhost:3000`
 - `npx playwright test --project=chromium --workers=1`
 - `npx playwright test --workers=1`
+- PR 89 CI repair rerun:
+  - port `3000` checked clear before Playwright managed-server runs.
+  - `PLAYWRIGHT_MANAGED_WEBSERVER=1 npm run test:e2e:chromium -- --workers=1`
+  - `PLAYWRIGHT_MANAGED_WEBSERVER=1 npm run test:e2e:webkit -- --workers=1`
+  - `npm install`
+  - `npm run lint`
+  - `npm run test`
+  - `npm run build`
 
 ## Automated Results
 - Local install: passed; npm reported one existing high-severity audit finding.
@@ -22,6 +30,12 @@
 - Build: passed.
 - Chromium Playwright: passed, 16 tests.
 - Full Playwright project set: passed, 48 tests across Chromium, Firefox, and WebKit.
+- PR 89 CI repair: updated the PR88 audit, route, navigation, responsive, and homepage smoke Playwright specs to match the V1 Home, History, Account shell and intentional legacy-route redirects.
+- PR 89 Chromium rerun: passed, 28 tests.
+- PR 89 WebKit rerun: passed, 28 tests.
+- PR 89 lint rerun: passed.
+- PR 89 unit/integration rerun: passed, 47 files and 243 tests.
+- PR 89 build rerun: passed.
 - Preview gate: not run; no preview URL was validated in this local session.
 - Production verification gate: not run; production must follow preview validation.
 
