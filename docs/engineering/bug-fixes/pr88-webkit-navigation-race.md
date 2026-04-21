@@ -6,6 +6,7 @@
 
 ## Fix
 - Exact change: Added a shared audit navigation helper that waits for route load state, verifies the target pathname, and retries only the known interrupted-navigation case. Updated route traversal and desktop navigation tests to use that helper.
+- Follow-up hardening: The helper now avoids WebKit's full `load` event for audit route readiness, waits on pathname plus stable route content, gives the serialized audit traversal enough time for the app's 10-20 second feed setup state, makes the managed Playwright dev server honor the port from `PLAYWRIGHT_BASE_URL`, and defaults local/CI browser runs to one worker for deterministic checks against the SSR-heavy app.
 - Related PRD: None. This is unmapped operations QA automation work for PR88.
 
 ## Validation
@@ -18,6 +19,11 @@
   - `PLAYWRIGHT_MANAGED_WEBSERVER=1 ... npm run test:e2e:webkit`
   - `CI=1 PLAYWRIGHT_MANAGED_WEBSERVER=1 ... npm run test:e2e:webkit`
   - `npm run dev`, then `curl -I http://localhost:3000/` and `curl -I http://localhost:3000/dashboard`
+- Follow-up checks on isolated local port `http://localhost:3001` because a separate main-worktree remediation process was actively reclaiming port `3000`:
+  - `CI=1 PLAYWRIGHT_MANAGED_WEBSERVER=1 PLAYWRIGHT_BASE_URL=http://localhost:3001 npx playwright test tests/audit/route-traversal.spec.ts tests/navigation/app-navigation.spec.ts --project=webkit --workers=1`
+  - `CI=1 PLAYWRIGHT_MANAGED_WEBSERVER=1 PLAYWRIGHT_BASE_URL=http://localhost:3001 npm run test:e2e:webkit`
+  - `PLAYWRIGHT_MANAGED_WEBSERVER=1 PLAYWRIGHT_BASE_URL=http://localhost:3001 npm run test:e2e:webkit`
+  - `CI=1 PLAYWRIGHT_MANAGED_WEBSERVER=1 PLAYWRIGHT_BASE_URL=http://localhost:3001 npx playwright test tests/audit/route-traversal.spec.ts tests/navigation/app-navigation.spec.ts --project=chromium --workers=1`
 - Human checks: Preview and real auth/session validation remain required before merge readiness.
 
 ## Tracker Closeout

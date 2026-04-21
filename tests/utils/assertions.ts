@@ -8,13 +8,21 @@ import type { AuditRoute } from "./routes";
 const appCrashPattern =
   /application error|unhandled runtime error|this page could not be found|500 internal server error/i;
 const interruptedNavigationPattern = /is interrupted by another navigation/i;
+const auditNavigationTimeout = 30_000;
 
 function isInterruptedNavigationError(error: unknown) {
   return error instanceof Error && interruptedNavigationPattern.test(error.message);
 }
 
 export async function waitForAuditNavigationToSettle(page: Page) {
-  await page.waitForLoadState("load", { timeout: 10_000 }).catch(() => undefined);
+  await page.waitForLoadState("domcontentloaded", { timeout: 10_000 }).catch(() => undefined);
+  await page
+    .waitForFunction(() => document.readyState !== "loading", undefined, { timeout: 10_000 })
+    .catch(() => undefined);
+}
+
+export async function expectAuditPath(page: Page, path: string) {
+  await expect(page).toHaveURL((url) => url.pathname === path, { timeout: auditNavigationTimeout });
 }
 
 export async function gotoAuditPath(page: Page, path: string) {
@@ -24,9 +32,12 @@ export async function gotoAuditPath(page: Page, path: string) {
     await waitForAuditNavigationToSettle(page);
 
     try {
-      const response = await page.goto(path, { waitUntil: "load" });
+      const response = await page.goto(path, {
+        timeout: auditNavigationTimeout,
+        waitUntil: "domcontentloaded",
+      });
 
-      await page.waitForURL((url) => url.pathname === path, { timeout: 10_000 });
+      await expectAuditPath(page, path);
       await waitForAuditNavigationToSettle(page);
 
       return response;
@@ -51,7 +62,7 @@ export async function expectNoAppCrash(page: Page) {
 export async function expectRouteContent(page: Page, route: AuditRoute) {
   await expectNoAppCrash(page);
   await expect(page.getByRole("heading", { name: route.heading }).first()).toBeVisible({
-    timeout: 15_000,
+    timeout: auditNavigationTimeout,
   });
 }
 
