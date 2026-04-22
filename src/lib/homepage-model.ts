@@ -143,6 +143,27 @@ const SEMANTIC_STOPWORDS = new Set([
   "will",
   "with",
 ]);
+const SEMANTIC_NOISE_TOKENS = new Set([
+  "com",
+  "comment",
+  "comments",
+  "hn",
+  "html",
+  "http",
+  "https",
+  "item",
+  "items",
+  "meta",
+  "news",
+  "point",
+  "points",
+  "rss",
+  "url",
+  "user",
+  "users",
+  "www",
+  "ycombinator",
+]);
 
 export function buildHomepageViewModel(
   data: DashboardData,
@@ -704,7 +725,12 @@ function normalizeSemanticTokens(value: string) {
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
     .split(/\s+/)
-    .filter((token) => token.length > 2 && !SEMANTIC_STOPWORDS.has(token));
+    .filter(
+      (token) =>
+        token.length > 2 &&
+        !SEMANTIC_STOPWORDS.has(token) &&
+        !SEMANTIC_NOISE_TOKENS.has(token),
+    );
 }
 
 function jaccard(left: string[], right: string[]) {
@@ -716,8 +742,8 @@ function jaccard(left: string[], right: string[]) {
 }
 
 function overlapCount(left: string[], right: string[]) {
-  const leftSet = new Set(left.map((value) => value.toLowerCase()));
-  const rightSet = new Set(right.map((value) => value.toLowerCase()));
+  const leftSet = new Set(left.flatMap((value) => normalizeSemanticTokens(value)));
+  const rightSet = new Set(right.flatMap((value) => normalizeSemanticTokens(value)));
   return [...leftSet].filter((value) => rightSet.has(value)).length;
 }
 

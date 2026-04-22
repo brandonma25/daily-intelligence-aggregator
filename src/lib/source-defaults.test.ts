@@ -18,28 +18,38 @@ import { recommendedSources } from "@/lib/source-catalog";
 describe("MVP default source governance", () => {
   const guardedBatchOneSourceIds = [
     "financial-times-global-economy",
-    "foreign-affairs",
-    "the-diplomat",
-    "npr-world",
-    "foreign-policy",
-    "guardian-world",
-    "hacker-news-best",
+    "brookings-research",
+    "csis-analysis",
   ];
 
   it("declares the public MVP default source set explicitly", () => {
     expect(MVP_DEFAULT_PUBLIC_SOURCE_IDS).toEqual([
       "source-verge",
       "source-ars",
+      "source-mit-technology-review",
+      "source-hacker-news-best",
       "source-tldr-tech",
       "source-techcrunch",
       "source-ft",
+      "source-foreign-affairs",
+      "source-the-diplomat",
+      "source-npr-world",
+      "source-foreign-policy",
+      "source-guardian-world",
     ]);
     expect(getMvpDefaultPublicSources().map((source) => source.name)).toEqual([
       "The Verge",
       "Ars Technica",
+      "MIT Technology Review",
+      "Hacker News Best",
       "TLDR",
       "TechCrunch",
       "Financial Times",
+      "Foreign Affairs",
+      "The Diplomat",
+      "NPR World",
+      "Foreign Policy",
+      "The Guardian World",
     ]);
   });
 
@@ -48,16 +58,37 @@ describe("MVP default source governance", () => {
     const nonDefaultDemoSources = demoSources.filter((source) => !defaultSourceIds.has(source.id));
 
     expect(nonDefaultDemoSources.map((source) => source.name)).toEqual(
-      expect.arrayContaining(["MarketWatch", "ZeroHedge", "AP Top News"]),
+      expect.arrayContaining(["MarketWatch", "ZeroHedge", "AP Top News", "Brookings Research", "CSIS Analysis"]),
     );
     expect(areMvpDefaultPublicSources(demoSources)).toBe(false);
-    expect(recommendedSources.some((source) => source.lifecycleStatus === "active_default")).toBe(false);
+    expect(
+      recommendedSources
+        .filter((source) => source.lifecycleStatus === "active_default")
+        .map((source) => source.id),
+    ).toEqual(
+      expect.arrayContaining([
+        "ars-technica",
+        "mit-technology-review",
+        "foreign-affairs",
+        "the-diplomat",
+        "npr-world",
+        "foreign-policy",
+        "guardian-world",
+        "hacker-news-best",
+      ]),
+    );
   });
 
   it("declares the donor fallback defaults explicitly", () => {
     expect(DEFAULT_DONOR_FEED_IDS).toEqual([
       "openclaw-the-verge",
       "openclaw-ars-technica",
+      "foreign-affairs",
+      "the-diplomat",
+      "npr-world",
+      "foreign-policy",
+      "guardian-world",
+      "hacker-news-best",
       "horizon-reuters-world",
       "horizon-reuters-business",
     ]);
@@ -103,6 +134,12 @@ describe("MVP default source governance", () => {
       resolved_runtime_source_ids: [
         "openclaw-the-verge",
         "openclaw-ars-technica",
+        "foreign-affairs",
+        "the-diplomat",
+        "npr-world",
+        "foreign-policy",
+        "guardian-world",
+        "hacker-news-best",
         "horizon-reuters-world",
         "horizon-reuters-business",
         "mit-technology-review",

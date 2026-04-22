@@ -2,6 +2,8 @@
 
 Governed feature: `PRD-42` (`docs/product/prd/prd-42-source-governance-and-defaults.md`).
 
+Latest expansion: `PRD-52` (`docs/product/prd/prd-52-source-taxonomy-expansion.md`).
+
 ## Current Architecture
 
 The source system has separate layers:
@@ -12,6 +14,7 @@ The source system has separate layers:
 - Probationary runtime activations are configured separately by explicit source IDs in `PROBATIONARY_RUNTIME_FEED_IDS`.
 - User-created sources live in Supabase `sources` rows and are treated as custom RSS inputs.
 - The source catalog is an optional import surface. A catalog entry is not active ingestion.
+- Source taxonomy profiles in `src/lib/source-taxonomy.ts` preserve strict versus mixed-domain/O3 handling for approved expansion sources.
 - Source preference logic is centralized in `src/lib/source-policy.ts` and consumed by filtering and event-intelligence scoring.
 
 ## Explicit MVP Defaults
@@ -20,9 +23,16 @@ The current public MVP default ingestion set is:
 
 - The Verge
 - Ars Technica
+- MIT Technology Review
+- Hacker News Best
 - TLDR
 - TechCrunch
 - Financial Times
+- Foreign Affairs
+- The Diplomat
+- NPR World
+- Foreign Policy
+- The Guardian World
 
 These are resolved from `src/lib/demo-data.ts` through `MVP_DEFAULT_PUBLIC_SOURCE_IDS` and `getMvpDefaultPublicSources()`. Adding another `demoSources` entry or adding a source catalog entry does not promote that source into public default ingestion.
 
@@ -38,12 +48,18 @@ Current probationary runtime activation:
 
 This source participates in no-argument runtime ingestion through `PROBATIONARY_RUNTIME_FEED_IDS` in `src/adapters/donors/registry.ts` and the resolver in `src/lib/pipeline/ingestion/index.ts`.
 
-This is not a default-source expansion:
+PRD-52 expanded public defaults and donor fallback defaults while keeping MIT in the legacy probationary runtime path for internal review compatibility. Source-policy tiers and boosts remain unchanged unless a future task explicitly approves preference treatment.
 
-- `MVP_DEFAULT_PUBLIC_SOURCE_IDS` remains unchanged.
-- `DEFAULT_DONOR_FEED_IDS` remains unchanged.
-- Source catalog metadata remains optional/importable metadata, not an activation switch.
-- Source-policy tiers and boosts remain unchanged.
+## Mixed-Domain / O3 Handling
+
+The repo does not yet have a first-class mixed-domain/O3 category key. Approved mixed-domain sources are marked in `src/lib/source-taxonomy.ts` with `domainScope: "mixed_domain"` so their source names do not force homepage category placement.
+
+Current mixed-domain/O3 sources:
+
+- Foreign Policy — active, item-level category routing
+- The Guardian World — active, item-level category routing
+- Brookings Research — disabled, supplied RSS URL failed validation
+- CSIS Analysis — disabled, supplied RSS URL failed validation
 
 ## Source States
 
@@ -67,7 +83,7 @@ This is not a default-source expansion:
 - Supported is not default.
 - Catalog entry is not active ingestion.
 - A source must not receive tier or boost preference unless explicitly approved in `src/lib/source-policy.ts`.
-- New catalog entries should start as `catalog_only` or `probationary` with `mvpDefaultAllowed: false`.
+- New catalog entries should start as `catalog_only` or `probationary` with `mvpDefaultAllowed: false` unless the task explicitly approves default activation.
 - `importStatus: "ready"` means importable by the current UI, not automatically default. It must not be used for failed, key-gated, or manual-only sources.
 - Broad general-news or broad market-news sources should not be promoted into the MVP backbone without a product decision.
 - BBC and CNBC remain intentionally excluded from catalog recommendations and source preference logic for the current MVP.

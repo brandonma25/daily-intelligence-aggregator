@@ -14,6 +14,7 @@ import {
   type RuntimeSourceResolutionSnapshot,
 } from "@/lib/observability/pipeline-run";
 import { fetchFeedArticles } from "@/lib/rss";
+import { getSourceTaxonomyProfile } from "@/lib/source-taxonomy";
 import { cleanText, stableId } from "@/lib/pipeline/shared/text";
 
 import { seedRawItems } from "./seed-items";
@@ -40,17 +41,53 @@ type IngestionResult = {
   }>;
 };
 
+const SUPPLIED_SOURCE_FETCH_LIMIT = 12;
+
+function inferCustomSourceTopic(source: Source): SourceDefinition["topic"] {
+  const sourceProfile = getSourceTaxonomyProfile({
+    sourceId: source.id,
+    sourceName: source.name,
+    feedUrl: source.feedUrl,
+  });
+
+  if (sourceProfile) {
+    return sourceProfile.sourceTopic;
+  }
+
+  const topicName = source.topicName?.toLowerCase().trim() ?? "";
+  if (["finance", "economics", "economy", "markets", "business"].includes(topicName)) {
+    return "Finance";
+  }
+
+  if (["world", "politics", "geopolitics", "government", "policy"].includes(topicName)) {
+    return "World";
+  }
+
+  return "Tech";
+}
+
 function buildCustomSourceDefinition(source: Source): SourceDefinition {
+  const sourceProfile = getSourceTaxonomyProfile({
+    sourceId: source.id,
+    sourceName: source.name,
+    feedUrl: source.feedUrl,
+  });
+  const topic = inferCustomSourceTopic(source);
+  const isFinance = topic === "Finance";
+  const isWorld = topic === "World";
+
   return {
     sourceId: `custom-${source.id}`,
     donor: "openclaw",
     source: source.name,
     homepageUrl: source.homepageUrl ?? source.feedUrl,
-    topic: source.topicName === "Finance" ? "Finance" : source.topicName === "World" ? "World" : "Tech",
-    credibility: source.topicName === "Finance" ? 80 : 76,
-    reliability: source.topicName === "Finance" ? 0.8 : 0.76,
-    sourceClass: source.topicName === "Finance" ? "business_press" : "specialist_press",
-    trustTier: source.topicName === "Finance" ? "tier_2" : "tier_2",
+    topic,
+    domainScope: sourceProfile?.domainScope,
+    defaultCategory: sourceProfile?.defaultCategory,
+    credibility: isFinance ? 80 : isWorld ? 79 : 76,
+    reliability: isFinance ? 0.8 : isWorld ? 0.78 : 0.76,
+    sourceClass: isFinance ? "business_press" : "specialist_press",
+    trustTier: isFinance ? "tier_2" : sourceProfile?.defaultCategory === "politics" ? "tier_1" : "tier_2",
     provenance: "specialist_analysis",
     status: source.status === "active" ? "active" : "inactive",
     availability: "custom",
@@ -92,7 +129,7 @@ function resolveIngestionSources(sources?: Source[]): SourceDefinition[] {
 
   return sources
     .filter((source) => source.status === "active")
-    .slice(0, 5)
+    .slice(0, SUPPLIED_SOURCE_FETCH_LIMIT)
     .map(buildCustomSourceDefinition);
 }
 
@@ -116,6 +153,8 @@ async function fetchSourceWithAdapter(source: SourceDefinition) {
     source: source.source,
     homepageUrl: source.homepageUrl,
     topic: source.topic,
+    domainScope: source.domainScope,
+    defaultCategory: source.defaultCategory,
     credibility: source.credibility,
     reliability: source.reliability,
     sourceClass: source.sourceClass,

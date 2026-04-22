@@ -9,6 +9,8 @@ import type {
   SourceAvailability,
   SourceClass,
   SourceDefinition,
+  SourceDomainScope,
+  SourceProductCategoryKey,
   SourceProvenance,
   SourceStatus,
   TrustTier,
@@ -22,6 +24,8 @@ export type DonorFeed = {
   source: string;
   homepageUrl: string;
   topic: "Tech" | "Finance" | "World";
+  domainScope?: SourceDomainScope;
+  defaultCategory?: SourceProductCategoryKey;
   credibility: number;
   reliability: number;
   sourceClass: SourceClass;

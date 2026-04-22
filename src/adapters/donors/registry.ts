@@ -45,6 +45,8 @@ function normalizeFeedMetadata(feed: DonorFeed): CanonicalSourceMetadata {
     source: feed.source,
     homepageUrl: feed.homepageUrl,
     topic: feed.topic,
+    domainScope: feed.domainScope,
+    defaultCategory: feed.defaultCategory,
     credibility: feed.credibility,
     reliability: feed.reliability,
     sourceClass: feed.sourceClass,
@@ -70,7 +72,7 @@ function createRssIngestionAdapter(donor: DonorId): IngestionAdapter<DonorFeed> 
         supportedSourceClasses: donor === "horizon"
           ? ["global_wire", "business_press", "general_newswire"]
           : donor === "openclaw"
-            ? ["specialist_press", "business_press"]
+            ? ["specialist_press", "business_press", "general_newswire"]
             : ["general_newswire", "business_press", "global_wire", "specialist_press"],
         supportsRetry: true,
         supportsSourceContext: donor === "horizon" || donor === "openclaw",
@@ -765,6 +767,12 @@ const donorRegistry: DonorModule[] = [
 export const DEFAULT_DONOR_FEED_IDS = [
   "openclaw-the-verge",
   "openclaw-ars-technica",
+  "foreign-affairs",
+  "the-diplomat",
+  "npr-world",
+  "foreign-policy",
+  "guardian-world",
+  "hacker-news-best",
   "horizon-reuters-world",
   "horizon-reuters-business",
 ] as const;
@@ -912,6 +920,8 @@ export function getSourceRegistrySnapshot() {
     provenance: source.provenance,
     status: source.status,
     availability: source.availability,
+    domainScope: source.domainScope,
+    defaultCategory: source.defaultCategory,
     feedUrl: source.fetch.feedUrl,
   }));
 }

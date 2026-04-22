@@ -28,6 +28,12 @@ describe("ingestRawItems", () => {
     expect(result.sources.map((source) => source.sourceId)).toEqual([
       "openclaw-the-verge",
       "openclaw-ars-technica",
+      "foreign-affairs",
+      "the-diplomat",
+      "npr-world",
+      "foreign-policy",
+      "guardian-world",
+      "hacker-news-best",
       "horizon-reuters-world",
       "horizon-reuters-business",
       "mit-technology-review",
@@ -43,13 +49,26 @@ describe("ingestRawItems", () => {
       mvp_default_public_source_ids: [
         "source-verge",
         "source-ars",
+        "source-mit-technology-review",
+        "source-hacker-news-best",
         "source-tldr-tech",
         "source-techcrunch",
         "source-ft",
+        "source-foreign-affairs",
+        "source-the-diplomat",
+        "source-npr-world",
+        "source-foreign-policy",
+        "source-guardian-world",
       ],
       donor_fallback_default_ids: [
         "openclaw-the-verge",
         "openclaw-ars-technica",
+        "foreign-affairs",
+        "the-diplomat",
+        "npr-world",
+        "foreign-policy",
+        "guardian-world",
+        "hacker-news-best",
         "horizon-reuters-world",
         "horizon-reuters-business",
       ],
@@ -57,6 +76,12 @@ describe("ingestRawItems", () => {
       resolved_runtime_source_ids: [
         "openclaw-the-verge",
         "openclaw-ars-technica",
+        "foreign-affairs",
+        "the-diplomat",
+        "npr-world",
+        "foreign-policy",
+        "guardian-world",
+        "hacker-news-best",
         "horizon-reuters-world",
         "horizon-reuters-business",
         "mit-technology-review",
@@ -79,25 +104,46 @@ describe("ingestRawItems", () => {
     expect(result.source_resolution.resolved_runtime_source_ids).toEqual([
       "custom-source-verge",
       "custom-source-ars",
+      "custom-source-mit-technology-review",
+      "custom-source-hacker-news-best",
       "custom-source-tldr-tech",
       "custom-source-techcrunch",
       "custom-source-ft",
+      "custom-source-foreign-affairs",
+      "custom-source-the-diplomat",
+      "custom-source-npr-world",
+      "custom-source-foreign-policy",
+      "custom-source-guardian-world",
     ]);
     expect(result.source_resolution.resolved_default_donor_source_ids).toEqual([]);
     expect(result.source_resolution.resolved_probationary_source_ids).toEqual([]);
     expect(result.sources.map((source) => source.sourceId)).toEqual([
       "custom-source-verge",
       "custom-source-ars",
+      "custom-source-mit-technology-review",
+      "custom-source-hacker-news-best",
       "custom-source-tldr-tech",
       "custom-source-techcrunch",
       "custom-source-ft",
+      "custom-source-foreign-affairs",
+      "custom-source-the-diplomat",
+      "custom-source-npr-world",
+      "custom-source-foreign-policy",
+      "custom-source-guardian-world",
     ]);
     expect(result.sources.map((source) => source.source)).toEqual([
       "The Verge",
       "Ars Technica",
+      "MIT Technology Review",
+      "Hacker News Best",
       "TLDR",
       "TechCrunch",
       "Financial Times",
+      "Foreign Affairs",
+      "The Diplomat",
+      "NPR World",
+      "Foreign Policy",
+      "The Guardian World",
     ]);
   });
 
@@ -105,7 +151,11 @@ describe("ingestRawItems", () => {
     const result = await ingestRawItems({ sources: getMvpDefaultPublicSources() });
 
     expect(result.sources.map((source) => source.sourceId)).not.toContain("mit-technology-review");
-    expect(result.sources.map((source) => source.source)).not.toContain("MIT Technology Review");
+    expect(result.sources.map((source) => source.sourceId)).toContain("custom-source-mit-technology-review");
+    expect(result.sources.find((source) => source.source === "MIT Technology Review")).toMatchObject({
+      domainScope: "strict",
+      defaultCategory: "tech",
+    });
   });
 
   it("exposes an ID-only no-argument source-resolution audit snapshot without fetching feeds", () => {
@@ -116,13 +166,26 @@ describe("ingestRawItems", () => {
       mvp_default_public_source_ids: [
         "source-verge",
         "source-ars",
+        "source-mit-technology-review",
+        "source-hacker-news-best",
         "source-tldr-tech",
         "source-techcrunch",
         "source-ft",
+        "source-foreign-affairs",
+        "source-the-diplomat",
+        "source-npr-world",
+        "source-foreign-policy",
+        "source-guardian-world",
       ],
       donor_fallback_default_ids: [
         "openclaw-the-verge",
         "openclaw-ars-technica",
+        "foreign-affairs",
+        "the-diplomat",
+        "npr-world",
+        "foreign-policy",
+        "guardian-world",
+        "hacker-news-best",
         "horizon-reuters-world",
         "horizon-reuters-business",
       ],
@@ -130,6 +193,12 @@ describe("ingestRawItems", () => {
       resolved_runtime_source_ids: [
         "openclaw-the-verge",
         "openclaw-ars-technica",
+        "foreign-affairs",
+        "the-diplomat",
+        "npr-world",
+        "foreign-policy",
+        "guardian-world",
+        "hacker-news-best",
         "horizon-reuters-world",
         "horizon-reuters-business",
         "mit-technology-review",
@@ -137,6 +206,12 @@ describe("ingestRawItems", () => {
       resolved_default_donor_source_ids: [
         "openclaw-the-verge",
         "openclaw-ars-technica",
+        "foreign-affairs",
+        "the-diplomat",
+        "npr-world",
+        "foreign-policy",
+        "guardian-world",
+        "hacker-news-best",
         "horizon-reuters-world",
         "horizon-reuters-business",
       ],
@@ -164,6 +239,12 @@ describe("ingestRawItems", () => {
       resolved_runtime_source_ids: [
         "openclaw-the-verge",
         "openclaw-ars-technica",
+        "foreign-affairs",
+        "the-diplomat",
+        "npr-world",
+        "foreign-policy",
+        "guardian-world",
+        "hacker-news-best",
         "horizon-reuters-world",
         "horizon-reuters-business",
         "mit-technology-review",
