@@ -75,6 +75,22 @@
 - Saving edits now preserves Approved and Published statuses instead of moving historical posts back to Draft. Published post edits also update `published_why_it_matters`.
 - Focused tests validate all-status rendering, review-queue filtering, historical approved/published editing, and server-side bulk eligibility.
 
+## Homepage Published Editorial Override Follow-Up — 2026-04-23
+
+- Root cause: the editorial workflow persisted manual copy to `signal_posts`, but the homepage view model was built from generated briefing items and did not read published editorial fields.
+- Added a server-side homepage override layer that reads published `signal_posts.published_why_it_matters` values and applies them to matching homepage briefing items by title and source URL, with a title-only fallback for rows that do not have a source URL.
+- The public homepage remains publish-gated: Draft or Approved-only `edited_why_it_matters` values are not rendered publicly unless they are promoted into `published_why_it_matters`.
+- Focused tests validate generated-versus-published priority, fallback matching, no-match behavior, homepage SSR wiring, editorial persistence for published edits, and public `/signals` rendering.
+- `npm run lint` passed.
+- `npm run test -- src/lib/homepage-editorial-overrides.test.ts src/app/page.test.tsx src/lib/signals-editorial.test.ts src/app/signals/page.test.tsx` passed: 4 files, 14 tests.
+- `npm run test` passed: 55 files, 280 tests.
+- `npm run build` passed and listed `/`, `/signals`, and `/dashboard/signals/editorial-review` as server-rendered routes.
+- `npx playwright test --project=chromium` passed: 30 tests.
+- Local HTTP route probes from `http://localhost:3000`:
+  - `/` returns `200`.
+  - `/signals` returns `200`.
+  - `/dashboard/signals/editorial-review` returns `200`.
+
 ## Preview-Required Checks
 
 - Confirm Google OAuth login with an email listed in `ADMIN_EMAILS`.
@@ -82,6 +98,7 @@
 - Confirm non-admin Google-authenticated users cannot access `/dashboard/signals/editorial-review`.
 - Confirm server actions persist drafts, approvals, reset, and publish state against the preview Supabase database.
 - Confirm historical Approved and Published posts can be edited from the All Posts view without losing their status.
+- Confirm a published signal edited from the editorial page updates the matching homepage signal card after refresh.
 - Confirm `/signals` reads published rows through the server-side sanitized public route in preview.
 - Confirm env-sensitive behavior with `ADMIN_EMAILS` and `SUPABASE_SERVICE_ROLE_KEY` configured in Vercel preview.
 
