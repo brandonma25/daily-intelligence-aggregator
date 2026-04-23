@@ -8,7 +8,7 @@ export const PUBLIC_SURFACE_SOURCE_MANIFEST = {
     "source-tldr-tech",
     "source-techcrunch",
     "source-ft",
-    "source-reuters-world",
+    "source-bbc-world",
   ],
 } as const;
 

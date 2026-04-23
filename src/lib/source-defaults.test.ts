@@ -48,9 +48,9 @@ describe("MVP default source governance", () => {
     const nonDefaultDemoSources = demoSources.filter((source) => !defaultSourceIds.has(source.id));
 
     expect(nonDefaultDemoSources.map((source) => source.name)).toEqual(
-      expect.arrayContaining(["Reuters World", "MarketWatch", "ZeroHedge", "AP Top News"]),
+      expect.arrayContaining(["BBC World News", "MarketWatch", "ZeroHedge", "AP Top News"]),
     );
-    expect(defaultSourceIds.has("source-reuters-world")).toBe(false);
+    expect(defaultSourceIds.has("source-bbc-world")).toBe(false);
     expect(areMvpDefaultPublicSources(demoSources)).toBe(false);
     expect(recommendedSources.some((source) => source.lifecycleStatus === "active_default")).toBe(false);
   });

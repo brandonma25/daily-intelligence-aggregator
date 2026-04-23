@@ -377,7 +377,7 @@ describe("getDashboardData fallback behavior", () => {
       "source-tldr-tech",
       "source-techcrunch",
       "source-ft",
-      "source-reuters-world",
+      "source-bbc-world",
     ]);
     expect(runClusterFirstPipeline).toHaveBeenCalledTimes(1);
     expect(logServerEvent).toHaveBeenCalledWith(

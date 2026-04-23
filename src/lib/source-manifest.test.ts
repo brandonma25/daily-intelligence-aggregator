@@ -17,14 +17,17 @@ describe("public source manifest", () => {
     expect(sources).toHaveLength(PUBLIC_SURFACE_SOURCE_MANIFEST["public.home"].length);
   });
 
-  it("includes Reuters World in the public.home source plan", () => {
+  it("includes BBC World News in the public.home source plan", () => {
     const sources = getSourcesForPublicSurface("public.home");
+    const sourceIds = sources.map((source) => source.id);
 
-    expect(sources.map((source) => source.id)).toContain("source-reuters-world");
-    expect(sources.find((source) => source.id === "source-reuters-world")).toMatchObject({
-      name: "Reuters World",
-      feedUrl: "https://feeds.reuters.com/Reuters/worldNews",
-      homepageUrl: "https://www.reuters.com/world/",
+    expect(sources).toHaveLength(6);
+    expect(sourceIds).toContain("source-bbc-world");
+    expect(sourceIds[5]).toBe("source-bbc-world");
+    expect(sources.find((source) => source.id === "source-bbc-world")).toMatchObject({
+      name: "BBC World News",
+      feedUrl: "http://feeds.bbci.co.uk/news/world/rss.xml",
+      homepageUrl: "https://www.bbc.com/news/world",
       topicName: "World",
       status: "active",
     });
