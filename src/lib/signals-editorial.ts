@@ -79,8 +79,12 @@ export type EditorialSignalPost = {
   approvedBy: string | null;
   approvedAt: string | null;
   publishedAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
   persisted: boolean;
 };
+
+export type EditorialPostStatusFilter = "all" | "review" | EditorialStatus;
 
 export type EditorialReviewState =
   | {
@@ -141,6 +145,8 @@ function mapStoredSignalPost(row: StoredSignalPost): EditorialSignalPost {
     approvedBy: row.approved_by,
     approvedAt: row.approved_at,
     publishedAt: row.published_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
     persisted: true,
   };
 }
@@ -173,6 +179,8 @@ function mapBriefingItemToSignalPost(item: BriefingItem, index: number): Editori
     approvedBy: null,
     approvedAt: null,
     publishedAt: null,
+    createdAt: null,
+    updatedAt: null,
     persisted: false,
   };
 }
@@ -360,11 +368,20 @@ export async function getEditorialReviewState(
     adminEmail: context.user.email ?? "",
     posts: loaded.posts,
     storageReady: true,
-    warning:
-      loaded.posts.length === 5
-        ? null
-        : `Editorial storage currently has ${loaded.posts.length} signal posts. Publishing requires exactly five.`,
+    warning: getEditorialStorageWarning(loaded.posts.length),
   };
+}
+
+function getEditorialStorageWarning(postCount: number) {
+  if (postCount < 5) {
+    return `Editorial storage currently has ${postCount} signal posts. Publishing requires exactly five ranked signal posts.`;
+  }
+
+  if (postCount > 5) {
+    return `Editorial storage has ${postCount} total signal posts. This page shows all posts; publishing uses the five lowest-ranked posts.`;
+  }
+
+  return null;
 }
 
 export async function saveSignalDraft(input: {
@@ -383,11 +400,29 @@ export async function saveSignalDraft(input: {
   }
 
   const now = new Date().toISOString();
+  const lookup = await context.client
+    .from("signal_posts")
+    .select("id, editorial_status")
+    .eq("id", input.postId)
+    .maybeSingle();
+
+  if (lookup.error || !lookup.data) {
+    return {
+      ok: false,
+      code: "not_found",
+      message: "The signal post could not be found.",
+    };
+  }
+
+  const currentStatus = (lookup.data as Pick<StoredSignalPost, "editorial_status">).editorial_status;
+  const shouldPreserveStatus = currentStatus === "approved" || currentStatus === "published";
+  const editorialText = normalizeEditorialText(input.editedWhyItMatters);
   const updateResult = await context.client
     .from("signal_posts")
     .update({
-      edited_why_it_matters: normalizeEditorialText(input.editedWhyItMatters),
-      editorial_status: "draft",
+      edited_why_it_matters: editorialText,
+      ...(currentStatus === "published" ? { published_why_it_matters: editorialText } : {}),
+      editorial_status: shouldPreserveStatus ? currentStatus : "draft",
       edited_by: context.user.email ?? null,
       edited_at: now,
       updated_at: now,
@@ -405,7 +440,7 @@ export async function saveSignalDraft(input: {
   return {
     ok: true,
     code: "draft_saved",
-    message: "Draft saved.",
+    message: shouldPreserveStatus ? "Editorial changes saved." : "Draft saved.",
   };
 }
 
@@ -513,8 +548,33 @@ export async function approveSignalPosts(input: {
     };
   }
 
+  const loaded = await loadStoredSignalPosts(context.client);
+
+  if (loaded.errorMessage) {
+    return {
+      ok: false,
+      code: "storage_error",
+      message: "The signal posts could not be loaded for bulk approval.",
+    };
+  }
+
+  const eligibleIds = new Set(
+    loaded.posts
+      .filter((post) => post.editorialStatus === "draft" || post.editorialStatus === "needs_review")
+      .map((post) => post.id),
+  );
+  const eligiblePosts = uniquePosts.filter((post) => eligibleIds.has(post.postId));
+
+  if (eligiblePosts.length === 0) {
+    return {
+      ok: false,
+      code: "publish_blocked",
+      message: "There are no Draft or Needs Review signal posts to approve.",
+    };
+  }
+
   const results = await Promise.all(
-    uniquePosts.map((post) => approveSignalPostWithContext(context, post)),
+    eligiblePosts.map((post) => approveSignalPostWithContext(context, post)),
   );
   const approvedCount = results.filter((result) => result.ok).length;
   const failedResults = results.filter((result) => !result.ok);
@@ -621,15 +681,20 @@ export async function publishApprovedSignals(input: {
     };
   }
 
-  if (posts.length !== 5) {
+  const topFivePosts = posts
+    .slice()
+    .sort((left, right) => left.rank - right.rank)
+    .slice(0, 5);
+
+  if (topFivePosts.length !== 5) {
     return {
       ok: false,
       code: "publish_blocked",
-      message: `Publishing requires exactly five signal posts. Current count: ${posts.length}.`,
+      message: `Publishing requires exactly five ranked signal posts. Current count: ${topFivePosts.length}.`,
     };
   }
 
-  const unapproved = posts.filter((post) => post.editorialStatus !== "approved");
+  const unapproved = topFivePosts.filter((post) => post.editorialStatus !== "approved");
 
   if (unapproved.length > 0) {
     return {
@@ -639,7 +704,7 @@ export async function publishApprovedSignals(input: {
     };
   }
 
-  const missingEditorialText = posts.filter(
+  const missingEditorialText = topFivePosts.filter(
     (post) => !normalizeEditorialText(post.editedWhyItMatters),
   );
 
@@ -653,7 +718,7 @@ export async function publishApprovedSignals(input: {
 
   const now = new Date().toISOString();
   const updateResults = await Promise.all(
-    posts.map((post) =>
+    topFivePosts.map((post) =>
       context.client
         .from("signal_posts")
         .update({

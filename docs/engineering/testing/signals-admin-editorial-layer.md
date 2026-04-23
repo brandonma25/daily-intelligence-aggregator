@@ -66,12 +66,22 @@
   - Admin bulk approval updates multiple posts.
   - Partial bulk approval failures report a mixed outcome instead of silently hiding failures.
 
+## All-Posts Editorial Management Follow-Up — 2026-04-23
+
+- Expanded `/dashboard/signals/editorial-review` into a single editorial management surface with filters for All Posts, Review Queue, Draft, Needs Review, Approved, and Published.
+- Default view is All Posts so historical approved and published posts remain visible and editable.
+- Review Queue remains available as a queue-scoped filter for Draft and Needs Review posts.
+- `Approve All` remains intentionally queue-scoped: it applies only to visible Draft and Needs Review posts, and the server rechecks status eligibility before mutating rows.
+- Saving edits now preserves Approved and Published statuses instead of moving historical posts back to Draft. Published post edits also update `published_why_it_matters`.
+- Focused tests validate all-status rendering, review-queue filtering, historical approved/published editing, and server-side bulk eligibility.
+
 ## Preview-Required Checks
 
 - Confirm Google OAuth login with an email listed in `ADMIN_EMAILS`.
 - Confirm the admin-only Account-page `Editorial Review` link appears for `brandonma25@gmail.com` and remains hidden for non-admin users.
 - Confirm non-admin Google-authenticated users cannot access `/dashboard/signals/editorial-review`.
 - Confirm server actions persist drafts, approvals, reset, and publish state against the preview Supabase database.
+- Confirm historical Approved and Published posts can be edited from the All Posts view without losing their status.
 - Confirm `/signals` reads published rows through the server-side sanitized public route in preview.
 - Confirm env-sensitive behavior with `ADMIN_EMAILS` and `SUPABASE_SERVICE_ROLE_KEY` configured in Vercel preview.
 

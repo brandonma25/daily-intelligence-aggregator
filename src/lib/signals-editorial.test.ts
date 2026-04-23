@@ -204,6 +204,48 @@ describe("signals editorial workflow", () => {
     expect(rows[0].edited_by).toBe("admin@example.com");
   });
 
+  it("lets an admin edit approved posts without moving them back to draft", async () => {
+    const rows = [createRow({ id: "signal-1", editorial_status: "approved" })];
+    createSupabaseServiceRoleClient.mockReturnValue(createSupabaseMock(rows));
+    safeGetUser.mockResolvedValue({
+      user: { id: "admin-1", email: "admin@example.com" },
+      supabase: {},
+      sessionCookiePresent: true,
+    });
+
+    const { saveSignalDraft } = await loadEditorialModule();
+    const result = await saveSignalDraft({
+      postId: "signal-1",
+      editedWhyItMatters: "Updated historical editorial text.",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.message).toBe("Editorial changes saved.");
+    expect(rows[0].edited_why_it_matters).toBe("Updated historical editorial text.");
+    expect(rows[0].editorial_status).toBe("approved");
+  });
+
+  it("lets an admin edit published posts without unpublishing them", async () => {
+    const rows = [createRow({ id: "signal-1", editorial_status: "published" })];
+    createSupabaseServiceRoleClient.mockReturnValue(createSupabaseMock(rows));
+    safeGetUser.mockResolvedValue({
+      user: { id: "admin-1", email: "admin@example.com" },
+      supabase: {},
+      sessionCookiePresent: true,
+    });
+
+    const { saveSignalDraft } = await loadEditorialModule();
+    const result = await saveSignalDraft({
+      postId: "signal-1",
+      editedWhyItMatters: "Updated published editorial text.",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(rows[0].edited_why_it_matters).toBe("Updated published editorial text.");
+    expect(rows[0].published_why_it_matters).toBe("Updated published editorial text.");
+    expect(rows[0].editorial_status).toBe("published");
+  });
+
   it("lets an admin approve a signal post with editorial text", async () => {
     const rows = [createRow({ id: "signal-1" })];
     createSupabaseServiceRoleClient.mockReturnValue(createSupabaseMock(rows));
@@ -277,6 +319,32 @@ describe("signals editorial workflow", () => {
     expect(result.message).toBe("Approved 1 signal posts. 1 could not be approved.");
     expect(rows[0].editorial_status).toBe("approved");
     expect(rows[1].editorial_status).toBe("needs_review");
+  });
+
+  it("does not bulk approve already approved or published posts", async () => {
+    const rows = [
+      createRow({ id: "signal-1", rank: 1, editorial_status: "approved" }),
+      createRow({ id: "signal-2", rank: 2, editorial_status: "published" }),
+    ];
+    createSupabaseServiceRoleClient.mockReturnValue(createSupabaseMock(rows));
+    safeGetUser.mockResolvedValue({
+      user: { id: "admin-1", email: "admin@example.com" },
+      supabase: {},
+      sessionCookiePresent: true,
+    });
+
+    const { approveSignalPosts } = await loadEditorialModule();
+    const result = await approveSignalPosts({
+      posts: rows.map((row) => ({
+        postId: row.id,
+        editedWhyItMatters: "Should not be bulk approved.",
+      })),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toBe("There are no Draft or Needs Review signal posts to approve.");
+    expect(rows[0].editorial_status).toBe("approved");
+    expect(rows[1].editorial_status).toBe("published");
   });
 
   it("blocks publishing unless all five signal posts are approved", async () => {

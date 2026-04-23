@@ -40,6 +40,24 @@ const reviewPost = {
   persisted: true,
 };
 
+const approvedPost = {
+  ...reviewPost,
+  id: "signal-approved",
+  rank: 2,
+  title: "Approved Signal",
+  editorialStatus: "approved",
+  editedWhyItMatters: "Approved editorial text",
+};
+
+const publishedPost = {
+  ...reviewPost,
+  id: "signal-published",
+  rank: 3,
+  title: "Published Signal",
+  editorialStatus: "published",
+  publishedWhyItMatters: "Published editorial text",
+};
+
 describe("signals editorial review page", () => {
   beforeEach(() => {
     getEditorialReviewState.mockReset();
@@ -90,6 +108,44 @@ describe("signals editorial review page", () => {
     expect(screen.getByLabelText("Why it matters — editorial version")).toHaveValue("Raw AI draft");
   });
 
+  it("shows all historical statuses by default", async () => {
+    getEditorialReviewState.mockResolvedValue({
+      kind: "authorized",
+      adminEmail: "admin@example.com",
+      posts: [reviewPost, approvedPost, publishedPost],
+      storageReady: true,
+      warning: null,
+    });
+
+    const Page = (await import("@/app/dashboard/signals/editorial-review/page")).default;
+    render(await Page({ searchParams: Promise.resolve({}) }));
+
+    expect(screen.getByRole("link", { name: "All Posts (3)" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByText("Signal 1")).toBeInTheDocument();
+    expect(screen.getByText("Approved Signal")).toBeInTheDocument();
+    expect(screen.getByText("Published Signal")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Approved editorial text")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Published editorial text")).toBeInTheDocument();
+  });
+
+  it("filters to the review queue while keeping all-post navigation available", async () => {
+    getEditorialReviewState.mockResolvedValue({
+      kind: "authorized",
+      adminEmail: "admin@example.com",
+      posts: [reviewPost, approvedPost, publishedPost],
+      storageReady: true,
+      warning: null,
+    });
+
+    const Page = (await import("@/app/dashboard/signals/editorial-review/page")).default;
+    render(await Page({ searchParams: Promise.resolve({ status: "review" }) }));
+
+    expect(screen.getByRole("link", { name: "Review Queue (1)" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByText("Signal 1")).toBeInTheDocument();
+    expect(screen.queryByText("Approved Signal")).not.toBeInTheDocument();
+    expect(screen.queryByText("Published Signal")).not.toBeInTheDocument();
+  });
+
   it("disables Approve All when no loaded posts are eligible", async () => {
     getEditorialReviewState.mockResolvedValue({
       kind: "authorized",
@@ -103,6 +159,6 @@ describe("signals editorial review page", () => {
     render(await Page({ searchParams: Promise.resolve({}) }));
 
     expect(screen.getByRole("button", { name: "Approve All" })).toBeDisabled();
-    expect(screen.getByText(/No draft or review-ready signal posts are eligible/i)).toBeInTheDocument();
+    expect(screen.getByText(/Approve All applies only to visible Draft and Needs Review posts/i)).toBeInTheDocument();
   });
 });

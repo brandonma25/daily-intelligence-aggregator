@@ -24,6 +24,7 @@ import { Panel } from "@/components/ui/panel";
 import {
   SIGNALS_EDITORIAL_ROUTE,
   getEditorialReviewState,
+  type EditorialPostStatusFilter,
   type EditorialSignalPost,
 } from "@/lib/signals-editorial";
 
@@ -53,6 +54,7 @@ export default async function SignalsEditorialReviewPage({ searchParams }: PageP
   ]);
   const successMessage = readSingleParam(resolvedSearchParams?.success);
   const errorMessage = readSingleParam(resolvedSearchParams?.error);
+  const statusFilter = normalizeStatusFilter(readSingleParam(resolvedSearchParams?.status));
 
   if (state.kind === "unauthenticated") {
     return (
@@ -78,12 +80,15 @@ export default async function SignalsEditorialReviewPage({ searchParams }: PageP
     );
   }
 
-  const posts = state.posts.slice().sort((left, right) => left.rank - right.rank);
-  const allApproved = posts.length === 5 && posts.every((post) => post.editorialStatus === "approved");
-  const allPublished = posts.length === 5 && posts.every((post) => post.editorialStatus === "published");
-  const approveAllPosts = posts.filter((post) => post.persisted && ["draft", "needs_review"].includes(post.editorialStatus));
-  const publishBlockedReason = getPublishBlockedReason(posts, state.storageReady, allApproved, allPublished);
-  const approveAllBlockedReason = getApproveAllBlockedReason(posts, state.storageReady, approveAllPosts.length);
+  const posts = state.posts.slice().sort(sortEditorialPosts);
+  const visiblePosts = filterPostsByStatus(posts, statusFilter);
+  const topFivePosts = posts.slice().sort((left, right) => left.rank - right.rank).slice(0, 5);
+  const allApproved = topFivePosts.length === 5 && topFivePosts.every((post) => post.editorialStatus === "approved");
+  const allPublished = topFivePosts.length === 5 && topFivePosts.every((post) => post.editorialStatus === "published");
+  const approveAllPosts = visiblePosts.filter(isBulkApprovablePost);
+  const statusCounts = getStatusCounts(posts);
+  const publishBlockedReason = getPublishBlockedReason(topFivePosts, state.storageReady, allApproved, allPublished);
+  const approveAllBlockedReason = getApproveAllBlockedReason(visiblePosts, state.storageReady, approveAllPosts.length);
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-7xl px-4 py-6 md:px-6">
@@ -92,7 +97,8 @@ export default async function SignalsEditorialReviewPage({ searchParams }: PageP
           <div className="flex flex-wrap items-center gap-2">
             <Badge>Admin/editor only</Badge>
             <Badge>{state.adminEmail}</Badge>
-            <Badge>{posts.length} signal posts</Badge>
+            <Badge>{posts.length} total posts</Badge>
+            <Badge>{visiblePosts.length} visible</Badge>
           </div>
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl space-y-3">
@@ -108,12 +114,12 @@ export default async function SignalsEditorialReviewPage({ searchParams }: PageP
                 <div data-approve-all-fields hidden>
                   {approveAllPosts.map((post) => (
                     <span key={post.id}>
-                    <input type="hidden" name="postId" value={post.id} />
-                    <input
-                      type="hidden"
-                      name="editedWhyItMatters"
-                      value={post.editedWhyItMatters || post.aiWhyItMatters}
-                    />
+                      <input type="hidden" name="postId" value={post.id} />
+                      <input
+                        type="hidden"
+                        name="editedWhyItMatters"
+                        value={post.editedWhyItMatters || post.aiWhyItMatters}
+                      />
                     </span>
                   ))}
                 </div>
@@ -147,20 +153,144 @@ export default async function SignalsEditorialReviewPage({ searchParams }: PageP
         {errorMessage ? <StatusBanner tone="error" message={errorMessage} /> : null}
         {state.warning ? <StatusBanner tone="warning" message={state.warning} /> : null}
 
+        <section className="space-y-3">
+          <div className="flex flex-wrap gap-2" aria-label="Editorial status filters">
+            {STATUS_FILTERS.map((filter) => (
+              <StatusFilterLink
+                key={filter.value}
+                filter={filter.value}
+                label={`${filter.label} (${getFilterCount(statusCounts, posts.length, filter.value)})`}
+                active={statusFilter === filter.value}
+              />
+            ))}
+          </div>
+          <p className="text-sm leading-6 text-[var(--text-secondary)]">
+            All persisted signal posts are editable here. Approve All only applies to currently visible posts with Draft or Needs Review status.
+          </p>
+        </section>
+
         <section className="space-y-4">
-          {posts.length > 0 ? (
-            posts.map((post) => <SignalPostEditor key={post.id} post={post} storageReady={state.storageReady} />)
+          {visiblePosts.length > 0 ? (
+            visiblePosts.map((post) => <SignalPostEditor key={post.id} post={post} storageReady={state.storageReady} />)
           ) : (
             <Panel className="p-6">
-              <p className="text-base font-semibold text-[var(--text-primary)]">No signal posts ready for review</p>
+              <p className="text-base font-semibold text-[var(--text-primary)]">No signal posts match this filter</p>
               <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-                The editorial table is empty or unavailable. Recheck storage configuration and refresh this page.
+                Switch filters or recheck storage configuration if you expected posts to appear here.
               </p>
             </Panel>
           )}
         </section>
       </div>
     </main>
+  );
+}
+
+const STATUS_FILTERS: Array<{ value: EditorialPostStatusFilter; label: string }> = [
+  { value: "all", label: "All Posts" },
+  { value: "review", label: "Review Queue" },
+  { value: "draft", label: "Draft" },
+  { value: "needs_review", label: "Needs Review" },
+  { value: "approved", label: "Approved" },
+  { value: "published", label: "Published" },
+];
+
+function normalizeStatusFilter(value: string | undefined): EditorialPostStatusFilter {
+  if (
+    value === "review" ||
+    value === "draft" ||
+    value === "needs_review" ||
+    value === "approved" ||
+    value === "published"
+  ) {
+    return value;
+  }
+
+  return "all";
+}
+
+function getStatusCounts(posts: EditorialSignalPost[]) {
+  return posts.reduce(
+    (counts, post) => {
+      counts[post.editorialStatus] += 1;
+      return counts;
+    },
+    {
+      draft: 0,
+      needs_review: 0,
+      approved: 0,
+      published: 0,
+    } satisfies Record<"draft" | "needs_review" | "approved" | "published", number>,
+  );
+}
+
+function getFilterCount(
+  statusCounts: ReturnType<typeof getStatusCounts>,
+  totalCount: number,
+  filter: EditorialPostStatusFilter,
+) {
+  if (filter === "all") {
+    return totalCount;
+  }
+
+  if (filter === "review") {
+    return statusCounts.draft + statusCounts.needs_review;
+  }
+
+  return statusCounts[filter];
+}
+
+function filterPostsByStatus(posts: EditorialSignalPost[], filter: EditorialPostStatusFilter) {
+  if (filter === "all") {
+    return posts;
+  }
+
+  if (filter === "review") {
+    return posts.filter(isBulkApprovablePost);
+  }
+
+  return posts.filter((post) => post.editorialStatus === filter);
+}
+
+function isBulkApprovablePost(post: EditorialSignalPost) {
+  return post.persisted && ["draft", "needs_review"].includes(post.editorialStatus);
+}
+
+function sortEditorialPosts(left: EditorialSignalPost, right: EditorialSignalPost) {
+  const leftUpdated = Date.parse(left.updatedAt ?? left.createdAt ?? "") || 0;
+  const rightUpdated = Date.parse(right.updatedAt ?? right.createdAt ?? "") || 0;
+
+  if (leftUpdated !== rightUpdated) {
+    return rightUpdated - leftUpdated;
+  }
+
+  return left.rank - right.rank;
+}
+
+function StatusFilterLink({
+  filter,
+  label,
+  active,
+}: {
+  filter: EditorialPostStatusFilter;
+  label: string;
+  active: boolean;
+}) {
+  const href = filter === "all" ? SIGNALS_EDITORIAL_ROUTE : `${SIGNALS_EDITORIAL_ROUTE}?status=${filter}`;
+
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={[
+        "inline-flex min-h-10 items-center rounded-button border px-3 text-sm font-medium transition-colors",
+        active
+          ? "border-[var(--text-primary)] bg-[var(--text-primary)] text-white"
+          : "border-[var(--border)] bg-[var(--card)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+      ].join(" ")}
+    >
+      {label}
+    </Link>
   );
 }
 
@@ -178,7 +308,7 @@ function getApproveAllBlockedReason(
   }
 
   if (eligibleCount === 0) {
-    return "No draft or review-ready signal posts are eligible for bulk approval.";
+    return "Approve All applies only to visible Draft and Needs Review posts. Switch to Review Queue or edit this status individually.";
   }
 
   const missingEditorialTextCount = posts.filter(
@@ -206,7 +336,7 @@ function getPublishBlockedReason(
   }
 
   if (posts.length !== 5) {
-    return `Publishing requires exactly five signal posts. Current count: ${posts.length}.`;
+    return `Publishing requires exactly five ranked signal posts. Current count: ${posts.length}.`;
   }
 
   if (allPublished) {
@@ -280,7 +410,7 @@ function SignalPostEditor({
   post: EditorialSignalPost;
   storageReady: boolean;
 }) {
-  const editableText = post.editedWhyItMatters || post.aiWhyItMatters;
+  const editableText = post.editedWhyItMatters || post.publishedWhyItMatters || post.aiWhyItMatters;
   const controlsDisabled = !storageReady || !post.persisted;
   const eligibleForApproveAll =
     post.persisted && ["draft", "needs_review"].includes(post.editorialStatus);
@@ -359,7 +489,7 @@ function SignalPostEditor({
             className="gap-2"
           >
             <Save className="h-4 w-4" />
-            Save Draft
+            Save Edits
           </Button>
           <Button
             type="submit"
