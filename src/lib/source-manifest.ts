@@ -14,6 +14,8 @@ export const PUBLIC_SURFACE_SOURCE_MANIFEST = {
 
 export type PublicSurfaceKey = keyof typeof PUBLIC_SURFACE_SOURCE_MANIFEST;
 
+const MANIFEST_SOURCE_IDS: ReadonlySet<string> = new Set(Object.values(PUBLIC_SURFACE_SOURCE_MANIFEST).flat());
+
 export function getSourcesForPublicSurface(surface: PublicSurfaceKey): Source[] {
   const sourceIds = PUBLIC_SURFACE_SOURCE_MANIFEST[surface];
   const sourcesById = new Map(demoSources.map((source) => [source.id, source]));
@@ -27,4 +29,8 @@ export function getSourcesForPublicSurface(surface: PublicSurfaceKey): Source[] 
 
     return source;
   });
+}
+
+export function isManifestSourceList(sources: Source[]): boolean {
+  return sources.every((source) => MANIFEST_SOURCE_IDS.has(source.id));
 }
