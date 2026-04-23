@@ -17,13 +17,21 @@ describe("public source manifest", () => {
     expect(sources).toHaveLength(PUBLIC_SURFACE_SOURCE_MANIFEST["public.home"].length);
   });
 
-  it("includes BBC World News in the public.home source plan", () => {
+  it("includes MIT Technology Review and BBC World News in the public.home source plan", () => {
     const sources = getSourcesForPublicSurface("public.home");
     const sourceIds = sources.map((source) => source.id);
 
-    expect(sources).toHaveLength(6);
+    expect(sources).toHaveLength(7);
+    expect(sourceIds[2]).toBe("source-mit-tech-review");
+    expect(sources.find((source) => source.id === "source-mit-tech-review")).toMatchObject({
+      name: "MIT Technology Review",
+      feedUrl: "https://www.technologyreview.com/feed/",
+      homepageUrl: "https://www.technologyreview.com",
+      topicName: "Tech",
+      status: "active",
+    });
     expect(sourceIds).toContain("source-bbc-world");
-    expect(sourceIds[5]).toBe("source-bbc-world");
+    expect(sourceIds[6]).toBe("source-bbc-world");
     expect(sources.find((source) => source.id === "source-bbc-world")).toMatchObject({
       name: "BBC World News",
       feedUrl: "http://feeds.bbci.co.uk/news/world/rss.xml",

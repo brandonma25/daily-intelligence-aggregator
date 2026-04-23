@@ -374,6 +374,7 @@ describe("getDashboardData fallback behavior", () => {
     expect(data.sources.map((source) => source.id)).toEqual([
       "source-verge",
       "source-ars",
+      "source-mit-tech-review",
       "source-tldr-tech",
       "source-techcrunch",
       "source-ft",

@@ -46,6 +46,15 @@ export const demoSources: Source[] = [
     status: "active",
   },
   {
+    id: "source-mit-tech-review",
+    name: "MIT Technology Review",
+    feedUrl: "https://www.technologyreview.com/feed/",
+    homepageUrl: "https://www.technologyreview.com",
+    topicId: "topic-tech",
+    topicName: "Tech",
+    status: "active",
+  },
+  {
     id: "source-tldr-tech",
     name: "TLDR",
     feedUrl: "https://tldr.tech/rss",

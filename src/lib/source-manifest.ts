@@ -5,6 +5,7 @@ export const PUBLIC_SURFACE_SOURCE_MANIFEST = {
   "public.home": [
     "source-verge",
     "source-ars",
+    "source-mit-tech-review",
     "source-tldr-tech",
     "source-techcrunch",
     "source-ft",
