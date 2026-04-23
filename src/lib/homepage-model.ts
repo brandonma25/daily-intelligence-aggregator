@@ -1,5 +1,9 @@
 import type { DashboardData, BriefingItem, EventIntelligence } from "@/lib/types";
 import {
+  getEditorialHomepagePreviewText,
+  type EditorialWhyItMattersContent,
+} from "@/lib/editorial-content";
+import {
   classifyHomepageCategory,
   countSourcesByHomepageCategory,
   getHomepageCategoryDescription,
@@ -45,6 +49,7 @@ export type HomepageEvent = {
   summary: string;
   trustLayer: TrustLayerPresentation;
   whyItMatters: string;
+  editorialWhyItMatters?: EditorialWhyItMattersContent | null;
   whyThisIsHere: string;
   relatedArticles: EventArticle[];
   timeline: EventTimelineMilestone[];
@@ -324,7 +329,16 @@ export function buildHomepageEvents(
         (candidate) => candidate.id !== item.id && candidate.topicId === item.topicId,
       );
       const sourceCount = intelligence.sourceCount;
-      const whyItMatters = sanitizeWhyItMatters(item.whyItMatters, item.title);
+      const editorialWhyItMatters =
+        item.editorialStatus === "published" ? item.editorialWhyItMatters ?? item.publishedWhyItMattersStructured : null;
+      const whyItMatters = editorialWhyItMatters
+        ? getEditorialHomepagePreviewText(
+            editorialWhyItMatters,
+            sanitizeWhyItMatters(item.whyItMatters, item.title, { preserveFullText: true }),
+          )
+        : sanitizeWhyItMatters(item.whyItMatters, item.title, {
+            preserveFullText: item.editorialStatus === "published" && Boolean(item.publishedWhyItMatters),
+          });
       const signalRole = item.signalRole ?? item.explanationPacket?.signal_role ?? classifyBriefingSignalRole(item);
       const keyPoints = normalizeKeyPoints(item.keyPoints);
 
@@ -345,6 +359,7 @@ export function buildHomepageEvents(
           rankingSignals: item.rankingSignals,
         }),
         whyItMatters,
+        editorialWhyItMatters,
         whyThisIsHere: buildWhyThisIsHere(item, classification, intelligence),
         relatedArticles: buildHomepageRelatedArticles(item),
         timeline: buildEventTimeline(item, siblingItems),
@@ -473,8 +488,14 @@ function buildWhyThisIsHere(
   return `Visible in ${primaryCategory} because it is recent and potentially meaningful, but the sourcing is still thin enough that it remains a watch item rather than a lead event.`;
 }
 
-function sanitizeWhyItMatters(value: string, title: string) {
-  const trimmed = summarize(value, 1).replace(/\s+/g, " ").trim();
+function sanitizeWhyItMatters(
+  value: string,
+  title: string,
+  options: {
+    preserveFullText?: boolean;
+  } = {},
+) {
+  const trimmed = (options.preserveFullText ? value : summarize(value, 1)).replace(/\s+/g, " ").trim();
   if (!trimmed) {
     return `This development is worth watching because it can change assumptions around ${title.toLowerCase()}.`;
   }

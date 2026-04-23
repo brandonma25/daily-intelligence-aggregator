@@ -13,6 +13,10 @@ function createItem(overrides: Partial<BriefingItem>): BriefingItem {
     whatHappened: overrides.whatHappened ?? "A generic development happened.",
     keyPoints: overrides.keyPoints ?? ["Point one", "Point two", "Point three"],
     whyItMatters: overrides.whyItMatters ?? "It matters because it changes expectations.",
+    publishedWhyItMatters: overrides.publishedWhyItMatters,
+    publishedWhyItMattersStructured: overrides.publishedWhyItMattersStructured,
+    editorialWhyItMatters: overrides.editorialWhyItMatters,
+    editorialStatus: overrides.editorialStatus,
     sources: overrides.sources ?? [
       { title: "Reuters", url: "https://www.reuters.com/world/example" },
       { title: "AP", url: "https://apnews.com/example" },
@@ -619,6 +623,52 @@ describe("buildHomepageViewModel", () => {
     const model = buildHomepageViewModel(createData([uncategorized]));
 
     expect(model.debug.uncategorizedEventsCount).toBe(1);
+  });
+
+  it("preserves full published editorial Why it matters text for homepage rendering", () => {
+    const fullEditorialText =
+      "This is the first editorial sentence. This second sentence is part of the manually published note and must not be collapsed by the homepage model. This final sentence gives the editor room to preserve nuance.";
+    const [event] = buildHomepageEvents([
+      createItem({
+        id: "published-editorial",
+        whyItMatters: fullEditorialText,
+        publishedWhyItMatters: fullEditorialText,
+        editorialStatus: "published",
+      }),
+    ]);
+
+    expect(event?.whyItMatters).toBe(fullEditorialText);
+  });
+
+  it("uses structured published editorial preview for collapsed homepage copy", () => {
+    const structuredWhyItMatters = {
+      preview: "Collapsed editorial teaser.",
+      thesis: "Expanded editorial thesis.",
+      sections: [{ title: "Operator read", body: "This is the structured supporting point." }],
+    };
+    const [event] = buildHomepageEvents([
+      createItem({
+        id: "structured-editorial",
+        whyItMatters: "Expanded editorial thesis.\n\nOperator read: This is the structured supporting point.",
+        publishedWhyItMatters: "Expanded editorial thesis.\n\nOperator read: This is the structured supporting point.",
+        publishedWhyItMattersStructured: structuredWhyItMatters,
+        editorialStatus: "published",
+      }),
+    ]);
+
+    expect(event?.whyItMatters).toBe("Collapsed editorial teaser.");
+    expect(event?.editorialWhyItMatters).toEqual(structuredWhyItMatters);
+  });
+
+  it("keeps generated Why it matters concise for default homepage cards", () => {
+    const [event] = buildHomepageEvents([
+      createItem({
+        id: "generated-copy",
+        whyItMatters: "This is the generated first sentence. This second generated sentence remains off the homepage card.",
+      }),
+    ]);
+
+    expect(event?.whyItMatters).toBe("This is the generated first sentence.");
   });
 
   it("records why an event was intentionally excluded from a category", () => {

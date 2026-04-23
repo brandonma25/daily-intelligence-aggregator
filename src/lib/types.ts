@@ -4,6 +4,7 @@ import type {
 } from "@/lib/integration/subsystem-contracts";
 import type { HomepageCategoryClassification } from "@/lib/homepage-taxonomy";
 import type { SignalRole } from "@/lib/output-sanity";
+import type { EditorialWhyItMattersContent } from "@/lib/editorial-content";
 
 export type Topic = {
   id: string;
@@ -92,6 +93,7 @@ export type EventIntelligence = {
 };
 
 export type EventDisplayState = "new" | "changed" | "escalated" | "unchanged";
+export type EditorialStatus = "draft" | "needs_review" | "approved" | "published";
 
 export type BriefingItem = {
   id: string;
@@ -101,6 +103,17 @@ export type BriefingItem = {
   whatHappened: string;
   keyPoints: [string, string, string];
   whyItMatters: string;
+  aiWhyItMatters?: string;
+  editedWhyItMatters?: string | null;
+  publishedWhyItMatters?: string | null;
+  editedWhyItMattersStructured?: EditorialWhyItMattersContent | null;
+  publishedWhyItMattersStructured?: EditorialWhyItMattersContent | null;
+  editorialWhyItMatters?: EditorialWhyItMattersContent | null;
+  editorialStatus?: EditorialStatus;
+  editedBy?: string | null;
+  editedAt?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
   sources: Array<{ title: string; url: string }>;
   estimatedMinutes: number;
   read: boolean;

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { ExternalLink, X } from "lucide-react";
 
@@ -14,6 +15,10 @@ import {
   type HomepageViewModel,
   type HomepageEvent,
 } from "@/lib/homepage-model";
+import {
+  buildIntentionalEditorialPreview,
+  type EditorialWhyItMattersContent,
+} from "@/lib/editorial-content";
 import type { DashboardData, ViewerAccount } from "@/lib/types";
 import { cn, getBriefingDateKey, minutesToLabel } from "@/lib/utils";
 
@@ -184,9 +189,11 @@ function HomeTopEventCard({
           </ul>
         ) : null}
 
-        <div className="rounded-card border border-[var(--border)] bg-[var(--bg)] px-4 py-3">
-          <p className="section-label">Why it matters</p>
-          <p className="mt-2 text-base text-[var(--text-primary)]">{event.whyItMatters}</p>
+        <div className="rounded-card border border-[var(--border)] bg-[var(--bg)] px-4 py-4">
+          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+            Why it matters
+          </p>
+          <WhyItMattersPreview text={event.whyItMatters} structuredContent={event.editorialWhyItMatters} />
         </div>
 
         {sourceNames.length ? (
@@ -233,6 +240,120 @@ function HomeTopEventCard({
       </article>
     </Panel>
   );
+}
+
+const WHY_IT_MATTERS_PREVIEW_THRESHOLD = 220;
+
+function WhyItMattersPreview({
+  text,
+  structuredContent,
+}: {
+  text: string;
+  structuredContent?: EditorialWhyItMattersContent | null;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const normalizedText = text.trim();
+  const structuredExpandedContent = getStructuredExpandedContent(structuredContent);
+  const shouldCollapse =
+    Boolean(structuredExpandedContent) || normalizedText.length > WHY_IT_MATTERS_PREVIEW_THRESHOLD;
+  const collapsedPreview = buildIntentionalEditorialPreview(
+    normalizedText,
+    WHY_IT_MATTERS_PREVIEW_THRESHOLD,
+  );
+  const displayedPreview = collapsedPreview === normalizedText ? normalizedText : collapsedPreview;
+  const sections = expanded && !structuredExpandedContent ? formatWhyItMattersSections(normalizedText) : [];
+
+  return (
+    <div className="mt-3">
+      {expanded && structuredExpandedContent ? (
+        <StructuredWhyItMattersContent content={structuredExpandedContent} />
+      ) : expanded ? (
+        <div
+          className="space-y-3 border-l-2 border-[var(--border)] pl-3 text-[0.98rem] leading-7 text-[var(--text-primary)]"
+          data-testid="home-why-it-matters-text"
+        >
+          {sections.map((section, index) => (
+            <p key={`${index}-${section.slice(0, 24)}`}>{section}</p>
+          ))}
+        </div>
+      ) : (
+        <p
+          className="text-base leading-7 text-[var(--text-primary)]"
+          data-testid="home-why-it-matters-text"
+        >
+          {shouldCollapse ? collapsedPreview : displayedPreview}
+        </p>
+      )}
+      {shouldCollapse ? (
+        <button
+          type="button"
+          aria-expanded={expanded}
+          className="mt-3 inline-flex text-sm font-semibold text-[var(--accent)] underline-offset-4 hover:underline"
+          onClick={() => setExpanded((current) => !current)}
+        >
+          {expanded ? "Show less" : "Read more"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function StructuredWhyItMattersContent({
+  content,
+}: {
+  content: EditorialWhyItMattersContent;
+}) {
+  return (
+    <div
+      className="space-y-4 border-l-2 border-[var(--border)] pl-3 text-[0.98rem] leading-7 text-[var(--text-primary)]"
+      data-testid="home-why-it-matters-text"
+    >
+      {content.thesis ? <p className="font-medium">{content.thesis}</p> : null}
+      {content.sections.map((section, index) => (
+        <section key={`${index}-${section.title}`} className="space-y-1.5">
+          {section.title ? (
+            <h3 className="text-sm font-semibold uppercase tracking-[0.06em] text-[var(--text-secondary)]">
+              {section.title}
+            </h3>
+          ) : null}
+          {section.body ? <p>{section.body}</p> : null}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function getStructuredExpandedContent(
+  content: EditorialWhyItMattersContent | null | undefined,
+) {
+  if (!content?.thesis && !content?.sections.length) {
+    return null;
+  }
+
+  return content;
+}
+
+function formatWhyItMattersSections(text: string) {
+  const explicitParagraphs = text
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+
+  if (explicitParagraphs.length > 1) {
+    return explicitParagraphs;
+  }
+
+  const normalized = text.replace(/\s+/g, " ").trim();
+  const sentences = normalized
+    .match(/[^.!?]+[.!?]+(?:["')\]]+)?|[^.!?]+$/g)
+    ?.map((sentence) => sentence.trim())
+    .filter(Boolean) ?? [normalized];
+
+  if (sentences.length < 3) {
+    return [normalized];
+  }
+
+  return sentences;
 }
 
 function CategorySoftGate({
