@@ -82,6 +82,15 @@ export const demoSources: Source[] = [
     status: "active",
   },
   {
+    id: "source-reuters-business",
+    name: "Reuters Business",
+    feedUrl: "https://feeds.reuters.com/reuters/businessNews",
+    homepageUrl: "https://www.reuters.com/business/",
+    topicId: "topic-finance",
+    topicName: "Finance",
+    status: "active",
+  },
+  {
     id: "source-bbc-world",
     name: "BBC World News",
     feedUrl: "http://feeds.bbci.co.uk/news/world/rss.xml",
