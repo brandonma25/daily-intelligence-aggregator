@@ -1,5 +1,8 @@
 import { env, isAiConfigured } from "@/lib/env";
+import { buildEventIntelligence } from "@/lib/event-intelligence";
+import { classifyHomepageCategory, getHomepageCategoryLabel } from "@/lib/homepage-taxonomy";
 import type { FeedArticle } from "@/lib/rss";
+import { generateWhyThisMattersHeuristically } from "@/lib/why-it-matters";
 import { firstSentence } from "@/lib/utils";
 
 export type StorySummary = {
@@ -29,6 +32,9 @@ async function summarizeWithAi(
   topicName: string,
   articles: FeedArticle[],
 ): Promise<StorySummary> {
+  const intelligence = buildEventIntelligence(articles, {
+    topicName,
+  });
   const sourceBlock = articles
     .slice(0, 5)
     .map(
@@ -55,7 +61,24 @@ async function summarizeWithAi(
         },
         {
           role: "user",
-          content: `Topic: ${topicName}\n\nCreate a high-signal daily briefing item from these articles:\n\n${sourceBlock}`,
+          content: `Topic: ${topicName}
+
+Structured event intelligence:
+- Event type: ${intelligence.eventType}
+- Entities: ${intelligence.entities.join(", ") || "None"}
+- Primary impact: ${intelligence.primaryImpact}
+- Affected markets: ${intelligence.affectedMarkets.join(", ") || "broad markets"}
+- Time horizon: ${intelligence.timeHorizon}
+
+Create a high-signal daily briefing item from these articles:
+
+${sourceBlock}
+
+For whyItMatters specifically:
+- Focus on causality (what changes and why)
+- Be specific to this event
+- Avoid generic phrases
+- Do not repeat the summary`,
         },
       ],
     }),
@@ -82,37 +105,45 @@ async function summarizeWithAi(
   };
 }
 
-function summarizeHeuristically(topicName: string, articles: FeedArticle[]): StorySummary {
+export function summarizeHeuristically(topicName: string, articles: FeedArticle[]): StorySummary {
   const lead = articles[0];
   const second = articles[1];
   const third = articles[2];
+  const classification = classifyHomepageCategory({
+    topicName,
+    title: lead.title,
+    summary: articles.slice(0, 3).map((article) => article.summaryText).join(" "),
+    sourceNames: articles.map((article) => article.sourceName),
+  });
+  const primaryCategory = classification.primaryCategory
+    ? getHomepageCategoryLabel(classification.primaryCategory)
+    : topicName;
+  const sourceCount = new Set(articles.map((article) => article.sourceName)).size;
+  const leadSummary = firstSentence(lead.summaryText, lead.title);
+  const intelligence = buildEventIntelligence(articles, {
+    topicName,
+  });
 
-  // Build a specific what-happened from the lead article
   const whatHappened = firstSentence(
     lead.summaryText,
-    `${lead.sourceName} is reporting a notable development in ${topicName.toLowerCase()}.`,
+    `${lead.sourceName} is reporting a notable ${primaryCategory.toLowerCase()} development.`,
   );
 
-  // Build three distinct, article-grounded key points
   const points: [string, string, string] = [
-    // Point 1: lead story grounded
-    lead.summaryText
-      ? firstSentence(lead.summaryText, lead.title)
-      : lead.title,
-    // Point 2: second source if available, otherwise a count observation
+    leadSummary,
     second
-      ? `${second.sourceName} is covering the same story: ${firstSentence(second.summaryText, second.title).toLowerCase()}`
-      : `${lead.sourceName} is the primary source — no corroborating coverage from other tracked feeds yet.`,
-    // Point 3: third source or signal count
+      ? `${second.sourceName} corroborates the event with ${firstSentence(second.summaryText, second.title).toLowerCase()}`
+      : `${lead.sourceName} is still the only tracked outlet carrying this development.`,
     third
-      ? `${third.sourceName} adds: ${firstSentence(third.summaryText, third.title).toLowerCase()}`
+      ? `${third.sourceName} adds ${firstSentence(third.summaryText, third.title).toLowerCase()}`
       : articles.length > 1
-        ? `${articles.length} sources across your ${topicName} feeds picked up this cluster, indicating broad relevance.`
-        : `Only one source has reported on this so far — treat as an early signal rather than confirmed news.`,
+        ? `${sourceCount} sources have picked up the same event, which strengthens confidence.`
+        : `Treat this as an early signal until more independent sources confirm it.`,
   ];
 
-  // Build a specific why-it-matters using the topic and lead title
-  const whyItMatters = `${topicName} operators tracking this area should note it: the lead signal — "${lead.title}" — is the kind of development that tends to affect near-term priorities or assumptions. Connect an AI key in Settings to get analyst-quality analysis instead of this heuristic summary.`;
+  const whyItMatters = truncateWhyThisMatters(
+    `${generateWhyThisMattersHeuristically(intelligence)} (Signal: ${intelligence.signalStrength.charAt(0).toUpperCase()}${intelligence.signalStrength.slice(1)})`,
+  );
 
   return {
     headline: lead.title,
@@ -121,4 +152,18 @@ function summarizeHeuristically(topicName: string, articles: FeedArticle[]): Sto
     whyItMatters,
     estimatedMinutes: Math.min(6, Math.max(3, Math.ceil(articles.length * 1.5))),
   };
+}
+
+function truncateWhyThisMatters(value: string, maxLength = 179) {
+  if (value.length <= maxLength) {
+    return value;
+  }
+
+  const trimmed = value.slice(0, maxLength - 1);
+  const sentenceEnd = Math.max(trimmed.lastIndexOf("."), trimmed.lastIndexOf(";"), trimmed.lastIndexOf(","));
+  if (sentenceEnd > 100) {
+    return `${trimmed.slice(0, sentenceEnd).trim()}…`;
+  }
+
+  return `${trimmed.trim()}…`;
 }

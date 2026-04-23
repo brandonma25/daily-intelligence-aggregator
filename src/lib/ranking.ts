@@ -1,4 +1,6 @@
+import { buildEventIntelligence } from "@/lib/event-intelligence";
 import type { FeedArticle } from "@/lib/rss";
+import type { BriefingItem, EventIntelligence } from "@/lib/types";
 
 type ArticleCluster = {
   representative: FeedArticle;
@@ -9,77 +11,8 @@ export type RankedCluster = ArticleCluster & {
   importanceScore: number;
   importanceLabel: "Critical" | "High" | "Watch";
   rankingSignals: string[];
+  eventIntelligence: EventIntelligence;
 };
-
-const SOURCE_AUTHORITY: Record<string, number> = {
-  reuters: 1,
-  "financial times": 0.98,
-  bloomberg: 0.97,
-  "wall street journal": 0.97,
-  "ars technica": 0.88,
-  "the verge": 0.84,
-  techcrunch: 0.87,
-  "gdelt finance monitor": 0.72,
-  "newsapi business": 0.75,
-  marketwatch: 0.82,
-  tldr: 0.76,
-  "zerohedge": 0.52,
-};
-
-const IMPACT_KEYWORDS = [
-  "earnings",
-  "acquisition",
-  "merger",
-  "funding",
-  "fed",
-  "interest rate",
-  "regulation",
-  "lawsuit",
-  "launch",
-  "model",
-  "chip",
-  "security",
-  "breach",
-  "layoff",
-  "tariff",
-  "ipo",
-];
-
-const TECH_KEYWORDS = [
-  "ai",
-  "artificial intelligence",
-  "chip",
-  "openai",
-  "google",
-  "microsoft",
-  "meta",
-  "apple",
-  "amazon",
-  "nvidia",
-  "tesla",
-  "software",
-  "cloud",
-  "model",
-  "cybersecurity",
-];
-
-const FINANCE_KEYWORDS = [
-  "market",
-  "stocks",
-  "bonds",
-  "treasury",
-  "fed",
-  "inflation",
-  "earnings",
-  "revenue",
-  "guidance",
-  "bank",
-  "rates",
-  "economy",
-  "oil",
-  "dollar",
-  "ipo",
-];
 
 export function rankNewsClusters(
   topicName: string,
@@ -87,40 +20,26 @@ export function rankNewsClusters(
 ): RankedCluster[] {
   return clusters
     .map((cluster) => rankCluster(topicName, cluster))
-    .sort((left, right) => right.importanceScore - left.importanceScore);
+    .filter((cluster) => cluster.eventIntelligence.isHighSignal)
+    .sort(compareRankedClusters);
 }
 
 function rankCluster(topicName: string, cluster: ArticleCluster): RankedCluster {
-  const uniqueSources = new Set(cluster.sources.map((article) => article.sourceName)).size;
-  const newestTimestamp = Math.max(
-    ...cluster.sources.map((article) => new Date(article.publishedAt).getTime()),
-  );
-  const ageHours = Math.max(0, (Date.now() - newestTimestamp) / (1000 * 60 * 60));
-  const recency = Math.max(0, 100 - Math.min(ageHours, 48) / 48 * 100);
-  const corroboration = Math.min(uniqueSources, 4) / 4 * 100;
-  const sourceAuthority = averageSourceAuthority(cluster.sources) * 100;
-  const impact = impactScore(cluster) * 100;
-  const categoryFit = categoryFitScore(topicName, cluster) * 100;
-
-  const importanceScore = Math.round(
-    recency * 0.28 +
-      corroboration * 0.22 +
-      sourceAuthority * 0.18 +
-      impact * 0.22 +
-      categoryFit * 0.1,
-  );
+  const eventIntelligence = buildEventIntelligence(cluster.sources, {
+    topicName,
+    createdAt: cluster.representative.publishedAt,
+  });
+  const importanceScore = eventIntelligence.rankingScore;
 
   const rankingSignals = [
-    recency >= 70 ? "Fresh reporting in the current cycle." : "Older than the fastest-moving headlines.",
-    corroboration >= 50
-      ? `Covered by ${uniqueSources} sources, which boosts confidence.`
+    eventIntelligence.rankingReason,
+    eventIntelligence.signals.sourceDiversity >= 3
+      ? `Confirmed by ${eventIntelligence.signals.sourceDiversity} independent sources.`
       : "Still early coverage with limited source confirmation.",
-    impact >= 55
-      ? "Contains language associated with market-moving or strategic impact."
-      : "Looks more incremental than category-defining.",
-    categoryFit >= 55
-      ? `Strong match for the ${topicName.toLowerCase()} brief.`
-      : `Relevant to ${topicName.toLowerCase()}, but not a perfect fit.`,
+    eventIntelligence.signals.velocityScore >= 65
+      ? "Coverage velocity is increasing."
+      : "Coverage is moving at a steadier pace.",
+    `Confidence ${eventIntelligence.confidenceScore}/100.`,
   ];
 
   return {
@@ -129,33 +48,141 @@ function rankCluster(topicName: string, cluster: ArticleCluster): RankedCluster 
     importanceLabel:
       importanceScore >= 80 ? "Critical" : importanceScore >= 65 ? "High" : "Watch",
     rankingSignals,
+    eventIntelligence,
   };
 }
 
-function averageSourceAuthority(articles: FeedArticle[]) {
-  const weights = articles.map((article) => {
-    const sourceName = article.sourceName.toLowerCase();
-    return SOURCE_AUTHORITY[sourceName] ?? 0.7;
-  });
+export function compareRankedClusters(left: RankedCluster, right: RankedCluster) {
+  const scoreDelta = right.eventIntelligence.rankingScore - left.eventIntelligence.rankingScore;
+  if (scoreDelta !== 0) {
+    return scoreDelta;
+  }
 
-  return weights.reduce((sum, weight) => sum + weight, 0) / Math.max(weights.length, 1);
+  const confidenceDelta =
+    right.eventIntelligence.confidenceScore - left.eventIntelligence.confidenceScore;
+  if (confidenceDelta !== 0) {
+    return confidenceDelta;
+  }
+
+  const freshnessDelta =
+    getTimestamp(right.representative.publishedAt) - getTimestamp(left.representative.publishedAt);
+  if (freshnessDelta !== 0) {
+    return freshnessDelta;
+  }
+
+  return left.representative.title.localeCompare(right.representative.title);
 }
 
-function impactScore(cluster: ArticleCluster) {
-  const corpus = `${cluster.representative.title} ${cluster.sources
-    .slice(0, 3)
-    .map((article) => article.summaryText)
-    .join(" ")}`.toLowerCase();
-  const matches = IMPACT_KEYWORDS.filter((keyword) => corpus.includes(keyword)).length;
-  return Math.min(matches, 4) / 4;
+type BriefingRankSnapshot = {
+  isHighSignal: boolean;
+  rankingScore: number;
+  confidenceScore: number;
+  freshestTimestamp: number;
+  sourceDiversity: number;
+};
+
+export function compareBriefingItemsByRanking(left: BriefingItem, right: BriefingItem) {
+  const leftSnapshot = getBriefingRankSnapshot(left);
+  const rightSnapshot = getBriefingRankSnapshot(right);
+
+  if (leftSnapshot.isHighSignal !== rightSnapshot.isHighSignal) {
+    return Number(rightSnapshot.isHighSignal) - Number(leftSnapshot.isHighSignal);
+  }
+
+  const scoreDelta = rightSnapshot.rankingScore - leftSnapshot.rankingScore;
+  if (scoreDelta !== 0) {
+    return scoreDelta;
+  }
+
+  const confidenceDelta = rightSnapshot.confidenceScore - leftSnapshot.confidenceScore;
+  if (confidenceDelta !== 0) {
+    return confidenceDelta;
+  }
+
+  const freshnessDelta = rightSnapshot.freshestTimestamp - leftSnapshot.freshestTimestamp;
+  if (freshnessDelta !== 0) {
+    return freshnessDelta;
+  }
+
+  const sourceDelta = rightSnapshot.sourceDiversity - leftSnapshot.sourceDiversity;
+  if (sourceDelta !== 0) {
+    return sourceDelta;
+  }
+
+  return left.title.localeCompare(right.title);
 }
 
-function categoryFitScore(topicName: string, cluster: ArticleCluster) {
-  const corpus = `${cluster.representative.title} ${cluster.sources
-    .slice(0, 3)
-    .map((article) => article.summaryText)
-    .join(" ")}`.toLowerCase();
-  const keywordSet = topicName.toLowerCase().includes("finance") ? FINANCE_KEYWORDS : TECH_KEYWORDS;
-  const matches = keywordSet.filter((keyword) => corpus.includes(keyword)).length;
-  return Math.max(0.35, Math.min(matches, 5) / 5);
+export function sortBriefingItemsByRanking(items: BriefingItem[]) {
+  return items.slice().sort(compareBriefingItemsByRanking);
+}
+
+export function getBriefingRankSnapshot(item: BriefingItem): BriefingRankSnapshot {
+  const intelligence = item.eventIntelligence;
+  const rankingScore = intelligence?.rankingScore ?? item.importanceScore ?? 0;
+  const confidenceScore = intelligence?.confidenceScore ?? 0;
+  const sourceDiversity =
+    intelligence?.signals.sourceDiversity ??
+    item.sourceCount ??
+    new Set(item.sources.map((source) => source.title)).size;
+
+  return {
+    isHighSignal:
+      intelligence?.isHighSignal ??
+      (rankingScore >= 45 && (sourceDiversity >= 2 || (item.relatedArticles?.length ?? 0) >= 2)),
+    rankingScore,
+    confidenceScore,
+    freshestTimestamp: getTimestamp(item.publishedAt ?? intelligence?.createdAt),
+    sourceDiversity,
+  };
+}
+
+export function buildRankingDisplaySignals(item: BriefingItem) {
+  const intelligence = item.eventIntelligence;
+  const articleCount =
+    intelligence?.signals.articleCount ??
+    item.timeline?.reduce((count, group) => count + group.entries.length, 0) ??
+    item.relatedArticles?.length ??
+    item.sources.length;
+  const sourceCount =
+    intelligence?.signals.sourceDiversity ??
+    item.sourceCount ??
+    new Set(item.sources.map((source) => source.title)).size;
+  const signals = [
+    buildUpdatedLabel(item.publishedAt ?? intelligence?.createdAt),
+    articleCount > 0 ? `Covered by ${articleCount} ${articleCount === 1 ? "article" : "articles"}` : null,
+    sourceCount > 0 ? `Seen across ${sourceCount} ${sourceCount === 1 ? "source" : "sources"}` : null,
+    intelligence?.signals.velocityScore && intelligence.signals.velocityScore >= 70
+      ? "Rapidly developing"
+      : null,
+  ].filter((value): value is string => Boolean(value));
+
+  return [...new Set(signals)].slice(0, 4);
+}
+
+function buildUpdatedLabel(value: string | undefined) {
+  const timestamp = getTimestamp(value);
+  if (!timestamp) {
+    return null;
+  }
+
+  const ageHours = Math.max(0, (Date.now() - timestamp) / (1000 * 60 * 60));
+  if (ageHours < 1) {
+    return "Updated <1h ago";
+  }
+
+  if (ageHours < 24) {
+    return `Updated ${Math.round(ageHours)}h ago`;
+  }
+
+  const ageDays = Math.round(ageHours / 24);
+  return `Updated ${ageDays}d ago`;
+}
+
+function getTimestamp(value: string | undefined) {
+  if (!value) {
+    return 0;
+  }
+
+  const timestamp = new Date(value).getTime();
+  return Number.isNaN(timestamp) ? 0 : timestamp;
 }
