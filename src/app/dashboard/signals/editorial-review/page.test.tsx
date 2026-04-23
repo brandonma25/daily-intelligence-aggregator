@@ -16,6 +16,7 @@ vi.mock("@/app/dashboard/signals/editorial-review/actions", () => ({
   approveSignalPostAction: vi.fn(),
   resetSignalPostToAiDraftAction: vi.fn(),
   publishTopSignalsAction: vi.fn(),
+  publishSignalPostAction: vi.fn(),
 }));
 
 const reviewPost = {
@@ -160,5 +161,74 @@ describe("signals editorial review page", () => {
 
     expect(screen.getByRole("button", { name: "Approve All" })).toBeDisabled();
     expect(screen.getByText(/Approve All applies only to visible Draft and Needs Review posts/i)).toBeInTheDocument();
+  });
+
+  it("allows publishing when approved edits are mixed with already published top posts", async () => {
+    getEditorialReviewState.mockResolvedValue({
+      kind: "authorized",
+      adminEmail: "admin@example.com",
+      posts: [
+        {
+          ...approvedPost,
+          id: "signal-1",
+          rank: 1,
+          title: "Approved edited signal",
+        },
+        ...Array.from({ length: 4 }, (_, index) => ({
+          ...publishedPost,
+          id: `signal-published-${index + 2}`,
+          rank: index + 2,
+          title: `Published Signal ${index + 2}`,
+        })),
+      ],
+      storageReady: true,
+      warning: null,
+    });
+
+    const Page = (await import("@/app/dashboard/signals/editorial-review/page")).default;
+    render(await Page({ searchParams: Promise.resolve({}) }));
+
+    expect(screen.getByRole("button", { name: "Publish Top 5 Signals" })).toBeEnabled();
+    expect(screen.getByText(/Approved posts are ready to publish/i)).toBeInTheDocument();
+  });
+
+  it("shows a per-card Publish action for approved posts waiting to go live", async () => {
+    getEditorialReviewState.mockResolvedValue({
+      kind: "authorized",
+      adminEmail: "admin@example.com",
+      posts: [approvedPost],
+      storageReady: true,
+      warning: null,
+    });
+
+    const Page = (await import("@/app/dashboard/signals/editorial-review/page")).default;
+    render(await Page({ searchParams: Promise.resolve({}) }));
+
+    expect(screen.getByRole("button", { name: "Publish" })).toBeEnabled();
+    expect(screen.getByText(/Approved and waiting to publish/i)).toBeInTheDocument();
+  });
+
+  it("explains that draft rows still block publishing even when other rows are already published", async () => {
+    getEditorialReviewState.mockResolvedValue({
+      kind: "authorized",
+      adminEmail: "admin@example.com",
+      posts: [
+        reviewPost,
+        ...Array.from({ length: 4 }, (_, index) => ({
+          ...publishedPost,
+          id: `signal-published-${index + 2}`,
+          rank: index + 2,
+          title: `Published Signal ${index + 2}`,
+        })),
+      ],
+      storageReady: true,
+      warning: null,
+    });
+
+    const Page = (await import("@/app/dashboard/signals/editorial-review/page")).default;
+    render(await Page({ searchParams: Promise.resolve({}) }));
+
+    expect(screen.getByRole("button", { name: "Publish Top 5 Signals" })).toBeDisabled();
+    expect(screen.getByText(/Already published posts remain publish-ready/i)).toBeInTheDocument();
   });
 });

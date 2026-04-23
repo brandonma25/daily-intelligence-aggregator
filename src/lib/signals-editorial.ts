@@ -694,18 +694,20 @@ export async function publishApprovedSignals(input: {
     };
   }
 
-  const unapproved = topFivePosts.filter((post) => post.editorialStatus !== "approved");
+  const notReadyToPublish = topFivePosts.filter(
+    (post) => post.editorialStatus !== "approved" && post.editorialStatus !== "published",
+  );
 
-  if (unapproved.length > 0) {
+  if (notReadyToPublish.length > 0) {
     return {
       ok: false,
       code: "publish_blocked",
-      message: "Approve all five signal posts before publishing.",
+      message: "Approve all five signal posts before publishing. Already published posts remain publish-ready.",
     };
   }
 
   const missingEditorialText = topFivePosts.filter(
-    (post) => !normalizeEditorialText(post.editedWhyItMatters),
+    (post) => !normalizeEditorialText(post.editedWhyItMatters || post.publishedWhyItMatters),
   );
 
   if (missingEditorialText.length > 0) {
@@ -722,7 +724,9 @@ export async function publishApprovedSignals(input: {
       context.client
         .from("signal_posts")
         .update({
-          published_why_it_matters: normalizeEditorialText(post.editedWhyItMatters),
+          published_why_it_matters: normalizeEditorialText(
+            post.editedWhyItMatters || post.publishedWhyItMatters,
+          ),
           editorial_status: "published",
           published_at: now,
           updated_at: now,
@@ -743,6 +747,80 @@ export async function publishApprovedSignals(input: {
     ok: true,
     code: "published",
     message: "Top 5 Signals published.",
+  };
+}
+
+export async function publishSignalPost(input: {
+  postId: string;
+  route?: string;
+}): Promise<EditorialMutationResult> {
+  const context = await getAdminEditorialContext(input.route ?? SIGNALS_EDITORIAL_ROUTE);
+
+  if (!context.ok) {
+    return {
+      ok: false,
+      code: context.code,
+      message: context.message,
+    };
+  }
+
+  const lookup = await context.client
+    .from("signal_posts")
+    .select(SIGNAL_POST_SELECT)
+    .eq("id", input.postId)
+    .maybeSingle();
+
+  if (lookup.error || !lookup.data) {
+    return {
+      ok: false,
+      code: "not_found",
+      message: "The signal post could not be found.",
+    };
+  }
+
+  const post = mapStoredSignalPost(lookup.data as unknown as StoredSignalPost);
+
+  if (post.editorialStatus !== "approved") {
+    return {
+      ok: false,
+      code: "publish_blocked",
+      message: "Approve this signal post before publishing it.",
+    };
+  }
+
+  const editorialText = normalizeEditorialText(post.editedWhyItMatters);
+
+  if (!editorialText) {
+    return {
+      ok: false,
+      code: "publish_blocked",
+      message: "Add editorial Why it matters text before publishing this signal post.",
+    };
+  }
+
+  const now = new Date().toISOString();
+  const updateResult = await context.client
+    .from("signal_posts")
+    .update({
+      published_why_it_matters: editorialText,
+      editorial_status: "published",
+      published_at: now,
+      updated_at: now,
+    })
+    .eq("id", post.id);
+
+  if (updateResult.error) {
+    return {
+      ok: false,
+      code: "storage_error",
+      message: "The signal post could not be published.",
+    };
+  }
+
+  return {
+    ok: true,
+    code: "published",
+    message: "Signal post published.",
   };
 }
 

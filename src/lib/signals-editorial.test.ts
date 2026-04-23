@@ -370,4 +370,81 @@ describe("signals editorial workflow", () => {
     expect(result.code).toBe("publish_blocked");
     expect(rows.some((row) => row.editorial_status === "published")).toBe(false);
   });
+
+  it("publishes approved edits when the rest of the Top 5 is already published", async () => {
+    const rows = [
+      createRow({
+        id: "signal-1",
+        rank: 1,
+        edited_why_it_matters: "Newly approved editorial update.",
+        editorial_status: "approved",
+      }),
+      ...Array.from({ length: 4 }, (_, index) =>
+        createRow({
+          id: `signal-${index + 2}`,
+          rank: index + 2,
+          edited_why_it_matters: `Existing edited ${index + 2}`,
+          published_why_it_matters: `Existing published ${index + 2}`,
+          editorial_status: "published",
+        }),
+      ),
+    ];
+    createSupabaseServiceRoleClient.mockReturnValue(createSupabaseMock(rows));
+    safeGetUser.mockResolvedValue({
+      user: { id: "admin-1", email: "admin@example.com" },
+      supabase: {},
+      sessionCookiePresent: true,
+    });
+
+    const { publishApprovedSignals } = await loadEditorialModule();
+    const result = await publishApprovedSignals();
+
+    expect(result.ok).toBe(true);
+    expect(rows.every((row) => row.editorial_status === "published")).toBe(true);
+    expect(rows[0].published_why_it_matters).toBe("Newly approved editorial update.");
+    expect(rows[1].published_why_it_matters).toBe("Existing edited 2");
+  });
+
+  it("publishes an individual approved signal post for homepage visibility", async () => {
+    const rows = [
+      createRow({
+        id: "signal-1",
+        rank: 6,
+        edited_why_it_matters: "Approved historical editorial update.",
+        editorial_status: "approved",
+      }),
+    ];
+    createSupabaseServiceRoleClient.mockReturnValue(createSupabaseMock(rows));
+    safeGetUser.mockResolvedValue({
+      user: { id: "admin-1", email: "admin@example.com" },
+      supabase: {},
+      sessionCookiePresent: true,
+    });
+
+    const { publishSignalPost } = await loadEditorialModule();
+    const result = await publishSignalPost({ postId: "signal-1" });
+
+    expect(result.ok).toBe(true);
+    expect(result.message).toBe("Signal post published.");
+    expect(rows[0].editorial_status).toBe("published");
+    expect(rows[0].published_why_it_matters).toBe("Approved historical editorial update.");
+  });
+
+  it("blocks individual publishing until the signal post is approved", async () => {
+    const rows = [createRow({ id: "signal-1", editorial_status: "draft" })];
+    createSupabaseServiceRoleClient.mockReturnValue(createSupabaseMock(rows));
+    safeGetUser.mockResolvedValue({
+      user: { id: "admin-1", email: "admin@example.com" },
+      supabase: {},
+      sessionCookiePresent: true,
+    });
+
+    const { publishSignalPost } = await loadEditorialModule();
+    const result = await publishSignalPost({ postId: "signal-1" });
+
+    expect(result.ok).toBe(false);
+    expect(result.message).toBe("Approve this signal post before publishing it.");
+    expect(rows[0].editorial_status).toBe("draft");
+    expect(rows[0].published_why_it_matters).toBeNull();
+  });
 });

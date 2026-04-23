@@ -91,6 +91,27 @@
   - `/signals` returns `200`.
   - `/dashboard/signals/editorial-review` returns `200`.
 
+## Editorial Publish State Follow-Up — 2026-04-23
+
+- Root cause: card-level approval set a post to `approved`, while homepage visibility requires `published_why_it_matters` on a `published` row. The top-level publish action required all five Top 5 rows to be exactly `approved`, so a normal mixed state of one newly Approved edit plus four already Published rows blocked publishing.
+- Added a per-card `Publish` action for Approved posts so historical/all-post edits have a clear path from `approved` to `published` without relying on the Top 5 bulk publish contract.
+- Updated Top 5 publishing to accept rows that are either Approved or already Published, then writes the best available editorial text into `published_why_it_matters` and sets each row to Published.
+- Updated mutation revalidation to include `/`, `/signals`, and `/dashboard/signals/editorial-review`.
+- Focused tests validate:
+  - edit/approve/publish state progression for an individual historical post.
+  - blocked individual publishing before approval.
+  - mixed Approved plus Published Top 5 publishing.
+  - disabled-state messaging for Draft rows blocking publish.
+  - per-card Publish button visibility for Approved rows.
+- `npm run lint` passed.
+- `npm run test -- src/lib/signals-editorial.test.ts src/app/dashboard/signals/editorial-review/page.test.tsx src/lib/homepage-editorial-overrides.test.ts src/app/page.test.tsx` passed: 4 files, 25 tests.
+- `npm run test` passed: 55 files, 286 tests.
+- `npm run build` passed after the Supabase result cast was aligned with existing server-helper casting.
+- Dev server restarted from this worktree at `http://localhost:3000`.
+- Local HTTP route probes returned `200` for `/`, `/signals`, and `/dashboard/signals/editorial-review`.
+- `npx playwright test --project=chromium` had one transient route-traversal timeout while 29 tests passed; rerunning `npx playwright test tests/audit/route-traversal.spec.ts --project=chromium` passed.
+- `npx playwright test --project=webkit` passed: 30 tests.
+
 ## Preview-Required Checks
 
 - Confirm Google OAuth login with an email listed in `ADMIN_EMAILS`.
@@ -98,6 +119,7 @@
 - Confirm non-admin Google-authenticated users cannot access `/dashboard/signals/editorial-review`.
 - Confirm server actions persist drafts, approvals, reset, and publish state against the preview Supabase database.
 - Confirm historical Approved and Published posts can be edited from the All Posts view without losing their status.
+- Confirm Approved cards show a per-card Publish action and become visible on homepage after publishing.
 - Confirm a published signal edited from the editorial page updates the matching homepage signal card after refresh.
 - Confirm `/signals` reads published rows through the server-side sanitized public route in preview.
 - Confirm env-sensitive behavior with `ADMIN_EMAILS` and `SUPABASE_SERVICE_ROLE_KEY` configured in Vercel preview.

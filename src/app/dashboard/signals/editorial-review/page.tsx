@@ -14,6 +14,7 @@ import {
   approveAllSignalPostsAction,
   approveSignalPostAction,
   publishTopSignalsAction,
+  publishSignalPostAction,
   resetSignalPostToAiDraftAction,
   saveSignalDraftAction,
 } from "@/app/dashboard/signals/editorial-review/actions";
@@ -83,11 +84,10 @@ export default async function SignalsEditorialReviewPage({ searchParams }: PageP
   const posts = state.posts.slice().sort(sortEditorialPosts);
   const visiblePosts = filterPostsByStatus(posts, statusFilter);
   const topFivePosts = posts.slice().sort((left, right) => left.rank - right.rank).slice(0, 5);
-  const allApproved = topFivePosts.length === 5 && topFivePosts.every((post) => post.editorialStatus === "approved");
   const allPublished = topFivePosts.length === 5 && topFivePosts.every((post) => post.editorialStatus === "published");
+  const publishBlockedReason = getPublishBlockedReason(topFivePosts, state.storageReady, allPublished);
   const approveAllPosts = visiblePosts.filter(isBulkApprovablePost);
   const statusCounts = getStatusCounts(posts);
-  const publishBlockedReason = getPublishBlockedReason(topFivePosts, state.storageReady, allApproved, allPublished);
   const approveAllBlockedReason = getApproveAllBlockedReason(visiblePosts, state.storageReady, approveAllPosts.length);
 
   return (
@@ -133,7 +133,7 @@ export default async function SignalsEditorialReviewPage({ searchParams }: PageP
               <form action={publishTopSignalsAction} className="space-y-2">
                 <Button
                   type="submit"
-                  disabled={!allApproved}
+                  disabled={Boolean(publishBlockedReason)}
                   className="w-full gap-2"
                 >
                   <Send className="h-4 w-4" />
@@ -165,7 +165,7 @@ export default async function SignalsEditorialReviewPage({ searchParams }: PageP
             ))}
           </div>
           <p className="text-sm leading-6 text-[var(--text-secondary)]">
-            All persisted signal posts are editable here. Approve All only applies to currently visible posts with Draft or Needs Review status.
+            All persisted signal posts are editable here. Approved posts are ready to publish; Published posts are already live. Approve All only applies to currently visible posts with Draft or Needs Review status.
           </p>
         </section>
 
@@ -328,7 +328,6 @@ function getApproveAllBlockedReason(
 function getPublishBlockedReason(
   posts: EditorialSignalPost[],
   storageReady: boolean,
-  allApproved: boolean,
   allPublished: boolean,
 ) {
   if (!storageReady) {
@@ -343,8 +342,12 @@ function getPublishBlockedReason(
     return "This Top 5 list is already published. Save and approve an edit to publish a new version.";
   }
 
-  if (!allApproved) {
-    return "Approve all five signal posts before publishing.";
+  const blockedCount = posts.filter(
+    (post) => !["approved", "published"].includes(post.editorialStatus),
+  ).length;
+
+  if (blockedCount > 0) {
+    return "Approve all five signal posts before publishing. Already published posts remain publish-ready.";
   }
 
   return null;
@@ -414,6 +417,7 @@ function SignalPostEditor({
   const controlsDisabled = !storageReady || !post.persisted;
   const eligibleForApproveAll =
     post.persisted && ["draft", "needs_review"].includes(post.editorialStatus);
+  const canPublishPost = post.editorialStatus === "approved";
 
   return (
     <Panel className="p-5">
@@ -500,6 +504,17 @@ function SignalPostEditor({
             <CheckCircle2 className="h-4 w-4" />
             Approve
           </Button>
+          {canPublishPost ? (
+            <Button
+              type="submit"
+              formAction={publishSignalPostAction}
+              disabled={controlsDisabled}
+              className="gap-2"
+            >
+              <Send className="h-4 w-4" />
+              Publish
+            </Button>
+          ) : null}
           <Button
             type="submit"
             formAction={resetSignalPostToAiDraftAction}
@@ -511,9 +526,24 @@ function SignalPostEditor({
             Reset to AI Draft
           </Button>
         </div>
+        <p className="text-sm leading-6 text-[var(--text-secondary)]">
+          {getPostStateHint(post)}
+        </p>
       </form>
     </Panel>
   );
+}
+
+function getPostStateHint(post: EditorialSignalPost) {
+  if (post.editorialStatus === "approved") {
+    return "Approved and waiting to publish. Publish this card or use Publish Top 5 Signals when the full Top 5 is ready.";
+  }
+
+  if (post.editorialStatus === "published") {
+    return "Published copy is live for public signal surfaces. Saving edits to this card updates the published copy.";
+  }
+
+  return "Save edits as a draft or approve this card before publishing.";
 }
 
 function formatStatus(status: string) {

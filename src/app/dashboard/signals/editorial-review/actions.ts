@@ -9,6 +9,7 @@ import {
   approveSignalPost,
   approveSignalPosts,
   publishApprovedSignals,
+  publishSignalPost,
   resetSignalPostToAiDraft,
   saveSignalDraft,
   type EditorialMutationResult,
@@ -22,6 +23,7 @@ function redirectWithResult(result: EditorialMutationResult) {
 }
 
 function revalidateEditorialRoutes() {
+  revalidatePath("/");
   revalidatePath(SIGNALS_EDITORIAL_ROUTE);
   revalidatePath(PUBLIC_SIGNALS_ROUTE);
 }
@@ -85,6 +87,18 @@ export async function resetSignalPostToAiDraftAction(formData: FormData) {
 
 export async function publishTopSignalsAction() {
   const result = await publishApprovedSignals();
+
+  if (result.ok) {
+    revalidateEditorialRoutes();
+  }
+
+  redirectWithResult(result);
+}
+
+export async function publishSignalPostAction(formData: FormData) {
+  const result = await publishSignalPost({
+    postId: String(formData.get("postId") ?? ""),
+  });
 
   if (result.ok) {
     revalidateEditorialRoutes();
