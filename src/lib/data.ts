@@ -776,6 +776,7 @@ export async function generateDailyBriefing(
     const topic = resolvePipelineTopic(topics, cluster, topicFallback, intelligence);
     const sourceCount = new Set(cluster.articles.map((article) => article.source)).size;
     const rankingSignals = [intelligence.rankingReason];
+    const homepageClassification = classifyPipelineClusterHomepageCategory(cluster, intelligence);
     const trustLayer = buildTrustLayerPresentation(intelligence, {
       title: intelligence.title,
       topicName: topic.name,
@@ -837,6 +838,7 @@ export async function generateDailyBriefing(
       eventIntelligence: intelligence,
       explanationPacket: packet,
       trustDebug,
+      homepageClassification,
       signalRole: packet.signal_role,
     };
   });
@@ -872,18 +874,15 @@ function resolvePipelineTopic(
   intelligence?: ReturnType<typeof buildEventIntelligence>,
 ) {
   const topicByName = new Map(topics.map((topic) => [topic.name.toLowerCase(), topic]));
-  const classification = classifyHomepageCategory({
-    topicName: intelligence?.topics?.[0] ?? cluster.representative_article.source,
-    title: intelligence?.title ?? cluster.representative_article.title,
-    summary: intelligence?.summary ?? cluster.representative_article.content,
-    matchedKeywords: cluster.topic_keywords,
-    rankingSignals: intelligence ? [intelligence.rankingReason] : [],
-    sourceNames: cluster.articles.map((article) => article.source),
-  });
+  const classification = classifyPipelineClusterHomepageCategory(cluster, intelligence);
+  const hasUnclassifiedMixedSource =
+    !classification.primaryCategory &&
+    cluster.articles.some((article) => article.source_metadata?.domainScope === "mixed_domain");
+  const intelligenceTopicCandidates = hasUnclassifiedMixedSource ? [] : (intelligence?.topics ?? []);
   const candidates = [
-    ...(intelligence?.topics ?? []),
-    ...cluster.topic_keywords,
     ...(classification.primaryCategory ? PIPELINE_TOPIC_ALIASES[classification.primaryCategory] : []),
+    ...intelligenceTopicCandidates,
+    ...cluster.topic_keywords,
   ].map((value) => value.toLowerCase());
 
   for (const candidate of candidates) {
@@ -909,6 +908,29 @@ function resolvePipelineTopic(
   }
 
   return fallbackTopic;
+}
+
+function classifyPipelineClusterHomepageCategory(
+  cluster: Awaited<ReturnType<typeof runClusterFirstPipeline>>["ranked_clusters"][number]["cluster"],
+  intelligence?: ReturnType<typeof buildEventIntelligence>,
+) {
+  const strictSourceCategories = [
+    ...new Set(
+      cluster.articles
+        .map((article) => article.source_metadata)
+        .filter((metadata) => metadata?.domainScope === "strict" && metadata.defaultCategory)
+        .map((metadata) => metadata!.defaultCategory!),
+    ),
+  ];
+
+  return classifyHomepageCategory({
+    topicName: strictSourceCategories.length === 1 ? strictSourceCategories[0] : undefined,
+    title: intelligence?.title ?? cluster.representative_article.title,
+    summary: intelligence?.summary ?? cluster.representative_article.content,
+    matchedKeywords: cluster.topic_keywords,
+    rankingSignals: intelligence ? [intelligence.rankingReason] : [],
+    sourceNames: cluster.articles.map((article) => article.source),
+  });
 }
 
 function selectPublicBriefingItems(items: BriefingItem[], limit = 5) {

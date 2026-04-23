@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { recommendedSources } from "@/lib/source-catalog";
 
 describe("source catalog governance", () => {
-  const batchOneSourceIds = [
-    "financial-times-global-economy",
+  const activatedExpansionSourceIds = [
+    "ars-technica",
     "mit-technology-review",
     "foreign-affairs",
     "the-diplomat",
@@ -13,6 +13,7 @@ describe("source catalog governance", () => {
     "guardian-world",
     "hacker-news-best",
   ];
+  const failedMixedDomainSourceIds = ["brookings-research", "csis-analysis"];
 
   it("keeps BBC and CNBC out of the onboarding catalog", () => {
     const serialized = JSON.stringify(recommendedSources).toLowerCase();
@@ -21,9 +22,16 @@ describe("source catalog governance", () => {
     expect(serialized).not.toContain("cnbc");
   });
 
-  it("keeps catalog entries separate from default ingestion", () => {
-    expect(recommendedSources.some((source) => source.lifecycleStatus === "active_default")).toBe(false);
-    expect(recommendedSources.every((source) => source.mvpDefaultAllowed === false)).toBe(true);
+  it("marks active default catalog entries explicitly", () => {
+    const defaultCatalogEntries = recommendedSources.filter((source) => source.lifecycleStatus === "active_default");
+
+    expect(defaultCatalogEntries.length).toBeGreaterThan(0);
+    expect(defaultCatalogEntries.every((source) => source.mvpDefaultAllowed)).toBe(true);
+    expect(
+      defaultCatalogEntries
+        .filter((source) => source.validationStatus !== "validated")
+        .map((source) => source.id),
+    ).toEqual([]);
   });
 
   it("does not label broken, key-gated, or manual-only sources as importable", () => {
@@ -41,18 +49,33 @@ describe("source catalog governance", () => {
     ).toBe(true);
   });
 
-  it("keeps batch-one onboarded sources out of default and preference treatment", () => {
+  it("marks validated expansion sources as active public defaults without preference boosts", () => {
     const sourcesById = new Map(recommendedSources.map((source) => [source.id, source]));
 
-    for (const sourceId of batchOneSourceIds) {
+    for (const sourceId of activatedExpansionSourceIds) {
       const source = sourcesById.get(sourceId);
 
       expect(source).toBeDefined();
       expect(source?.importStatus).toBe("ready");
       expect(source?.validationStatus).toBe("validated");
+      expect(source?.mvpDefaultAllowed).toBe(true);
+      expect(source?.editorialPreference).toBe(sourceId === "ars-technica" ? "approved" : "none");
+      expect(source?.lifecycleStatus).toBe("active_default");
+    }
+  });
+
+  it("keeps failed mixed-domain endpoints registered but disabled", () => {
+    const sourcesById = new Map(recommendedSources.map((source) => [source.id, source]));
+
+    for (const sourceId of failedMixedDomainSourceIds) {
+      const source = sourcesById.get(sourceId);
+
+      expect(source).toBeDefined();
+      expect(source?.topicLabel).toBe("Mixed-domain");
+      expect(source?.importStatus).toBe("manual");
+      expect(source?.validationStatus).toBe("failed");
       expect(source?.mvpDefaultAllowed).toBe(false);
-      expect(source?.editorialPreference).toBe("none");
-      expect(source?.lifecycleStatus).not.toBe("active_default");
+      expect(source?.lifecycleStatus).toBe("disabled");
     }
   });
 
@@ -62,12 +85,12 @@ describe("source catalog governance", () => {
     expect(source).toBeDefined();
     expect(source?.importStatus).toBe("ready");
     expect(source?.validationStatus).toBe("validated");
-    expect(source?.mvpDefaultAllowed).toBe(false);
+    expect(source?.mvpDefaultAllowed).toBe(true);
     expect(source?.editorialPreference).toBe("none");
-    expect(source?.lifecycleStatus).toBe("active_optional");
+    expect(source?.lifecycleStatus).toBe("active_default");
   });
 
-  it("does not duplicate existing or failed batch-one candidates", () => {
+  it("does not duplicate source feed URLs", () => {
     const feedUrls = recommendedSources.flatMap((source) => (source.feedUrl ? [source.feedUrl] : []));
     const duplicateFeedUrls = feedUrls.filter((feedUrl, index) => feedUrls.indexOf(feedUrl) !== index);
 
@@ -75,8 +98,8 @@ describe("source catalog governance", () => {
     expect(recommendedSources.filter((source) => source.id === "ars-technica")).toHaveLength(1);
     expect(recommendedSources.some((source) => source.feedUrl === "https://www.theverge.com/rss/index.xml")).toBe(false);
     expect(recommendedSources.some((source) => source.id === "npr-economy")).toBe(false);
-    expect(recommendedSources.some((source) => source.id === "brookings-research")).toBe(false);
-    expect(recommendedSources.some((source) => source.id === "csis-analysis")).toBe(false);
+    expect(recommendedSources.filter((source) => source.id === "brookings-research")).toHaveLength(1);
+    expect(recommendedSources.filter((source) => source.id === "csis-analysis")).toHaveLength(1);
     expect(recommendedSources.some((source) => source.feedUrl === "https://feeds.content.dowjones.io/public/rss/mktw_wsjonline")).toBe(false);
   });
 });

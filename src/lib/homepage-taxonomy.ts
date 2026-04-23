@@ -1,6 +1,10 @@
 import type { Source } from "@/lib/types";
+import {
+  getSourceTaxonomyProfile,
+  type SourceProductCategoryKey,
+} from "@/lib/source-taxonomy";
 
-export type HomepageCategoryKey = "tech" | "finance" | "politics";
+export type HomepageCategoryKey = SourceProductCategoryKey;
 
 type CategoryConfig = {
   key: HomepageCategoryKey;
@@ -88,8 +92,10 @@ export const HOMEPAGE_CATEGORY_CONFIG: CategoryConfig[] = [
     key: "politics",
     label: "Politics",
     description: "Government, regulation, elections, and policy changes shaping the operating environment.",
-    aliases: ["politics", "policy", "government", "public policy", "geopolitics"],
+    aliases: ["politics", "policy", "government", "public policy", "geopolitics", "world", "international"],
     keywords: [
+      "foreign affairs",
+      "foreign policy",
       "government",
       "regulation",
       "regulatory",
@@ -190,6 +196,21 @@ export function countSourcesByHomepageCategory(sources: Source[]) {
   };
 
   for (const source of sources) {
+    const sourceProfile = getSourceTaxonomyProfile({
+      sourceId: source.id,
+      sourceName: source.name,
+      feedUrl: source.feedUrl,
+    });
+
+    if (sourceProfile?.domainScope === "mixed_domain") {
+      continue;
+    }
+
+    if (sourceProfile?.domainScope === "strict" && sourceProfile.defaultCategory) {
+      counts[sourceProfile.defaultCategory] += 1;
+      continue;
+    }
+
     const classification = classifyHomepageCategory({
       topicName: source.topicName,
       title: source.name,
@@ -206,16 +227,25 @@ export function countSourcesByHomepageCategory(sources: Source[]) {
 function scoreCategory(category: CategoryConfig, input: ClassificationInput): ScoreDetail {
   const signals = new Set<string>();
   let score = 0;
+  const sourceTaxonomySignals = buildSourceTaxonomySignals(input.sourceNames ?? []);
 
   const topicName = normalizeText(input.topicName);
   const title = normalizeText(input.title);
   const summary = normalizeText(input.summary);
   const why = normalizeText(input.whyItMatters);
-  const sourceNames = normalizeText((input.sourceNames ?? []).join(" "));
+  const sourceNames = normalizeText(sourceTaxonomySignals.namesForKeywordScoring.join(" "));
   const keywordMatches = uniqueValues(input.matchedKeywords ?? []);
   const rankingSignals = uniqueValues(input.rankingSignals ?? []);
   const aliasTerms = uniqueValues([...category.aliases, category.label]);
   const allKeywords = uniqueValues([...category.aliases, ...category.keywords, category.label]);
+  const strictSourceMatches = sourceTaxonomySignals.strictCategories.filter(
+    (sourceCategory) => sourceCategory === category.key,
+  );
+
+  if (strictSourceMatches.length > 0) {
+    score += strictSourceMatches.length * 5;
+    signals.add(`Source mapped to ${category.label}.`);
+  }
 
   for (const alias of aliasTerms) {
     if (containsSignal(topicName, alias)) {
@@ -252,6 +282,30 @@ function scoreCategory(category: CategoryConfig, input: ClassificationInput): Sc
   return {
     score,
     signals: [...signals].slice(0, 4),
+  };
+}
+
+function buildSourceTaxonomySignals(sourceNames: string[]) {
+  const strictCategories: HomepageCategoryKey[] = [];
+  const namesForKeywordScoring: string[] = [];
+
+  for (const sourceName of sourceNames) {
+    const profile = getSourceTaxonomyProfile({ sourceName });
+
+    if (profile?.domainScope === "mixed_domain") {
+      continue;
+    }
+
+    if (profile?.domainScope === "strict" && profile.defaultCategory) {
+      strictCategories.push(profile.defaultCategory);
+    }
+
+    namesForKeywordScoring.push(sourceName);
+  }
+
+  return {
+    strictCategories,
+    namesForKeywordScoring,
   };
 }
 

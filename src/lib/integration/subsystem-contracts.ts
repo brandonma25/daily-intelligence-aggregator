@@ -4,6 +4,10 @@ import type { FeedArticle } from "@/lib/rss";
 
 export type CanonicalTopic = "Tech" | "Finance" | "World";
 
+export type SourceProductCategoryKey = "tech" | "finance" | "politics";
+
+export type SourceDomainScope = "strict" | "mixed_domain";
+
 export type SourceClass =
   | "specialist_press"
   | "business_press"
@@ -36,6 +40,8 @@ export interface CanonicalSourceMetadata {
   source: string;
   homepageUrl: string;
   topic: CanonicalTopic;
+  domainScope?: SourceDomainScope;
+  defaultCategory?: SourceProductCategoryKey;
   credibility: number;
   reliability: number;
   sourceClass: SourceClass;

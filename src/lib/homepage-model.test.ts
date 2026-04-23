@@ -434,6 +434,65 @@ describe("buildHomepageViewModel", () => {
     expect(model.debug.semanticDuplicateSuppressedCount).toBeGreaterThan(0);
   });
 
+  it("does not collapse unrelated Hacker News stories on generic feed boilerplate tokens", () => {
+    const frameworkStory = createItem({
+      id: "hn-framework",
+      topicId: "tech",
+      topicName: "Tech",
+      title: "Framework CEO explains the RAM crisis for Linux laptop users",
+      matchedKeywords: ["comment", "http", "com", "item", "news", "framework", "linux", "laptop"],
+      sourceCount: 2,
+      homepageClassification: {
+        primaryCategory: "tech",
+        secondaryCategories: [],
+        confidence: 0.9,
+        scores: { tech: 10, finance: 0, politics: 0 },
+        matchedSignals: { tech: ["source mapped to tech"], finance: [], politics: [] },
+      },
+    });
+    const cursorStory = createItem({
+      id: "hn-cursor",
+      topicId: "tech",
+      topicName: "Tech",
+      title: "SpaceX evaluates Cursor acquisition option for developer tools",
+      matchedKeywords: ["http", "com", "comment", "news", "cursor", "spacex", "developer"],
+      sourceCount: 2,
+      homepageClassification: {
+        primaryCategory: "tech",
+        secondaryCategories: [],
+        confidence: 0.9,
+        scores: { tech: 10, finance: 0, politics: 0 },
+        matchedSignals: { tech: ["source mapped to tech"], finance: [], politics: [] },
+      },
+    });
+    const politicsStory = createItem({
+      id: "politics-ceasefire",
+      topicId: "politics",
+      topicName: "Politics",
+      title: "Trump extends Iran ceasefire as negotiations continue",
+      matchedKeywords: ["trump", "iran", "ceasefire", "diplomacy"],
+      sourceCount: 2,
+      homepageClassification: {
+        primaryCategory: "politics",
+        secondaryCategories: [],
+        confidence: 0.9,
+        scores: { tech: 0, finance: 0, politics: 10 },
+        matchedSignals: { tech: [], finance: [], politics: ["ceasefire"] },
+      },
+    });
+
+    const model = buildHomepageViewModel(createData([frameworkStory, cursorStory, politicsStory]));
+    const topEventIds = [
+      model.featured?.id,
+      ...model.topRanked.map((event) => event.id),
+    ].filter((eventId): eventId is string => Boolean(eventId));
+
+    expect(topEventIds).toContain("hn-framework");
+    expect(topEventIds).toContain("hn-cursor");
+    expect(topEventIds).toContain("politics-ceasefire");
+    expect(topEventIds).toHaveLength(3);
+  });
+
   it("keeps ranking explanations free of junk debug phrases", () => {
     const item = createItem({
       id: "politics-clean-copy",
