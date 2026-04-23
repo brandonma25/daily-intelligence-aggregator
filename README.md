@@ -51,21 +51,23 @@ Open [http://localhost:3000](http://localhost:3000)
 1. Create a Supabase account at [https://supabase.com](https://supabase.com)
 2. Create a new project
 3. In Supabase, open the SQL editor
-4. Copy the contents of [`supabase/schema.sql`](/Users/bm/Documents/Daily news intel aggregator/supabase/schema.sql)
+4. Copy the contents of `supabase/schema.sql`
 5. Run that SQL once
 6. In Supabase, open Project Settings > API
-7. Copy the project URL and anon key
+7. Copy the project URL and public browser key
 8. Copy `.env.example` to `.env.local`
 9. Fill in:
 
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_or_publishable_key
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 OPENAI_API_KEY=your_openai_api_key
 OPENAI_MODEL=gpt-4.1-mini
 OPENAI_BASE_URL=https://api.openai.com/v1
+THE_NEWS_API_KEY=your_news_api_key
 ```
 
 10. Restart the app with:
@@ -74,13 +76,52 @@ OPENAI_BASE_URL=https://api.openai.com/v1
 npm run dev
 ```
 
+## Google OAuth setup
+
+If you want Google sign-in in addition to the existing email-based auth flows, enable Google in Supabase Auth.
+
+1. In Supabase, open `Authentication > Providers > Google`
+2. Enable the Google provider
+3. Add your Google OAuth client ID and client secret
+4. In the Google Cloud Console, add the local origin and your chosen deployment origin as authorized JavaScript origins:
+
+```text
+http://localhost:3000
+https://your-app.example.com
+```
+
+5. In the Google Cloud Console, add the Supabase callback for your own project:
+
+```text
+https://your-project-ref.supabase.co/auth/v1/callback
+```
+
+6. In Supabase, add the callback URLs you expect to use:
+
+```text
+http://localhost:3000/auth/callback
+https://your-app.example.com/auth/callback
+```
+
+7. In your deployment platform, set the public app URL for the environment you want OAuth to return to:
+
+```text
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
+NEXT_PUBLIC_APP_URL=https://your-app.example.com
+```
+
+8. Confirm `NEXT_PUBLIC_APP_URL` matches the environment URL you want OAuth to return to. The UI computes the redirect target from the current browser origin, but keeping this env var aligned still helps other auth flows and docs stay correct.
+
+Google accounts and password-based accounts both use the same onboarding bootstrap, so starter topics are seeded for either path.
+
 ## How to run the app locally
 
 1. Open Terminal
 2. Go to the project folder:
 
 ```bash
-cd "/Users/bm/Documents/Daily news intel aggregator"
+cd path/to/daily-intelligence-aggregator
 ```
 
 3. Install packages:
@@ -116,6 +157,60 @@ After deployment, add your production URL as:
 NEXT_PUBLIC_APP_URL=https://your-vercel-domain.vercel.app
 ```
 
+Use your canonical production alias here so auth callbacks and environment checks point at the correct live site.
+
+## Release automation
+
+This repo now includes a reusable release-gate flow that keeps most validation automated while preserving a small human auth/session gate.
+
+### Local gate
+
+Run the full local release validation flow with:
+
+```bash
+npm run release:local
+./scripts/release-check.sh
+```
+
+This runs install, lint, unit/integration tests, build, the Dev Server Rule on port `3000`, Chromium Playwright smoke coverage, and signed-out route probes for `/` and `/dashboard`.
+
+### Preview and production probes
+
+Once you have a deployed URL, run:
+
+```bash
+npm run release:preview -- --base-url https://preview.example.com
+npm run release:production -- --base-url https://app.example.com
+node scripts/preview-check.js https://preview.example.com
+node scripts/prod-check.js https://app.example.com
+```
+
+These probes verify `/` and `/dashboard`, require HTTP `200`, and fail on obvious deployment or framework error markers.
+
+### Release docs scaffolding
+
+To create the standard release doc set for a branch or release:
+
+```bash
+npm run release:docs -- --slug your-release-slug --title "Your Release Title"
+```
+
+This scaffolds:
+
+- `docs/product/briefs/<slug>.md`
+- `docs/engineering/testing/<slug>.md`
+- `docs/engineering/bug-fixes/<slug>.md`
+
+### GitHub Actions
+
+The repo also includes:
+
+- PR automation in `.github/workflows/ci.yml`
+- Preview route validation in `.github/workflows/preview-gate.yml`
+- Post-merge production route verification in `.github/workflows/production-verification.yml`
+
+See `docs/engineering/protocols/release-automation-operating-guide.md` for the full release flow and the remaining human-only auth/session checklist.
+
 ## What accounts or keys you need
 
 - Supabase account
@@ -123,7 +218,7 @@ NEXT_PUBLIC_APP_URL=https://your-vercel-domain.vercel.app
 - OpenAI-compatible API key
 - GitHub account for deployment through Vercel
 
-You can use either the older Supabase `anon` key or the newer `sb_publishable_...` key for the browser-side app.
+You can use either the older Supabase `anon` key or the newer `sb_publishable_...` key for the browser-side app, but keep service-role credentials server-side only.
 
 ## Day-to-day operating flow
 

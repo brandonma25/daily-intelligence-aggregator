@@ -18,6 +18,12 @@ export const demoTopics: Topic[] = [
     description: "Markets, companies, macro moves, and business news that matter today.",
     color: "#73563c",
   },
+  {
+    id: "topic-politics",
+    name: "Politics",
+    description: "Government, regulation, geopolitics, and policy shifts affecting the operating environment.",
+    color: "#35506b",
+  },
 ];
 
 export const demoSources: Source[] = [
@@ -67,16 +73,6 @@ export const demoSources: Source[] = [
     status: "active",
   },
   {
-    id: "source-gdelt-finance",
-    name: "GDELT Finance Monitor",
-    feedUrl:
-      "https://api.gdeltproject.org/api/v2/doc/doc?query=(market%20OR%20stocks%20OR%20fed%20OR%20inflation%20OR%20earnings)&mode=artlist&maxrecords=25&timespan=1day&sort=datedesc&format=rss",
-    homepageUrl: "https://www.gdeltproject.org",
-    topicId: "topic-finance",
-    topicName: "Finance",
-    status: "active",
-  },
-  {
     id: "source-marketwatch",
     name: "MarketWatch",
     feedUrl: "https://www.marketwatch.com/rss/topstories",
@@ -94,6 +90,15 @@ export const demoSources: Source[] = [
     topicName: "Finance",
     status: "active",
   },
+  {
+    id: "source-ap-top-news",
+    name: "AP Top News",
+    feedUrl: "https://apnews.com/hub/apf-topnews?output=rss",
+    homepageUrl: "https://apnews.com",
+    topicId: "topic-politics",
+    topicName: "Geopolitics",
+    status: "active",
+  },
   ...(env.newsApiKey
     ? ([
         {
@@ -108,6 +113,35 @@ export const demoSources: Source[] = [
       ] satisfies Source[])
     : []),
 ];
+
+export const MVP_DEFAULT_PUBLIC_SOURCE_IDS = [
+  "source-verge",
+  "source-ars",
+  "source-tldr-tech",
+  "source-techcrunch",
+  "source-ft",
+] as const;
+
+export function getMvpDefaultPublicSources(): Source[] {
+  const sourcesById = new Map(demoSources.map((source) => [source.id, source]));
+
+  return MVP_DEFAULT_PUBLIC_SOURCE_IDS.map((sourceId) => {
+    const source = sourcesById.get(sourceId);
+
+    if (!source) {
+      throw new Error(`MVP default public source ${sourceId} is not defined in demoSources`);
+    }
+
+    return source;
+  });
+}
+
+export function areMvpDefaultPublicSources(sources: Source[]): boolean {
+  return (
+    sources.length === MVP_DEFAULT_PUBLIC_SOURCE_IDS.length &&
+    sources.every((source, index) => source.id === MVP_DEFAULT_PUBLIC_SOURCE_IDS[index])
+  );
+}
 
 export const demoBriefing: DailyBriefing = {
   id: "briefing-today",
@@ -198,5 +232,5 @@ export const demoDashboardData: DashboardData = {
   mode: "demo",
   briefing: demoBriefing,
   topics: demoTopics,
-  sources: demoSources,
+  sources: getMvpDefaultPublicSources(),
 };
