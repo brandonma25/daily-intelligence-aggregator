@@ -374,10 +374,13 @@ describe("getDashboardData fallback behavior", () => {
     expect(data.sources.map((source) => source.id)).toEqual([
       "source-verge",
       "source-ars",
+      "source-mit-tech-review",
       "source-tldr-tech",
       "source-techcrunch",
       "source-ft",
-      "source-reuters-world",
+      "source-reuters-business",
+      "source-bbc-world",
+      "source-foreign-affairs",
     ]);
     expect(runClusterFirstPipeline).toHaveBeenCalledTimes(1);
     expect(logServerEvent).toHaveBeenCalledWith(

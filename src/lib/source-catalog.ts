@@ -48,7 +48,7 @@ export const recommendedSources: RecommendedSource[] = [
     validationStatus: "failed",
     mvpDefaultAllowed: false,
     editorialPreference: "none",
-    note: "Legacy Reuters RSS endpoint is not validated for current import. Do not promote without a fresh working endpoint check.",
+    note: "Superseded at runtime by horizon-reuters-business (donor registry) and source-reuters-business (demo-data). This catalog entry is retained for historical inventory only.",
   },
   {
     id: "reuters-business-news",
