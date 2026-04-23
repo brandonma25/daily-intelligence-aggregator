@@ -37,4 +37,6 @@ Phase 4 added this PR description and `docs/adr/001-public-source-manifest.md`.
 
 ## Blockers encountered
 
-No implementation blockers were encountered. `npm install` reported one high-severity audit finding, but dependency remediation is outside this scoped change and was not modified.
+Local dev-server verification found one blocker against the full Reuters World activation goal. The public dashboard path now resolves six sources from the manifest and reports `sourceCount: 6`, but the existing supplied-source ingestion resolver applies `.slice(0, 5)` before building runtime source definitions. Because the required manifest order places `source-reuters-world` sixth, the runtime source-resolution snapshot still resolves only `custom-source-verge`, `custom-source-ars`, `custom-source-tldr-tech`, `custom-source-techcrunch`, and `custom-source-ft` for supplied-source ingestion. The task explicitly says not to modify the ingestion pipeline or resolver, so this PR stops short of changing that cap or silently reordering the manifest. Follow-up PM direction is required to either approve an ingestion cap change, approve a different manifest order/effective public source subset, or accept that V1 governs public selection but does not fetch Reuters World until the cap is addressed.
+
+`npm install` reported one high-severity audit finding, but dependency remediation is outside this scoped change and was not modified. The `agent-browser` CLI was unavailable in this shell, so local page-load verification used `curl` against `/` and `/dashboard` instead.
