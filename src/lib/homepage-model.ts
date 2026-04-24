@@ -59,6 +59,7 @@ export type HomepageEvent = {
   rankingDisplaySignals: string[];
   matchedKeywords: string[];
   priority: BriefingItem["priority"];
+  publishedAt?: string;
   signalRole: SignalRole;
   rankScore: number;
   sourceCount: number;
@@ -80,6 +81,8 @@ export type HomepageCategorySection = {
   emptyReason: string;
   excludedReasons: string[];
 };
+
+export type HomepageCategoryPreviewMap = Record<HomepageCategoryKey, HomepageEvent[]>;
 
 export type HomepageDebugModel = {
   totalArticlesFetched: number | null;
@@ -106,6 +109,8 @@ export type HomepageDebugModel = {
 export type HomepageViewModel = {
   featured: HomepageEvent | null;
   topRanked: HomepageEvent[];
+  developingNowEvents: HomepageEvent[];
+  categoryPreviewEvents: HomepageCategoryPreviewMap;
   categorySections: HomepageCategorySection[];
   trending: HomepageEvent[];
   earlySignals: HomepageEvent[];
@@ -115,6 +120,8 @@ export type HomepageViewModel = {
 const TOP_EVENTS_LIMIT = 4;
 const MIN_PUBLIC_TOP_EVENTS = 3;
 const CATEGORY_EVENT_LIMIT = 2;
+const DEVELOPING_NOW_EVENT_LIMIT = 10;
+const CATEGORY_PREVIEW_LIMIT = 3;
 const TRENDING_EVENT_LIMIT = 3;
 const EARLY_SIGNAL_LIMIT = 3;
 const SEMANTIC_STOPWORDS = new Set([
@@ -174,6 +181,10 @@ export function buildHomepageViewModel(
     featured,
   );
   const topRanked = topRankedSelection.events;
+  const topSignalEventIds = new Set(
+    [featured, ...topRanked].filter((event): event is HomepageEvent => Boolean(event)).map((event) => event.id),
+  );
+  const volumeLayers = buildVolumeLayersViewModel(events, topSignalEventIds);
   let semanticDuplicateSuppressedCount = topRankedSelection.suppressedCount;
   const visibleSelectionAdjustmentsCount = topRankedSelection.adjustmentsCount;
   const surfacedEvents = [...featuredContext, ...topRanked];
@@ -262,6 +273,8 @@ export function buildHomepageViewModel(
   return {
     featured,
     topRanked,
+    developingNowEvents: volumeLayers.developingNow,
+    categoryPreviewEvents: volumeLayers.categoryPreviews,
     categorySections,
     trending,
     earlySignals: earlySignals.slice(0, EARLY_SIGNAL_LIMIT),
@@ -369,6 +382,7 @@ export function buildHomepageEvents(
         rankingDisplaySignals: buildRankingDisplaySignals(item),
         matchedKeywords: item.matchedKeywords ?? [],
         priority: item.priority,
+        publishedAt: item.publishedAt,
         signalRole,
         rankScore: getRankScore(item) - index * 0.01,
         sourceCount,
@@ -379,6 +393,125 @@ export function buildHomepageEvents(
         semanticFingerprint: buildSemanticFingerprint(item, intelligence, classification),
       } satisfies HomepageEvent;
     });
+}
+
+export function selectDevelopingNowEvents(
+  rankedEvents: HomepageEvent[],
+  topSignalEventIds: Set<string>,
+  options: Record<string, never> = {},
+) {
+  void options;
+
+  const topSignalEvents = rankedEvents.filter((event) => topSignalEventIds.has(event.id));
+  const representedSourceKeys = new Set(topSignalEvents.flatMap((event) => deriveSourceKeys(event)));
+  const candidates = rankedEvents.filter((event) => !topSignalEventIds.has(event.id));
+
+  if (!candidates.length) {
+    return [];
+  }
+
+  const timestamps = candidates.map((event) => getFreshnessTimestamp(event));
+  const oldestTimestamp = Math.min(...timestamps);
+  const newestTimestamp = Math.max(...timestamps);
+  const timestampRange = newestTimestamp - oldestTimestamp;
+
+  const scoredCandidates = candidates
+    .map((event) => {
+      const freshnessTimestamp = getFreshnessTimestamp(event);
+      const freshnessScore =
+        timestampRange > 0 ? (freshnessTimestamp - oldestTimestamp) / timestampRange : 1;
+      const sourceDiversityBonus = deriveSourceKeys(event).some(
+        (sourceKey) => !representedSourceKeys.has(sourceKey),
+      )
+        ? 0.3
+        : 0;
+
+      return {
+        event,
+        freshnessScore,
+        freshnessTimestamp,
+        compositeScore: freshnessScore + sourceDiversityBonus,
+      };
+    })
+    .sort((left, right) => {
+      if (right.compositeScore !== left.compositeScore) {
+        return right.compositeScore - left.compositeScore;
+      }
+
+      return right.freshnessTimestamp - left.freshnessTimestamp;
+    })
+    .map((entry) => entry.event);
+
+  const distinctSelection = selectDistinctEvents(
+    scoredCandidates,
+    topSignalEvents,
+    DEVELOPING_NOW_EVENT_LIMIT,
+  );
+
+  return distinctSelection.events;
+}
+
+export function selectCategoryPreviewEvents(
+  rankedEvents: HomepageEvent[],
+  excludedEventIds: Set<string>,
+  category: HomepageCategoryKey,
+  limit = CATEGORY_PREVIEW_LIMIT,
+) {
+  return rankedEvents
+    .filter(
+      (event) =>
+        event.classification.primaryCategory === category && !excludedEventIds.has(event.id),
+    )
+    .sort((left, right) => {
+      const freshnessDelta = getFreshnessTimestamp(right) - getFreshnessTimestamp(left);
+      if (freshnessDelta !== 0) {
+        return freshnessDelta;
+      }
+
+      return right.rankScore - left.rankScore;
+    })
+    .slice(0, limit);
+}
+
+export function buildVolumeLayersViewModel(
+  rankedEvents: HomepageEvent[],
+  topSignalEventIds: Set<string>,
+): {
+  developingNow: HomepageEvent[];
+  categoryPreviews: HomepageCategoryPreviewMap;
+} {
+  const topSignalEvents = rankedEvents.filter((event) => topSignalEventIds.has(event.id));
+  const developingNow = selectDevelopingNowEvents(rankedEvents, topSignalEventIds);
+  const surfacedEvents = [...topSignalEvents, ...developingNow];
+  const excludedEventIds = new Set(surfacedEvents.map((event) => event.id));
+  const categoryPreviews: HomepageCategoryPreviewMap = {
+    tech: [],
+    finance: [],
+    politics: [],
+  };
+
+  for (const category of HOMEPAGE_CATEGORY_CONFIG) {
+    const candidates = selectCategoryPreviewEvents(
+      rankedEvents,
+      excludedEventIds,
+      category.key,
+      CATEGORY_PREVIEW_LIMIT,
+    );
+    const distinctSelection = selectDistinctEvents(
+      candidates,
+      surfacedEvents,
+      CATEGORY_PREVIEW_LIMIT,
+    );
+
+    categoryPreviews[category.key] = distinctSelection.events;
+    surfacedEvents.push(...distinctSelection.events);
+    distinctSelection.events.forEach((event) => excludedEventIds.add(event.id));
+  }
+
+  return {
+    developingNow,
+    categoryPreviews,
+  };
 }
 
 function buildHomepageRelatedArticles(item: BriefingItem) {
@@ -541,6 +674,24 @@ function getRankScore(item: BriefingItem) {
   return snapshot.rankingScore + snapshot.confidenceScore / 1000 + snapshot.freshestTimestamp / 1_000_000_000_000;
 }
 
+function getFreshnessTimestamp(event: HomepageEvent) {
+  const candidateTimestamps = [
+    event.publishedAt,
+    event.eventIntelligence?.createdAt,
+  ]
+    .map((value) => {
+      if (!value) {
+        return Number.NaN;
+      }
+
+      const parsed = Date.parse(value);
+      return Number.isFinite(parsed) ? parsed : Number.NaN;
+    })
+    .filter((value) => Number.isFinite(value));
+
+  return candidateTimestamps[0] ?? 0;
+}
+
 function selectTopVisibleEvents(
   candidates: HomepageEvent[],
   surfacedEvents: HomepageEvent[],
@@ -680,6 +831,31 @@ function selectDistinctEvents(
     events: selected,
     suppressedCount,
   };
+}
+
+function deriveSourceKeys(item: HomepageEvent) {
+  const sourceKeys = item.relatedArticles
+    .map((article) => normalizeSourceKey(article.url, article.sourceName))
+    .filter(Boolean);
+
+  return [...new Set(sourceKeys)];
+}
+
+function normalizeSourceKey(url: string | undefined, fallbackTitle: string | undefined) {
+  if (url) {
+    try {
+      // Source keys are intentionally derived from hostname-only URLs because briefing items do not
+      // carry a stable source identifier. This deliberately collapses Reuters World and Reuters
+      // Business under feeds.reuters.com when that is the shared feed hostname for diversity scoring.
+      // Future manifest additions should verify the URL pattern resolves distinctly or confirm that
+      // any hostname collision is editorially acceptable.
+      return new URL(url).hostname.replace(/^www\./, "").toLowerCase();
+    } catch {
+      // Fall through to the source title when the URL is malformed.
+    }
+  }
+
+  return fallbackTitle?.trim().toLowerCase() ?? "";
 }
 
 function isSemanticDuplicate(left: HomepageEvent, right: HomepageEvent) {
