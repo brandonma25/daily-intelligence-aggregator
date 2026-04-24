@@ -118,6 +118,7 @@ export type HomepageViewModel = {
   topRanked: HomepageEvent[];
   developingNowEvents: HomepageEvent[];
   categoryPreviewEvents: HomepageCategoryPreviewMap;
+  bestAccessibleReadsEvents: HomepageEvent[];
   categorySections: HomepageCategorySection[];
   trending: HomepageEvent[];
   earlySignals: HomepageEvent[];
@@ -129,6 +130,7 @@ const MIN_PUBLIC_TOP_EVENTS = 3;
 const CATEGORY_TAB_LIMIT = 6;
 const DEVELOPING_NOW_EVENT_LIMIT = 10;
 const CATEGORY_PREVIEW_LIMIT = 3;
+const BEST_ACCESSIBLE_READS_LIMIT = 5;
 const TRENDING_EVENT_LIMIT = 3;
 const EARLY_SIGNAL_LIMIT = 3;
 const SEMANTIC_STOPWORDS = new Set([
@@ -194,6 +196,16 @@ export function buildHomepageViewModel(
     [featured, ...topRanked].filter((event): event is HomepageEvent => Boolean(event)).map((event) => event.id),
   );
   const volumeLayers = buildVolumeLayersViewModel(depthLayerEvents, topSignalEventIds);
+  const bestAccessibleReadsExcludedEventIds = new Set([
+    ...topSignalEventIds,
+    ...volumeLayers.developingNow.map((event) => event.id),
+    ...Object.values(volumeLayers.categoryPreviews).flatMap((events) => events.map((event) => event.id)),
+  ]);
+  const bestAccessibleReadsEvents = selectBestAccessibleReadsEvents(
+    depthLayerEvents,
+    bestAccessibleReadsExcludedEventIds,
+    BEST_ACCESSIBLE_READS_LIMIT,
+  );
   let semanticDuplicateSuppressedCount = topRankedSelection.suppressedCount;
   const visibleSelectionAdjustmentsCount = topRankedSelection.adjustmentsCount;
   const surfacedEvents = [
@@ -287,6 +299,7 @@ export function buildHomepageViewModel(
     topRanked,
     developingNowEvents: volumeLayers.developingNow,
     categoryPreviewEvents: volumeLayers.categoryPreviews,
+    bestAccessibleReadsEvents,
     categorySections,
     trending,
     earlySignals: earlySignals.slice(0, EARLY_SIGNAL_LIMIT),
@@ -408,6 +421,28 @@ export function buildHomepageEvents(
         semanticFingerprint: buildSemanticFingerprint(item, intelligence, classification),
       } satisfies HomepageEvent;
     });
+}
+
+export function selectBestAccessibleReadsEvents(
+  rankedEvents: HomepageEvent[],
+  excludedEventIds: Set<string>,
+  limit = BEST_ACCESSIBLE_READS_LIMIT,
+) {
+  if (!rankedEvents.length || limit <= 0) {
+    return [];
+  }
+
+  return rankedEvents
+    .filter((event) => event.access_type === "open" && !excludedEventIds.has(event.id))
+    .sort((left, right) => {
+      const freshnessDelta = getFreshnessTimestamp(right) - getFreshnessTimestamp(left);
+      if (freshnessDelta !== 0) {
+        return freshnessDelta;
+      }
+
+      return right.rankScore - left.rankScore;
+    })
+    .slice(0, limit);
 }
 
 export function selectDevelopingNowEvents(

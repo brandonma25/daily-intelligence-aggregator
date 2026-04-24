@@ -3,10 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   buildHomepageEvents,
   buildVolumeLayersViewModel,
+  selectBestAccessibleReadsEvents,
   selectCategoryPreviewEvents,
   selectDevelopingNowEvents,
 } from "@/lib/homepage-model";
-import type { BriefingItem } from "@/lib/types";
+import type { BriefingItem, Source } from "@/lib/types";
 
 function createItem(overrides: Partial<BriefingItem>): BriefingItem {
   return {
@@ -52,8 +53,8 @@ function createItem(overrides: Partial<BriefingItem>): BriefingItem {
   };
 }
 
-function buildEvents(items: BriefingItem[]) {
-  return buildHomepageEvents(items);
+function buildEvents(items: BriefingItem[], sources: Source[] = []) {
+  return buildHomepageEvents(items, undefined, sources);
 }
 
 describe("homepage volume layers", () => {
@@ -371,5 +372,98 @@ describe("homepage volume layers", () => {
     const categoryIds = Object.values(result.categoryPreviews).flat().map((event) => event.id);
 
     expect(categoryIds.some((id) => developingIds.has(id))).toBe(false);
+  });
+
+  it("selectBestAccessibleReadsEvents keeps only open-access events sorted by freshness", () => {
+    const sources: Source[] = [
+      {
+        id: "source-techcrunch",
+        name: "TechCrunch",
+        feedUrl: "https://techcrunch.com/feed/",
+        homepageUrl: "https://techcrunch.com",
+        topicName: "Tech",
+        access_type: "open",
+        status: "active",
+      },
+      {
+        id: "source-ft",
+        name: "Financial Times",
+        feedUrl: "https://www.ft.com/rss/home",
+        homepageUrl: "https://www.ft.com",
+        topicName: "Finance",
+        access_type: "paywalled",
+        status: "active",
+      },
+      {
+        id: "source-verge",
+        name: "The Verge",
+        feedUrl: "https://www.theverge.com/rss/index.xml",
+        homepageUrl: "https://www.theverge.com",
+        topicName: "Tech",
+        access_type: "metered",
+        status: "active",
+      },
+    ];
+    const events = buildEvents(
+      [
+        createItem({
+          id: "open-older",
+          title: "Older open story",
+          publishedAt: "2026-04-15T09:00:00.000Z",
+          sources: [{ title: "TechCrunch", url: "https://techcrunch.com/example-older" }],
+        }),
+        createItem({
+          id: "paywalled-newer",
+          title: "Paywalled newer story",
+          publishedAt: "2026-04-15T12:00:00.000Z",
+          sources: [{ title: "Financial Times", url: "https://www.ft.com/content/example" }],
+        }),
+        createItem({
+          id: "open-newer",
+          title: "Newer open story",
+          publishedAt: "2026-04-15T13:00:00.000Z",
+          sources: [{ title: "TechCrunch", url: "https://techcrunch.com/example-newer" }],
+        }),
+        createItem({
+          id: "metered-story",
+          title: "Metered story",
+          publishedAt: "2026-04-15T14:00:00.000Z",
+          sources: [{ title: "The Verge", url: "https://www.theverge.com/example" }],
+        }),
+      ],
+      sources,
+    );
+
+    const result = selectBestAccessibleReadsEvents(events, new Set(["open-older"]));
+
+    expect(result.map((event) => event.id)).toEqual(["open-newer"]);
+  });
+
+  it("selectBestAccessibleReadsEvents respects the limit and returns an empty array when no eligible events exist", () => {
+    const sources: Source[] = [
+      {
+        id: "source-techcrunch",
+        name: "TechCrunch",
+        feedUrl: "https://techcrunch.com/feed/",
+        homepageUrl: "https://techcrunch.com",
+        topicName: "Tech",
+        access_type: "open",
+        status: "active",
+      },
+    ];
+    const events = buildEvents(
+      Array.from({ length: 6 }, (_, index) =>
+        createItem({
+          id: `open-${index + 1}`,
+          title: `Open story ${index + 1}`,
+          publishedAt: `2026-04-15T${String(10 + index).padStart(2, "0")}:00:00.000Z`,
+          sources: [{ title: "TechCrunch", url: `https://techcrunch.com/story-${index + 1}` }],
+        }),
+      ),
+      sources,
+    );
+
+    expect(selectBestAccessibleReadsEvents(events, new Set(), 5)).toHaveLength(5);
+    expect(selectBestAccessibleReadsEvents(events, new Set(events.map((event) => event.id)), 5)).toEqual([]);
   });
 });

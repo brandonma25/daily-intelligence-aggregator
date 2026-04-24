@@ -334,6 +334,81 @@ describe("buildHomepageViewModel", () => {
     expect(event?.access_type).toBe("open");
   });
 
+  it("keeps Best Accessible Reads distinct from Top 5, Developing Now, and Category Previews", () => {
+    const briefingItems = [
+      createItem({
+        id: "briefing-tech",
+        topicId: "tech",
+        topicName: "Tech",
+        title: "Top layer story",
+        sources: [{ title: "Financial Times", url: "https://www.ft.com/content/top-story" }],
+      }),
+    ];
+    const depthItems = [
+      ...briefingItems,
+      createItem({
+        id: "developing-open",
+        topicId: "tech",
+        topicName: "Tech",
+        title: "Developing story",
+        publishedAt: "2026-04-15T13:00:00.000Z",
+        sources: [{ title: "TechCrunch", url: "https://techcrunch.com/developing-story" }],
+      }),
+      createItem({
+        id: "preview-open",
+        topicId: "finance",
+        topicName: "Finance",
+        title: "Category preview story",
+        publishedAt: "2026-04-15T12:00:00.000Z",
+        sources: [{ title: "TechCrunch", url: "https://techcrunch.com/preview-story" }],
+        homepageClassification: {
+          primaryCategory: "finance",
+          secondaryCategories: [],
+          confidence: 0.95,
+          scores: { tech: 0, finance: 12, politics: 0 },
+          matchedSignals: { tech: [], finance: ["preview"], politics: [] },
+        },
+      }),
+      ...Array.from({ length: 10 }, (_, index) =>
+        createItem({
+          id: `developing-filler-${index + 1}`,
+          topicId: "tech",
+          topicName: "Tech",
+          title: `Developing filler ${index + 1}`,
+          publishedAt: `2026-04-15T${String(14 + index).padStart(2, "0")}:00:00.000Z`,
+          sources: [{ title: "TechCrunch", url: `https://techcrunch.com/developing-filler-${index + 1}` }],
+        }),
+      ),
+      createItem({
+        id: "accessible-open",
+        topicId: "politics",
+        topicName: "Politics",
+        title: "Accessible read story",
+        publishedAt: "2026-04-15T09:30:00.000Z",
+        sources: [{ title: "TechCrunch", url: "https://techcrunch.com/accessible-read-story" }],
+        homepageClassification: {
+          primaryCategory: null,
+          secondaryCategories: [],
+          confidence: 0.2,
+          scores: { tech: 0, finance: 0, politics: 0 },
+          matchedSignals: { tech: [], finance: [], politics: [] },
+        },
+      }),
+    ];
+
+    const model = buildHomepageViewModel(createData(briefingItems, { publicRankedItems: depthItems }));
+    const excludedIds = new Set([
+      model.featured?.id,
+      ...model.topRanked.map((event) => event.id),
+      ...model.developingNowEvents.map((event) => event.id),
+      ...Object.values(model.categoryPreviewEvents).flatMap((events) => events.map((event) => event.id)),
+    ]);
+
+    expect(model.bestAccessibleReadsEvents).not.toHaveLength(0);
+    expect(model.bestAccessibleReadsEvents.every((event) => event.access_type === "open")).toBe(true);
+    expect(model.bestAccessibleReadsEvents.some((event) => excludedIds.has(event.id))).toBe(false);
+  });
+
   it("keeps depth layers empty when publicRankedItems is absent", () => {
     const model = buildHomepageViewModel(
       createData(
