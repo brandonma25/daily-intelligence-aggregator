@@ -160,13 +160,15 @@ export function buildHomepageViewModel(
   data: DashboardData,
   profile?: BriefingPersonalizationProfile | null,
 ): HomepageViewModel {
-  const events = buildHomepageEvents(data.briefing.items, profile);
-  const confirmedEvents = events.filter((event) => !event.intelligence.isEarlySignal);
-  const earlySignals = events.filter((event) => event.intelligence.isEarlySignal);
-  const featured = events[0] ?? null;
+  const topLayerEvents = buildHomepageEvents(data.briefing.items, profile);
+  const depthLayerEvents = buildHomepageEvents(data.publicRankedItems ?? [], profile);
+  const confirmedTopLayerEvents = topLayerEvents.filter((event) => !event.intelligence.isEarlySignal);
+  const confirmedDepthLayerEvents = depthLayerEvents.filter((event) => !event.intelligence.isEarlySignal);
+  const earlySignals = depthLayerEvents.filter((event) => event.intelligence.isEarlySignal);
+  const featured = topLayerEvents[0] ?? null;
   const featuredContext = featured ? [featured] : [];
-  const confirmedTopRankedCandidates = confirmedEvents.filter((event) => event.id !== featured?.id);
-  const priorityTopRankedCandidates = events.filter(
+  const confirmedTopRankedCandidates = confirmedTopLayerEvents.filter((event) => event.id !== featured?.id);
+  const priorityTopRankedCandidates = topLayerEvents.filter(
     (event) => event.id !== featured?.id && event.priority === "top",
   );
   const topRankedCandidatePool =
@@ -184,21 +186,23 @@ export function buildHomepageViewModel(
   const topSignalEventIds = new Set(
     [featured, ...topRanked].filter((event): event is HomepageEvent => Boolean(event)).map((event) => event.id),
   );
-  const volumeLayers = buildVolumeLayersViewModel(events, topSignalEventIds);
+  const volumeLayers = buildVolumeLayersViewModel(depthLayerEvents, topSignalEventIds);
   let semanticDuplicateSuppressedCount = topRankedSelection.suppressedCount;
   const visibleSelectionAdjustmentsCount = topRankedSelection.adjustmentsCount;
   const surfacedEvents = [...featuredContext, ...topRanked, ...volumeLayers.developingNow];
   const excludedCategoryTabIds = new Set(surfacedEvents.map((event) => event.id));
   const categorySections = HOMEPAGE_CATEGORY_CONFIG.map((category) => {
     const sectionSelection = selectCategoryTabEvents({
-      rankedEvents: events,
+      rankedEvents: depthLayerEvents,
       category: category.key,
       excludedEventIds: excludedCategoryTabIds,
       limit: CATEGORY_TAB_LIMIT,
     });
     semanticDuplicateSuppressedCount += sectionSelection.suppressedCount;
     const displayEvents = sectionSelection.events;
-    const eligibleEvents = events.filter((event) => event.classification.primaryCategory === category.key);
+    const eligibleEvents = depthLayerEvents.filter(
+      (event) => event.classification.primaryCategory === category.key,
+    );
     const heldBackEvents = eligibleEvents.filter(
       (event) => !excludedCategoryTabIds.has(event.id) && !displayEvents.some((displayEvent) => displayEvent.id === event.id),
     );
@@ -210,7 +214,7 @@ export function buildHomepageViewModel(
 
     const emptyReason = getCategoryTabEmptyReason(category.key);
     const excludedReasons = [
-      ...events
+      ...depthLayerEvents
         .filter((event) => event.classification.primaryCategory !== category.key)
         .map((event) => getExclusionReason(event, category.key)),
       ...eligibleEvents
@@ -255,7 +259,7 @@ export function buildHomepageViewModel(
     ]),
   ]);
   const trendingSelection = selectDistinctEvents(
-    confirmedEvents.filter((event) => !reservedIds.has(event.id) && event.id !== featured?.id),
+    confirmedDepthLayerEvents.filter((event) => !reservedIds.has(event.id) && event.id !== featured?.id),
     surfacedEvents,
     TRENDING_EVENT_LIMIT,
   );
@@ -263,7 +267,7 @@ export function buildHomepageViewModel(
   const trending = trendingSelection.events;
   const sourceCountsByCategory =
     data.homepageDiagnostics?.sourceCountsByCategory ?? countSourcesByHomepageCategory(data.sources);
-  const hiddenLowQualityTimelineSignalsCount = events.filter((event) => event.timeline.length > 0).length;
+  const hiddenLowQualityTimelineSignalsCount = depthLayerEvents.filter((event) => event.timeline.length > 0).length;
   const visibleTopSet = [featured, ...topRanked].filter((event): event is HomepageEvent => Boolean(event));
 
   return {
@@ -277,8 +281,8 @@ export function buildHomepageViewModel(
     debug: {
       totalArticlesFetched: data.homepageDiagnostics?.totalArticlesFetched ?? null,
       totalCandidateEvents: data.homepageDiagnostics?.totalCandidateEvents ?? null,
-      rankedEventsCount: events.length,
-      uncategorizedEventsCount: events.filter((event) => !event.classification.primaryCategory).length,
+      rankedEventsCount: depthLayerEvents.length,
+      uncategorizedEventsCount: depthLayerEvents.filter((event) => !event.classification.primaryCategory).length,
       surfacedDuplicateCount: countDuplicateSurfaceIds(
         [
           featured?.id,
@@ -294,9 +298,9 @@ export function buildHomepageViewModel(
       contextSignalCount: visibleTopSet.filter((event) => event.signalRole === "context").length,
       visibleSelectionAdjustmentsCount,
       categoryCounts: {
-        tech: events.filter((event) => event.classification.primaryCategory === "tech").length,
-        finance: events.filter((event) => event.classification.primaryCategory === "finance").length,
-        politics: events.filter((event) => event.classification.primaryCategory === "politics").length,
+        tech: depthLayerEvents.filter((event) => event.classification.primaryCategory === "tech").length,
+        finance: depthLayerEvents.filter((event) => event.classification.primaryCategory === "finance").length,
+        politics: depthLayerEvents.filter((event) => event.classification.primaryCategory === "politics").length,
       },
       sourceCountsByCategory,
       lastSuccessfulFetchTime: data.homepageDiagnostics?.lastSuccessfulFetchTime,

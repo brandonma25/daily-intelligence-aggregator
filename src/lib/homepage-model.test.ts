@@ -37,7 +37,12 @@ function createItem(overrides: Partial<BriefingItem>): BriefingItem {
   };
 }
 
-function createData(items: BriefingItem[]): DashboardData {
+function createData(
+  items: BriefingItem[],
+  options: {
+    publicRankedItems?: BriefingItem[] | null;
+  } = {},
+): DashboardData {
   return {
     mode: "live",
     briefing: {
@@ -48,6 +53,8 @@ function createData(items: BriefingItem[]): DashboardData {
       readingWindow: "10 minutes",
       items,
     },
+    publicRankedItems:
+      options.publicRankedItems === null ? undefined : (options.publicRankedItems ?? items),
     topics: [],
     sources: [
       { id: "source-tech", name: "TechCrunch", feedUrl: "https://techcrunch.com/feed", status: "active", topicName: "Tech" },
@@ -145,6 +152,194 @@ describe("buildHomepageViewModel", () => {
     expect(financeSection?.events).toHaveLength(0);
     expect(financeSection?.state).toBe("empty");
     expect(financeSection?.emptyReason).toBe("No major economics signals in today's briefing.");
+  });
+
+  it("keeps Top 5 sourced from briefing items while depth layers use publicRankedItems", () => {
+    const briefingItems = [
+      createItem({
+        id: "briefing-finance",
+        topicId: "finance",
+        topicName: "Finance",
+        title: "Fed signals rates will stay elevated",
+        matchedKeywords: ["fed", "rates", "markets"],
+        homepageClassification: {
+          primaryCategory: "finance",
+          secondaryCategories: [],
+          confidence: 0.9,
+          scores: { tech: 0, finance: 11, politics: 0 },
+          matchedSignals: { tech: [], finance: ["fed"], politics: [] },
+        },
+      }),
+    ];
+    const depthItems = [
+      ...briefingItems,
+      createItem({
+        id: "depth-tech",
+        topicId: "tech",
+        topicName: "Tech",
+        title: "Database vendors ship a query planner update",
+        whatHappened: "Database vendors shipped a planner update for production workloads.",
+        matchedKeywords: ["database", "query planner", "open source"],
+        homepageClassification: {
+          primaryCategory: "tech",
+          secondaryCategories: [],
+          confidence: 0.9,
+          scores: { tech: 10, finance: 0, politics: 0 },
+          matchedSignals: { tech: ["database"], finance: [], politics: [] },
+        },
+        priority: "normal",
+      }),
+    ];
+
+    const model = buildHomepageViewModel(createData(briefingItems, { publicRankedItems: depthItems }));
+
+    expect(model.featured?.id).toBe("briefing-finance");
+    expect(model.topRanked.map((event) => event.id)).not.toContain("depth-tech");
+    expect(model.debug.rankedEventsCount).toBe(depthItems.length);
+    expect(model.developingNowEvents.map((event) => event.id)).toContain("depth-tech");
+  });
+
+  it("lets Developing Now surface events from publicRankedItems beyond the Top 5 briefing layer", () => {
+    const briefingItems = [
+      createItem({
+        id: "briefing-tech",
+        topicId: "tech",
+        topicName: "Tech",
+        title: "Cloud providers expand AI capacity plans",
+        matchedKeywords: ["cloud", "ai", "capacity"],
+        homepageClassification: {
+          primaryCategory: "tech",
+          secondaryCategories: [],
+          confidence: 0.95,
+          scores: { tech: 12, finance: 0, politics: 0 },
+          matchedSignals: { tech: ["ai"], finance: [], politics: [] },
+        },
+      }),
+    ];
+    const depthItems = [
+      ...briefingItems,
+      createItem({
+        id: "depth-finance",
+        topicId: "finance",
+        topicName: "Finance",
+        title: "Credit markets reprice after a guidance reset",
+        matchedKeywords: ["credit", "markets", "guidance"],
+        homepageClassification: {
+          primaryCategory: "finance",
+          secondaryCategories: [],
+          confidence: 0.95,
+          scores: { tech: 0, finance: 12, politics: 0 },
+          matchedSignals: { tech: [], finance: ["credit"], politics: [] },
+        },
+        sources: [{ title: "Financial Times", url: "https://www.ft.com/content/guidance-reset" }],
+        priority: "normal",
+      }),
+    ];
+
+    const model = buildHomepageViewModel(createData(briefingItems, { publicRankedItems: depthItems }));
+
+    expect(model.developingNowEvents.map((event) => event.id)).toContain("depth-finance");
+    expect(model.developingNowEvents.map((event) => event.id)).not.toContain("briefing-tech");
+  });
+
+  it("lets By Category surface events from publicRankedItems beyond the Top 5 briefing layer", () => {
+    const briefingItems = [
+      createItem({
+        id: "briefing-politics",
+        topicId: "politics",
+        topicName: "Politics",
+        title: "White House weighs new export controls",
+        matchedKeywords: ["white house", "exports", "policy"],
+        homepageClassification: {
+          primaryCategory: "politics",
+          secondaryCategories: [],
+          confidence: 0.95,
+          scores: { tech: 0, finance: 0, politics: 12 },
+          matchedSignals: { tech: [], finance: [], politics: ["white house"] },
+        },
+      }),
+    ];
+    const fillerTitles = [
+      "Bank funding costs rise after treasury volatility",
+      "Private equity deal pacing slows in Europe",
+      "Corporate bond issuance rebounds after a pause",
+      "Insurers revise catastrophe pricing assumptions",
+      "Regional lenders tighten commercial real estate terms",
+      "Asset managers prepare for a stronger dollar regime",
+      "Treasury clearing reform changes dealer planning",
+      "Consumer lenders cut promotional balance-transfer offers",
+      "Commodities desks hedge against freight disruptions",
+      "Mortgage originators reset refinance expectations",
+    ];
+    const fillerItems = fillerTitles.map((title, index) =>
+      createItem({
+        id: `depth-finance-${index + 1}`,
+        topicId: "finance",
+        topicName: "Finance",
+        title,
+        matchedKeywords: [`finance-${index + 1}`, `market-${index + 1}`],
+        publishedAt: `2026-04-15T${String(12 + index).padStart(2, "0")}:00:00.000Z`,
+        homepageClassification: {
+          primaryCategory: "finance",
+          secondaryCategories: [],
+          confidence: 0.95,
+          scores: { tech: 0, finance: 12, politics: 0 },
+          matchedSignals: { tech: [], finance: ["credit"], politics: [] },
+        },
+        priority: "normal",
+      }),
+    );
+    const depthItems = [
+      ...briefingItems,
+      ...fillerItems,
+      createItem({
+        id: "depth-tech-preview",
+        topicId: "tech",
+        topicName: "Tech",
+        title: "Database vendors ship a query planner update",
+        matchedKeywords: ["database", "query planner", "open source"],
+        publishedAt: "2026-04-15T08:30:00.000Z",
+        homepageClassification: {
+          primaryCategory: "tech",
+          secondaryCategories: [],
+          confidence: 0.92,
+          scores: { tech: 10, finance: 0, politics: 0 },
+          matchedSignals: { tech: ["database"], finance: [], politics: [] },
+        },
+        priority: "normal",
+      }),
+    ];
+
+    const model = buildHomepageViewModel(createData(briefingItems, { publicRankedItems: depthItems }));
+
+    expect(model.categoryPreviewEvents.tech.map((event) => event.id)).toContain("depth-tech-preview");
+    expect(model.categoryPreviewEvents.tech.map((event) => event.id)).not.toContain("briefing-politics");
+  });
+
+  it("keeps depth layers empty when publicRankedItems is absent", () => {
+    const model = buildHomepageViewModel(
+      createData(
+        [
+          createItem({
+            id: "briefing-tech",
+            topicId: "tech",
+            topicName: "Tech",
+            title: "Chip makers race to expand AI capacity",
+            matchedKeywords: ["chips", "ai", "capacity"],
+          }),
+        ],
+        { publicRankedItems: null },
+      ),
+    );
+
+    expect(model.featured?.id).toBe("briefing-tech");
+    expect(model.developingNowEvents).toEqual([]);
+    expect(model.categoryPreviewEvents).toEqual({
+      tech: [],
+      finance: [],
+      politics: [],
+    });
+    expect(model.categorySections.every((section) => section.events.length === 0)).toBe(true);
   });
 
   it("renders a sparse category tab when a category has thin but eligible data", () => {

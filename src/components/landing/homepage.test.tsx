@@ -43,7 +43,12 @@ function createItem(overrides: Partial<BriefingItem>): BriefingItem {
   };
 }
 
-function createData(items: BriefingItem[]): DashboardData {
+function createData(
+  items: BriefingItem[],
+  options: {
+    publicRankedItems?: BriefingItem[] | null;
+  } = {},
+): DashboardData {
   return {
     mode: "live",
     briefing: {
@@ -54,6 +59,8 @@ function createData(items: BriefingItem[]): DashboardData {
       readingWindow: "10 minutes",
       items,
     },
+    publicRankedItems:
+      options.publicRankedItems === null ? undefined : (options.publicRankedItems ?? items),
     topics: [
       { id: "tech", name: "Tech", description: "Tech coverage", color: "#294f86" },
       { id: "finance", name: "Finance", description: "Finance coverage", color: "#1f4f46" },
@@ -524,7 +531,7 @@ describe("LandingHomepage", () => {
   });
 
   it("lets signed-in users read populated category tabs without showing the signed-out gate", () => {
-    const data = createData([
+    const topItems = [
       createItem({
         id: "top-finance",
         topicId: "finance",
@@ -605,24 +612,29 @@ describe("LandingHomepage", () => {
           matchedSignals: { tech: ["chips"], finance: [], politics: [] },
         },
       }),
-      createItem({
-        id: "category-tech",
-        topicId: "tech",
-        topicName: "Tech",
-        title: "Open source database maintainers ship a query planner update",
-        whatHappened: "Database maintainers shipped a query planner update for production workloads.",
-        matchedKeywords: ["database", "query planner", "open source"],
-        importanceScore: 64,
-        sourceCount: 2,
-        homepageClassification: {
-          primaryCategory: "tech",
-          secondaryCategories: [],
-          confidence: 0.92,
-          scores: { tech: 10, finance: 0, politics: 0 },
-          matchedSignals: { tech: ["database"], finance: [], politics: [] },
-        },
-      }),
-    ]);
+    ];
+    const data = createData(topItems, {
+      publicRankedItems: [
+        ...topItems,
+        createItem({
+          id: "category-tech",
+          topicId: "tech",
+          topicName: "Tech",
+          title: "Open source database maintainers ship a query planner update",
+          whatHappened: "Database maintainers shipped a query planner update for production workloads.",
+          matchedKeywords: ["database", "query planner", "open source"],
+          importanceScore: 64,
+          sourceCount: 2,
+          homepageClassification: {
+            primaryCategory: "tech",
+            secondaryCategories: [],
+            confidence: 0.92,
+            scores: { tech: 10, finance: 0, politics: 0 },
+            matchedSignals: { tech: ["database"], finance: [], politics: [] },
+          },
+        }),
+      ],
+    });
 
     render(
       <LandingHomepage
@@ -649,6 +661,97 @@ describe("LandingHomepage", () => {
     expect(screen.queryAllByTestId("home-top-event-card")).toHaveLength(0);
     expect(screen.getAllByRole("heading", { level: 3 }).length).toBeGreaterThan(0);
     expect(screen.queryByText("Create a free account to read Tech News, Economics, and Politics")).not.toBeInTheDocument();
+  });
+
+  it("shows signed-out category stories when publicRankedItems has eligible depth", () => {
+    const topItems = [
+      createItem({
+        id: "top-tech",
+        topicId: "tech",
+        topicName: "Tech",
+        title: "Cloud providers expand AI capacity plans",
+        matchedKeywords: ["cloud", "ai", "capacity"],
+        homepageClassification: {
+          primaryCategory: "tech",
+          secondaryCategories: [],
+          confidence: 0.95,
+          scores: { tech: 12, finance: 0, politics: 0 },
+          matchedSignals: { tech: ["ai"], finance: [], politics: [] },
+        },
+      }),
+    ];
+    const fillerTitles = [
+      "Bank funding costs rise after treasury volatility",
+      "Private equity deal pacing slows in Europe",
+      "Corporate bond issuance rebounds after a pause",
+      "Insurers revise catastrophe pricing assumptions",
+      "Regional lenders tighten commercial real estate terms",
+      "Asset managers prepare for a stronger dollar regime",
+      "Treasury clearing reform changes dealer planning",
+      "Consumer lenders cut promotional balance-transfer offers",
+      "Commodities desks hedge against freight disruptions",
+      "Mortgage originators reset refinance expectations",
+    ];
+    const fillerItems = fillerTitles.map((title, index) =>
+      createItem({
+        id: `depth-finance-${index + 1}`,
+        topicId: "finance",
+        topicName: "Finance",
+        title,
+        matchedKeywords: [`finance-${index + 1}`, `market-${index + 1}`],
+        publishedAt: `2026-04-15T${String(12 + index).padStart(2, "0")}:00:00.000Z`,
+        homepageClassification: {
+          primaryCategory: "finance",
+          secondaryCategories: [],
+          confidence: 0.95,
+          scores: { tech: 0, finance: 12, politics: 0 },
+          matchedSignals: { tech: [], finance: ["credit"], politics: [] },
+        },
+        priority: "normal",
+      }),
+    );
+    const data = createData(topItems, {
+      publicRankedItems: [
+        ...topItems,
+        ...fillerItems,
+        createItem({
+          id: "depth-tech",
+          topicId: "tech",
+          topicName: "Tech",
+          title: "Open source database maintainers ship a query planner update",
+          whatHappened: "Database maintainers shipped a query planner update for production workloads.",
+          matchedKeywords: ["database", "query planner", "open source"],
+          publishedAt: "2026-04-15T08:30:00.000Z",
+          homepageClassification: {
+            primaryCategory: "tech",
+            secondaryCategories: [],
+            confidence: 0.92,
+            scores: { tech: 10, finance: 0, politics: 0 },
+            matchedSignals: { tech: ["database"], finance: [], politics: [] },
+          },
+          priority: "normal",
+        }),
+      ],
+    });
+
+    render(
+      <LandingHomepage
+        data={data}
+        viewer={null}
+        briefingDateLabel="Wednesday, April 15, 2026"
+        homepageViewModel={buildHomepageViewModel(data)}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Tech News" }));
+
+    const techPanel = document.getElementById("tech-panel");
+
+    expect(screen.getByText("Create a free account to read Tech News, Economics, and Politics")).toBeInTheDocument();
+    expect(techPanel).not.toBeNull();
+    expect(techPanel).toHaveTextContent("Open source database maintainers ship a query planner update");
+    expect(screen.queryByText("Cloud providers expand AI capacity plans")).not.toBeInTheDocument();
+    expect(techPanel).not.toHaveTextContent("No major technology signals in today's briefing.");
   });
 
   it("renders debug diagnostics for QA when enabled", () => {
