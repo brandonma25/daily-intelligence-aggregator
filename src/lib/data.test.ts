@@ -189,6 +189,7 @@ describe("fetchSourceArticlesWithFallback", () => {
       name: "GDELT Finance Monitor",
       feedUrl: "https://api.gdeltproject.org/api/v2/doc/doc?query=finance",
       topicName: "Finance",
+      access_type: "metered",
       status: "active",
     };
 
@@ -229,6 +230,7 @@ describe("fetchSourceArticlesWithFallback", () => {
       name: "GDELT AI Monitor",
       feedUrl: "https://api.gdeltproject.org/api/v2/doc/doc?query=ai",
       topicName: "AI",
+      access_type: "metered",
       status: "active",
     };
 

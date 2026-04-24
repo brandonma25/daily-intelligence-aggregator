@@ -17,6 +17,10 @@ export type Topic = {
   createdAt?: string;
 };
 
+export const SOURCE_ACCESS_TYPES = ["open", "metered", "paywalled"] as const;
+
+export type SourceAccessType = (typeof SOURCE_ACCESS_TYPES)[number];
+
 export type Source = {
   id: string;
   userId?: string;
@@ -25,6 +29,7 @@ export type Source = {
   homepageUrl?: string;
   topicId?: string;
   topicName?: string;
+  access_type: SourceAccessType;
   status: "active" | "paused";
   createdAt?: string;
 };

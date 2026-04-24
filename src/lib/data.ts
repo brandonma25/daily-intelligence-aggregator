@@ -356,6 +356,7 @@ export async function getDashboardData(
       homepageUrl: source.homepage_url,
       topicId: source.topic_id,
       topicName: Array.isArray(source.topics) ? source.topics[0]?.name : undefined,
+      access_type: "metered",
       status: source.status,
       createdAt: source.created_at,
     })) ?? [];
@@ -528,6 +529,7 @@ export async function getAccountPageState(route = "/account"): Promise<{
           homepageUrl: source.homepage_url,
           topicId: source.topic_id,
           topicName: Array.isArray(source.topics) ? source.topics[0]?.name : undefined,
+          access_type: "metered",
           status: source.status,
           createdAt: source.created_at,
         })) ?? []

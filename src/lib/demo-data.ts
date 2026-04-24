@@ -1,7 +1,14 @@
 import { subDays } from "date-fns";
 
 import { env } from "@/lib/env";
-import type { DashboardData, DailyBriefing, Source, Topic } from "@/lib/types";
+import {
+  SOURCE_ACCESS_TYPES,
+  type DashboardData,
+  type DailyBriefing,
+  type Source,
+  type SourceAccessType,
+  type Topic,
+} from "@/lib/types";
 
 const today = new Date().toISOString();
 
@@ -34,6 +41,7 @@ export const demoSources: Source[] = [
     homepageUrl: "https://www.theverge.com",
     topicId: "topic-tech",
     topicName: "Tech",
+    access_type: "metered", // The Verge launched a dynamic metered paywall in late 2024 while keeping core news free.
     status: "active",
   },
   {
@@ -43,6 +51,7 @@ export const demoSources: Source[] = [
     homepageUrl: "https://arstechnica.com",
     topicId: "topic-tech",
     topicName: "Tech",
+    access_type: "open", // Ars says its public content remains free and subscriptions are for an enhanced experience.
     status: "active",
   },
   {
@@ -52,6 +61,7 @@ export const demoSources: Source[] = [
     homepageUrl: "https://www.technologyreview.com",
     topicId: "topic-tech",
     topicName: "Tech",
+    access_type: "metered", // Subscription pages sell "unlimited access", so non-subscriber access is restricted but not cleanly documented as all-or-nothing.
     status: "active",
   },
   {
@@ -61,6 +71,7 @@ export const demoSources: Source[] = [
     homepageUrl: "https://tldr.tech",
     topicId: "topic-tech",
     topicName: "Tech",
+    access_type: "open",
     status: "active",
   },
   {
@@ -70,6 +81,7 @@ export const demoSources: Source[] = [
     homepageUrl: "https://techcrunch.com",
     topicId: "topic-tech",
     topicName: "Tech",
+    access_type: "open", // TechCrunch sunset TechCrunch+ in 2024 and said the paywall was removed for all readers.
     status: "active",
   },
   {
@@ -79,6 +91,7 @@ export const demoSources: Source[] = [
     homepageUrl: "https://www.ft.com",
     topicId: "topic-finance",
     topicName: "Finance",
+    access_type: "paywalled", // FT subscription terms are centered on paid digital content access.
     status: "active",
   },
   {
@@ -88,6 +101,7 @@ export const demoSources: Source[] = [
     homepageUrl: "https://www.reuters.com/business/",
     topicId: "topic-finance",
     topicName: "Finance",
+    access_type: "metered", // Reuters reader access was not cleanly documented from official consumer pages in this audit, so use the conservative middle tier.
     status: "active",
   },
   {
@@ -97,6 +111,7 @@ export const demoSources: Source[] = [
     homepageUrl: "https://www.bbc.com/news/world",
     topicId: "topic-politics",
     topicName: "World",
+    access_type: "metered", // BBC.com now sells subscriptions that include full news article access, but some BBC content remains accessible without subscribing.
     status: "active",
   },
   {
@@ -106,6 +121,7 @@ export const demoSources: Source[] = [
     homepageUrl: "https://www.foreignaffairs.com",
     topicId: "topic-politics",
     topicName: "World",
+    access_type: "paywalled", // Foreign Affairs sells unlimited digital access and subscriber resources as the primary reader model.
     status: "active",
   },
   {
@@ -115,6 +131,7 @@ export const demoSources: Source[] = [
     homepageUrl: "https://www.marketwatch.com",
     topicId: "topic-finance",
     topicName: "Finance",
+    access_type: "metered", // MarketWatch has paid all-access products, but the exact free-to-paid boundary is not clearly documented on official public pages.
     status: "active",
   },
   {
@@ -124,6 +141,7 @@ export const demoSources: Source[] = [
     homepageUrl: "https://www.zerohedge.com",
     topicId: "topic-finance",
     topicName: "Finance",
+    access_type: "metered", // ZeroHedge keeps a free basic tier and reserves premium articles for subscribers.
     status: "active",
   },
   {
@@ -133,6 +151,7 @@ export const demoSources: Source[] = [
     homepageUrl: "https://apnews.com",
     topicId: "topic-politics",
     topicName: "Geopolitics",
+    access_type: "open", // AP's direct product is supported by advertising and donations rather than a reader paywall.
     status: "active",
   },
   ...(env.newsApiKey
@@ -144,11 +163,20 @@ export const demoSources: Source[] = [
           homepageUrl: "https://newsapi.org",
           topicId: "topic-finance",
           topicName: "Finance",
+          access_type: "metered", // NewsAPI is an API product rather than a reader publication, so use the conservative middle tier and flag it for review.
           status: "active",
         },
       ] satisfies Source[])
     : []),
 ];
+
+export const DEMO_SOURCE_ACCESS_TYPE_BY_ID: Record<string, SourceAccessType> = Object.fromEntries(
+  demoSources.map((source) => [source.id, source.access_type]),
+);
+
+export function isSourceAccessType(value: string): value is SourceAccessType {
+  return SOURCE_ACCESS_TYPES.includes(value as SourceAccessType);
+}
 
 export const MVP_DEFAULT_PUBLIC_SOURCE_IDS = [
   "source-verge",

@@ -1,4 +1,10 @@
-import type { DashboardData, BriefingItem, EventIntelligence } from "@/lib/types";
+import type {
+  DashboardData,
+  BriefingItem,
+  EventIntelligence,
+  Source,
+  SourceAccessType,
+} from "@/lib/types";
 import {
   getEditorialHomepagePreviewText,
   type EditorialWhyItMattersContent,
@@ -60,6 +66,7 @@ export type HomepageEvent = {
   matchedKeywords: string[];
   priority: BriefingItem["priority"];
   publishedAt?: string;
+  access_type: SourceAccessType;
   signalRole: SignalRole;
   rankScore: number;
   sourceCount: number;
@@ -160,8 +167,8 @@ export function buildHomepageViewModel(
   data: DashboardData,
   profile?: BriefingPersonalizationProfile | null,
 ): HomepageViewModel {
-  const topLayerEvents = buildHomepageEvents(data.briefing.items, profile);
-  const depthLayerEvents = buildHomepageEvents(data.publicRankedItems ?? [], profile);
+  const topLayerEvents = buildHomepageEvents(data.briefing.items, profile, data.sources);
+  const depthLayerEvents = buildHomepageEvents(data.publicRankedItems ?? [], profile, data.sources);
   const confirmedTopLayerEvents = topLayerEvents.filter((event) => !event.intelligence.isEarlySignal);
   const confirmedDepthLayerEvents = depthLayerEvents.filter((event) => !event.intelligence.isEarlySignal);
   const earlySignals = depthLayerEvents.filter((event) => event.intelligence.isEarlySignal);
@@ -326,6 +333,7 @@ export function buildHomepageViewModel(
 export function buildHomepageEvents(
   items: BriefingItem[],
   profile?: BriefingPersonalizationProfile | null,
+  sources: Source[] = [],
 ) {
   return items
     .slice()
@@ -361,6 +369,7 @@ export function buildHomepageEvents(
       const keyPoints = normalizeKeyPoints(item.keyPoints);
 
       const personalization = buildPersonalizationMatch(item, profile);
+      const accessType = resolveEventAccessType(item, sources);
 
       return {
         id: item.id,
@@ -388,6 +397,7 @@ export function buildHomepageEvents(
         matchedKeywords: item.matchedKeywords ?? [],
         priority: item.priority,
         publishedAt: item.publishedAt,
+        access_type: accessType,
         signalRole,
         rankScore: getRankScore(item) - index * 0.01,
         sourceCount,
@@ -599,6 +609,70 @@ function buildHomepageRelatedArticles(item: BriefingItem) {
       sourceName: article.sourceName,
       note: index === 0 ? "Lead coverage" : "Corroborating coverage",
     }));
+}
+
+const SOURCE_ACCESS_TYPE_ORDER: Record<SourceAccessType, number> = {
+  paywalled: 0,
+  metered: 1,
+  open: 2,
+};
+
+function resolveEventAccessType(item: BriefingItem, sources: Source[]) {
+  const matchedAccessTypes = item.sources
+    .map((source) => matchSourceAccessType(source, sources))
+    .filter((accessType): accessType is SourceAccessType => Boolean(accessType));
+
+  if (!matchedAccessTypes.length) {
+    return "metered" satisfies SourceAccessType;
+  }
+
+  return matchedAccessTypes.reduce((mostOpen, candidate) =>
+    SOURCE_ACCESS_TYPE_ORDER[candidate] > SOURCE_ACCESS_TYPE_ORDER[mostOpen] ? candidate : mostOpen,
+  );
+}
+
+function matchSourceAccessType(
+  articleSource: BriefingItem["sources"][number],
+  sources: Source[],
+) {
+  const normalizedTitle = normalizeSourceLabel(articleSource.title);
+  const articleHostname = getHostname(articleSource.url);
+
+  const exactTitleMatch = sources.find(
+    (source) => normalizeSourceLabel(source.name) === normalizedTitle,
+  );
+  if (exactTitleMatch) {
+    return exactTitleMatch.access_type;
+  }
+
+  const hostnameMatch = sources.find((source) => {
+    const homepageHostname = getHostname(source.homepageUrl);
+    const feedHostname = getHostname(source.feedUrl);
+
+    return Boolean(
+      articleHostname &&
+        (articleHostname === homepageHostname ||
+          articleHostname.endsWith(`.${homepageHostname}`) ||
+          articleHostname === feedHostname ||
+          articleHostname.endsWith(`.${feedHostname}`)),
+    );
+  });
+
+  return hostnameMatch?.access_type;
+}
+
+function normalizeSourceLabel(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function getHostname(value: string | undefined) {
+  if (!value) return "";
+
+  try {
+    return new URL(value).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return "";
+  }
 }
 
 function normalizeKeyPoints(value: BriefingItem["keyPoints"] | undefined) {

@@ -57,9 +57,9 @@ function createData(
       options.publicRankedItems === null ? undefined : (options.publicRankedItems ?? items),
     topics: [],
     sources: [
-      { id: "source-tech", name: "TechCrunch", feedUrl: "https://techcrunch.com/feed", status: "active", topicName: "Tech" },
-      { id: "source-finance", name: "Financial Times", feedUrl: "https://ft.com/rss", status: "active", topicName: "Finance" },
-      { id: "source-politics", name: "Reuters Politics", feedUrl: "https://reuters.com/politics", status: "active", topicName: "Geopolitics" },
+      { id: "source-tech", name: "TechCrunch", feedUrl: "https://techcrunch.com/feed", status: "active", topicName: "Tech", access_type: "open" },
+      { id: "source-finance", name: "Financial Times", feedUrl: "https://ft.com/rss", status: "active", topicName: "Finance", access_type: "paywalled" },
+      { id: "source-politics", name: "Reuters Politics", feedUrl: "https://reuters.com/politics", status: "active", topicName: "Geopolitics", access_type: "metered" },
     ],
     homepageDiagnostics: {
       totalArticlesFetched: 12,
@@ -314,6 +314,24 @@ describe("buildHomepageViewModel", () => {
 
     expect(model.categoryPreviewEvents.tech.map((event) => event.id)).toContain("depth-tech-preview");
     expect(model.categoryPreviewEvents.tech.map((event) => event.id)).not.toContain("briefing-politics");
+  });
+
+  it("propagates the most-open source access tier onto HomepageEvent", () => {
+    const [event] = buildHomepageEvents(
+      [
+        createItem({
+          id: "open-propagation",
+          sources: [
+            { title: "Financial Times", url: "https://www.ft.com/content/example" },
+            { title: "TechCrunch", url: "https://techcrunch.com/example" },
+          ],
+        }),
+      ],
+      undefined,
+      createData([]).sources,
+    );
+
+    expect(event?.access_type).toBe("open");
   });
 
   it("keeps depth layers empty when publicRankedItems is absent", () => {

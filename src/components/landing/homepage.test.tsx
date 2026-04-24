@@ -67,9 +67,9 @@ function createData(
       { id: "politics", name: "Politics", description: "Politics coverage", color: "#8a5a11" },
     ],
     sources: [
-      { id: "source-tech", name: "TechCrunch", feedUrl: "https://techcrunch.com/feed", status: "active", topicName: "Tech" },
-      { id: "source-finance", name: "Financial Times", feedUrl: "https://ft.com/rss", status: "active", topicName: "Finance" },
-      { id: "source-politics", name: "Reuters Politics", feedUrl: "https://reuters.com/politics", status: "active", topicName: "Politics" },
+      { id: "source-tech", name: "TechCrunch", feedUrl: "https://techcrunch.com/feed", status: "active", topicName: "Tech", access_type: "open" },
+      { id: "source-finance", name: "Financial Times", feedUrl: "https://ft.com/rss", status: "active", topicName: "Finance", access_type: "paywalled" },
+      { id: "source-politics", name: "Reuters Politics", feedUrl: "https://reuters.com/politics", status: "active", topicName: "Politics", access_type: "metered" },
     ],
     homepageDiagnostics: {
       totalArticlesFetched: 20,

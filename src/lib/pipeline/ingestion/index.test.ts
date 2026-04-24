@@ -31,6 +31,7 @@ function createUserSuppliedSources(count: number): Source[] {
       feedUrl: `https://example.com/source-${sourceNumber}.xml`,
       homepageUrl: `https://example.com/source-${sourceNumber}`,
       topicName: sourceNumber % 2 === 0 ? "Finance" : "Tech",
+      access_type: "metered",
       status: "active",
     };
   });

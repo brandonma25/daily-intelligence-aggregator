@@ -42,6 +42,7 @@ function createEvent(
     matchedKeywords: ["keyword"],
     priority: "top",
     publishedAt: "2026-04-15T08:00:00.000Z",
+    access_type: "open",
     signalRole: "core",
     rankScore: 100,
     sourceCount: 2,

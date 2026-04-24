@@ -682,6 +682,7 @@ export async function generateBriefingAction() {
     feedUrl: source.feed_url,
     homepageUrl: source.homepage_url ?? undefined,
     topicId: source.topic_id ?? undefined,
+    access_type: "metered" as const,
     status: source.status,
     createdAt: source.created_at,
   }));

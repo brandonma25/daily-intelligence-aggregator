@@ -45,6 +45,7 @@ function createEvent(overrides: Partial<HomepageEvent> = {}): HomepageEvent {
     matchedKeywords: overrides.matchedKeywords ?? ["ai"],
     priority: overrides.priority ?? "top",
     publishedAt: overrides.publishedAt ?? "2026-04-15T08:00:00.000Z",
+    access_type: overrides.access_type ?? "open",
     signalRole: overrides.signalRole ?? "core",
     rankScore: overrides.rankScore ?? 100,
     sourceCount: overrides.sourceCount ?? 2,
