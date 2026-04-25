@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-const getDashboardPageState = vi.fn();
+const getHomepagePageState = vi.fn();
 const landingHomepage = vi.fn(() => <div>landing-homepage</div>);
 const homepageViewModel = {
   featured: null,
@@ -33,7 +33,7 @@ const buildHomepageViewModel = vi.fn(() => homepageViewModel);
 const applyHomepageEditorialOverridesToDashboardData = vi.fn(async (data: unknown) => data);
 
 vi.mock("@/lib/data", () => ({
-  getDashboardPageState,
+  getHomepagePageState,
 }));
 
 vi.mock("@/lib/homepage-model", () => ({
@@ -65,7 +65,7 @@ describe("homepage SSR auth snapshot", () => {
       homepageDiagnostics: {},
     };
 
-    getDashboardPageState.mockResolvedValue({
+    getHomepagePageState.mockResolvedValue({
       data: dashboardData,
       viewer: {
         id: "viewer-1",
@@ -96,8 +96,8 @@ describe("homepage SSR auth snapshot", () => {
     });
     render(element);
 
-    expect(getDashboardPageState).toHaveBeenCalledTimes(1);
-    expect(getDashboardPageState).toHaveBeenCalledWith("/");
+    expect(getHomepagePageState).toHaveBeenCalledTimes(1);
+    expect(getHomepagePageState).toHaveBeenCalledWith("/");
     expect(applyHomepageEditorialOverridesToDashboardData).toHaveBeenCalledTimes(1);
     expect(applyHomepageEditorialOverridesToDashboardData).toHaveBeenCalledWith(dashboardData);
     expect(buildHomepageViewModel).toHaveBeenCalledTimes(1);

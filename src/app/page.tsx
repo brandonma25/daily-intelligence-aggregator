@@ -1,5 +1,5 @@
 import LandingHomepage from "@/components/landing/homepage";
-import { getDashboardPageState } from "@/lib/data";
+import { getHomepagePageState } from "@/lib/data";
 import { isHomepageDebugConfigured } from "@/lib/env";
 import { applyHomepageEditorialOverridesToDashboardData } from "@/lib/homepage-editorial-overrides";
 import { buildHomepageViewModel } from "@/lib/homepage-model";
@@ -14,8 +14,10 @@ function readSingleParam(value: string | string[] | undefined) {
 }
 
 export default async function Page({ searchParams }: PageProps) {
+  // Keep homepage SSR on persisted read models only. Do not route this page
+  // through the ingestion pipeline or feed parser import chain.
   const [pageState, resolvedSearchParams] = await Promise.all([
-    getDashboardPageState("/"),
+    getHomepagePageState("/"),
     searchParams ? searchParams : Promise.resolve(undefined),
   ]);
   const data = await applyHomepageEditorialOverridesToDashboardData(pageState.data);
