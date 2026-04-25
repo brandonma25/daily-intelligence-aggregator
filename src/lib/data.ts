@@ -1094,21 +1094,17 @@ function normalizeAccountCategories(value: unknown): AccountCategoryPreference[]
 }
 
 export async function getAccountPageState(route = "/account"): Promise<{
-  data: DashboardData;
   viewer: ViewerAccount | null;
   sources: Source[];
   preferences: AccountPreferenceSnapshot;
 }> {
   const authState = await getRequestAuthState(route);
+  const { supabase, user, viewer } = authState;
 
-  const [data, viewer] = await Promise.all([
-    getDashboardData(route, authState),
-    getViewerAccount(route, authState),
-  ]);
-
-  if (!authState.supabase || !authState.user) {
+  // Keep /account on read-only auth/profile/source queries. Do not route this
+  // page through dashboard generation, ingestion, or feed parsing during SSR.
+  if (!supabase || !user) {
     return {
-      data,
       viewer,
       sources: [],
       preferences: {
@@ -1120,8 +1116,6 @@ export async function getAccountPageState(route = "/account"): Promise<{
     };
   }
 
-  const supabase = authState.supabase;
-  const user = authState.user;
   const [profileResult, sourcesResult] = await Promise.all([
     withServerFallback(
       "account profile preferences",
@@ -1170,7 +1164,6 @@ export async function getAccountPageState(route = "/account"): Promise<{
     });
 
     return {
-      data,
       viewer,
       sources: accountSources,
       preferences: {
@@ -1184,7 +1177,6 @@ export async function getAccountPageState(route = "/account"): Promise<{
   }
 
   return {
-    data,
     viewer,
     sources: accountSources,
     preferences: {

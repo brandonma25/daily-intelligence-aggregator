@@ -74,6 +74,88 @@ async function loadDataModule() {
   return import("@/lib/data");
 }
 
+function createAccountSupabase(options?: {
+  profileResult?: {
+    data: {
+      category_preferences?: unknown;
+      newsletter_enabled?: boolean | null;
+    } | null;
+    error: null;
+  };
+  profileError?: Error;
+  sourcesResult?: {
+    data: Array<{
+      id: string;
+      user_id: string;
+      name: string;
+      feed_url: string;
+      homepage_url: string | null;
+      topic_id: string | null;
+      status: "active" | "paused";
+      created_at: string;
+      topics: Array<{ name: string | null }> | null;
+    }>;
+    error: null;
+  };
+}) {
+  const from = vi.fn((table: string) => {
+    if (table === "user_profiles") {
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            maybeSingle: vi.fn(async () => {
+              if (options?.profileError) {
+                throw options.profileError;
+              }
+
+              return (
+                options?.profileResult ?? {
+                  data: {
+                    category_preferences: ["tech", "politics"],
+                    newsletter_enabled: true,
+                  },
+                  error: null,
+                }
+              );
+            }),
+          })),
+        })),
+      };
+    }
+
+    if (table === "sources") {
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            order: vi.fn(async () =>
+              options?.sourcesResult ?? {
+                data: [
+                  {
+                    id: "source-1",
+                    user_id: "user-1",
+                    name: "Technology Feed",
+                    feed_url: "https://example.com/rss.xml",
+                    homepage_url: "https://example.com",
+                    topic_id: "topic-tech",
+                    status: "active" as const,
+                    created_at: "2026-04-26T00:00:00.000Z",
+                    topics: [{ name: "Tech" }],
+                  },
+                ],
+                error: null,
+              },
+            ),
+          })),
+        })),
+      };
+    }
+
+    throw new Error(`Unexpected table lookup: ${table}`);
+  });
+
+  return { from };
+}
+
 describe("homepage read model", () => {
   beforeEach(() => {
     safeGetUser.mockReset();
@@ -143,5 +225,83 @@ describe("homepage read model", () => {
     expect(viewModel.debug.categoryCounts.tech).toBeGreaterThan(0);
     expect(viewModel.debug.categoryCounts.finance).toBeGreaterThan(0);
     expect(viewModel.debug.categoryCounts.politics).toBeGreaterThan(0);
+  });
+});
+
+describe("account page read model", () => {
+  beforeEach(() => {
+    safeGetUser.mockReset();
+    createSupabaseServerClient.mockReset();
+    getHomepageSignalSnapshot.mockReset();
+    createSupabaseServerClient.mockResolvedValue(null);
+  });
+
+  it("keeps account SSR on auth, profile, and source reads only", async () => {
+    const supabase = createAccountSupabase();
+
+    safeGetUser.mockResolvedValue({
+      supabase,
+      user: {
+        id: "user-1",
+        email: "reader@example.com",
+        user_metadata: { full_name: "Reader Example" },
+      },
+      sessionCookiePresent: true,
+    });
+
+    const { getAccountPageState } = await loadDataModule();
+    const state = await getAccountPageState("/account");
+
+    expect(state.viewer?.email).toBe("reader@example.com");
+    expect(state.preferences).toEqual({
+      categories: ["tech", "politics"],
+      newsletterEnabled: true,
+      storageReady: true,
+    });
+    expect(state.sources).toEqual([
+      {
+        id: "source-1",
+        userId: "user-1",
+        name: "Technology Feed",
+        feedUrl: "https://example.com/rss.xml",
+        homepageUrl: "https://example.com",
+        topicId: "topic-tech",
+        topicName: "Tech",
+        status: "active",
+        createdAt: "2026-04-26T00:00:00.000Z",
+      },
+    ]);
+    expect(supabase.from).toHaveBeenCalledTimes(2);
+    expect(supabase.from).toHaveBeenNthCalledWith(1, "user_profiles");
+    expect(supabase.from).toHaveBeenNthCalledWith(2, "sources");
+  });
+
+  it("keeps account rendering safe when profile storage is unavailable", async () => {
+    const supabase = createAccountSupabase({
+      profileError: new Error("relation \"user_profiles\" does not exist"),
+    });
+
+    safeGetUser.mockResolvedValue({
+      supabase,
+      user: {
+        id: "user-1",
+        email: "reader@example.com",
+        user_metadata: {},
+      },
+      sessionCookiePresent: true,
+    });
+
+    const { getAccountPageState } = await loadDataModule();
+    const state = await getAccountPageState("/account");
+
+    expect(state.viewer?.email).toBe("reader@example.com");
+    expect(state.sources).toHaveLength(1);
+    expect(state.preferences).toEqual({
+      categories: ["tech", "finance", "politics"],
+      newsletterEnabled: false,
+      storageReady: false,
+      storageMessage: "Account preference storage is pending the Artifact 6 profile migration.",
+    });
+    expect(supabase.from).toHaveBeenCalledTimes(2);
   });
 });

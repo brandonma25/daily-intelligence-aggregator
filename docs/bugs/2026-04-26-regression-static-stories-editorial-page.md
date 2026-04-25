@@ -1,4 +1,4 @@
-# Regression Report — Static Stories + Editorial Page
+# Regression Report — Static Stories + Editorial + Account Page
 
 ## Summary
 - Date: 2026-04-26
@@ -7,6 +7,7 @@
 - Regression scope:
   - Homepage and category tabs fell back to static demo copy such as `The public tech briefing now pulls directly from current RSS feeds instead of static sample copy`.
   - `/dashboard/signals/editorial-review` hit the recoverable app error state instead of loading or degrading safely.
+  - `/account` in preview hit the recoverable app error state instead of loading or redirecting cleanly.
 
 ## Root Cause
 ### Duplicate/static stories
@@ -18,12 +19,18 @@
 - That render-time path synthesized a fresh Top 5 by calling `generateDailyBriefing()`, which pulled the editorial route back into generation/pipeline behavior during SSR.
 - The page should have been a read-only/editorial storage view. Re-entering generation during render made the route fragile and caused the recoverable server problem instead of a safe empty state.
 
+### Account page failure
+- `src/lib/data.ts` still routed `/account` through `getDashboardData()` inside `getAccountPageState()`.
+- That loader performs dashboard pipeline audits plus ingestion/sync work during SSR, including render-time dashboard fallback generation and user-scoped write paths.
+- `/account` only needed auth, profile preferences, and saved sources. Pulling the dashboard loader into the account route made preview auth/account rendering fragile and surfaced the recoverable server problem.
+
 ## Files Changed
 - `src/lib/data.ts`
 - `src/lib/signals-editorial.ts`
 - `src/lib/data.test.ts`
 - `src/lib/signals-editorial.test.ts`
 - `src/app/dashboard/signals/editorial-review/page.test.tsx`
+- `src/app/account/page.tsx`
 - `docs/engineering/bug-fixes/2026-04-26-static-stories-editorial-page-regression.md`
 - `docs/operations/tracker-sync/2026-04-26-static-stories-editorial-page-regression.md`
 
@@ -39,10 +46,14 @@
   - keep SSR on persisted/read-only paths only
 - Removed render-time `ensureCurrentSignalPosts()` from editorial review state loading.
 - Editorial review now reads stored `signal_posts` only and returns a safe warning + empty state when no snapshot exists yet.
+- Removed `getDashboardData()` from `getAccountPageState()`.
+- `/account` now reads only request auth state, `user_profiles`, and `sources`, then redirects signed-out users through the existing login flow without invoking dashboard generation, ingestion, or sync work during SSR.
+- Added regression tests that fail if `/account` reaches unexpected dashboard tables or crashes when profile storage is missing.
 
 ## Validation Results
 - `npm install`
 - `npm run test -- src/lib/signals-editorial.test.ts src/lib/data.test.ts src/app/dashboard/signals/editorial-review/page.test.tsx src/app/page.test.tsx`
+- `npm run test -- src/lib/data.test.ts`
 - `npm run lint`
 - `npm run test`
 - `npm run build`
@@ -53,15 +64,19 @@
 - Route probes:
   - `HEAD /` => `200`
   - `HEAD /dashboard/signals/editorial-review` => `200`
+  - `HEAD /account` => redirect to `/login?redirectTo=/account`
   - homepage HTML contained the new placeholder titles and did not surface the old static demo titles
   - editorial route HTML returned `Admin sign-in required` and did not contain `Temporary issue` or `This page hit a server problem`
+  - account route redirected cleanly and did not contain `Temporary issue` or `This page hit a server problem`
 - Dev server logs after homepage + editorial probes showed `200` responses and no server crash markers.
 
 ## Remaining Risks
 - Real signed-in editorial validation with an admin session still needs a human/browser pass; browser-control permissions were blocked in this Codex session, so local OAuth/admin login was not completed here.
+- Real signed-in preview validation for `/account` still needs a human/browser pass; this session could validate the server route and unit coverage locally, but not complete OAuth/browser login automation.
 - If production has no live published signal set and no stored latest snapshot, the homepage now shows honest category-specific placeholders. That is safer than sample-live copy, but product quality still depends on keeping `signal_posts` populated.
 
 ## Follow-up Recommendations
 - Add a lightweight operational check that alerts when no live published `signal_posts` or latest stored snapshot is available for the homepage.
 - Add a browser-level signed-in editorial smoke once an automatable local admin session path exists.
-- Keep `/`, category surfaces, and editorial review on read-only stored data during render; do not route them back through feed parsing or generation helpers.
+- Add a browser-level signed-in account smoke once an automatable local auth path exists.
+- Keep `/`, category surfaces, editorial review, and `/account` on read-only stored data during render; do not route them back through feed parsing, generation, or sync helpers.

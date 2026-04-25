@@ -15,6 +15,7 @@
 - Summary:
   - Restored homepage/category rendering to stored `signal_posts` snapshots instead of demo briefing copy.
   - Removed render-time Top 5 generation from editorial review so the route now degrades safely to sign-in/empty-state behavior.
+  - Removed dashboard generation/sync work from `/account` SSR so the route reads only auth, profile, and sources and no longer trips the recoverable server error in preview.
 - Validation:
   - `npm install`
   - `npm run lint`

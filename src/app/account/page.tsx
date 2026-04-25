@@ -12,14 +12,14 @@ export const metadata: Metadata = {
 };
 
 export default async function AccountPage() {
-  const { data, viewer, sources, preferences } = await getAccountPageState("/account");
+  const { viewer, sources, preferences } = await getAccountPageState("/account");
 
   if (!viewer) {
     redirect("/login?redirectTo=/account");
   }
 
   return (
-    <AppShell currentPath="/account" mode={data.mode} account={viewer}>
+    <AppShell currentPath="/account" mode="live" account={viewer}>
       <div className="space-y-5 py-2">
         <PageHeader
           eyebrow="Account"
