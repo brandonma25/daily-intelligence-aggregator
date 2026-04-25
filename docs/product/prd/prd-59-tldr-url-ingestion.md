@@ -1,7 +1,7 @@
-# PRD-58 — TLDR URL Ingestion
+# PRD-59 — TLDR URL Ingestion
 
-- PRD ID: `PRD-58`
-- Canonical file: `docs/product/prd/prd-58-tldr-url-ingestion.md`
+- PRD ID: `PRD-59`
+- Canonical file: `docs/product/prd/prd-59-tldr-url-ingestion.md`
 - Date: `2026-04-25`
 - Branch: `feature/tldr-url-ingestion`
 - Scope: TLDR discovery-source adapter across validated official TLDR category feeds

@@ -10,7 +10,7 @@
 - Title: `TLDR URL ingestion discovery adapter`
 - Summary: `Added a TLDR digest-to-URL discovery adapter in the native ingestion pipeline, validated nine official TLDR category feeds, kept all TLDR sources paused/non-default, added discovery metadata, and covered extraction/dedupe/pipeline integration with tests.`
 - Docs:
-  - `docs/product/prd/prd-58-tldr-url-ingestion.md`
+  - `docs/product/prd/prd-59-tldr-url-ingestion.md`
   - `docs/engineering/testing/2026-04-25-tldr-url-ingestion-implementation-report.md`
   - `docs/engineering/change-records/2026-04-25-tldr-url-ingestion-feature-note.md`
 - Validated official TLDR feeds:
