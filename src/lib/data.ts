@@ -15,14 +15,13 @@ import {
   countSourcesByHomepageCategory,
 } from "@/lib/homepage-taxonomy";
 import { logServerEvent } from "@/lib/observability";
-import { runClusterFirstPipeline } from "@/lib/pipeline";
-import { resolveNoArgumentRuntimeSourceResolutionSnapshot } from "@/lib/pipeline/ingestion";
 import { selectRelatedCoverage } from "@/lib/related-coverage";
 import {
   compareBriefingItemsByRanking,
   rankNewsClusters,
 } from "@/lib/ranking";
-import { fetchFeedArticles, type FeedArticle } from "@/lib/rss";
+import type { ClusterFirstPipelineResult } from "@/lib/pipeline";
+import type { FeedArticle } from "@/lib/rss";
 import { getSourcesForPublicSurface } from "@/lib/source-manifest";
 import {
   applySignalFiltering,
@@ -53,6 +52,27 @@ import {
 } from "@/lib/why-it-matters";
 
 type SupabaseServerClient = NonNullable<Awaited<ReturnType<typeof createSupabaseServerClient>>>;
+
+async function runClusterFirstPipelineSafely(options: {
+  sources?: Source[];
+  suppliedByManifest?: boolean;
+} = {}): Promise<ClusterFirstPipelineResult> {
+  const { runClusterFirstPipeline } = await import("@/lib/pipeline");
+  return runClusterFirstPipeline(options);
+}
+
+async function fetchFeedArticlesSafely(
+  feedUrl: string,
+  sourceName: string,
+  options: {
+    timeoutMs?: number;
+    retryCount?: number;
+    headers?: HeadersInit;
+  } = {},
+): Promise<FeedArticle[]> {
+  const { fetchFeedArticles } = await import("@/lib/rss");
+  return fetchFeedArticles(feedUrl, sourceName, options);
+}
 
 type StoredArticle = {
   id: string;
@@ -241,8 +261,9 @@ export async function getViewerAccount(
   return viewer;
 }
 
-function buildNoArgumentRuntimeSourceResolutionAuditContext() {
+async function buildNoArgumentRuntimeSourceResolutionAuditContext() {
   try {
+    const { resolveNoArgumentRuntimeSourceResolutionSnapshot } = await import("@/lib/pipeline/ingestion");
     return resolveNoArgumentRuntimeSourceResolutionSnapshot();
   } catch (error) {
     return {
@@ -263,7 +284,7 @@ export async function getDashboardData(
     route: resolvedAuthState.route,
     sessionExists: Boolean(user),
     sessionCookiePresent,
-    no_argument_runtime_source_resolution_audit: buildNoArgumentRuntimeSourceResolutionAuditContext(),
+    no_argument_runtime_source_resolution_audit: await buildNoArgumentRuntimeSourceResolutionAuditContext(),
   });
 
   if (!supabase || !user) {
@@ -763,13 +784,13 @@ export async function generateDailyBriefing(
 ): Promise<{
   briefing: DailyBriefing;
   publicRankedItems: BriefingItem[];
-  pipelineRun: Awaited<ReturnType<typeof runClusterFirstPipeline>>["run"];
+  pipelineRun: ClusterFirstPipelineResult["run"];
 }> {
-  const pipelineOptions: Parameters<typeof runClusterFirstPipeline>[0] & { suppliedByManifest?: boolean } = {
+  const pipelineOptions: Parameters<typeof runClusterFirstPipelineSafely>[0] = {
     sources,
     suppliedByManifest: options.suppliedByManifest,
   };
-  const { run, ranked_clusters } = await runClusterFirstPipeline(pipelineOptions);
+  const { run, ranked_clusters } = await runClusterFirstPipelineSafely(pipelineOptions);
   const topicFallback = topics[0] ?? demoTopics[0];
 
   const candidateItems: BriefingItem[] = ranked_clusters.map(({ cluster, ranked }) => {
@@ -882,7 +903,7 @@ export async function generateDailyBriefing(
 
 function resolvePipelineTopic(
   topics: Topic[],
-  cluster: Awaited<ReturnType<typeof runClusterFirstPipeline>>["ranked_clusters"][number]["cluster"],
+  cluster: ClusterFirstPipelineResult["ranked_clusters"][number]["cluster"],
   fallbackTopic: Topic,
   intelligence?: ReturnType<typeof buildEventIntelligence>,
 ) {
@@ -2141,7 +2162,7 @@ async function fetchSourceArticlesWithFallback(source: Source): Promise<SourceFe
   for (const attempt of attempts) {
     try {
       const articles = filterAttemptArticles(
-        await fetchFeedArticles(attempt.feedUrl, source.name, {
+        await fetchFeedArticlesSafely(attempt.feedUrl, source.name, {
           timeoutMs: attempt.timeoutMs,
           retryCount: attempt.retryCount,
         }),
