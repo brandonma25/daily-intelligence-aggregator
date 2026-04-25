@@ -1,7 +1,6 @@
 import type { User } from "@supabase/supabase-js";
 
 import { isAdminUser } from "@/lib/admin-auth";
-import { generateDailyBriefing } from "@/lib/data";
 import {
   buildEditorialWhyItMattersText,
   createEditorialContentFromLegacyText,
@@ -166,6 +165,12 @@ export type SignalSnapshotPersistenceResult = {
   message: string;
 };
 
+export type HomepageSignalSnapshot = {
+  source: "published_live" | "latest_snapshot" | "none";
+  posts: EditorialSignalPost[];
+  briefingDate: string | null;
+};
+
 function normalizeEditorialText(value: string | null | undefined) {
   return value?.trim() ?? "";
 }
@@ -308,15 +313,6 @@ async function loadStoredSignalPosts(
     posts: ((result.data ?? []) as unknown as StoredSignalPost[]).map(mapStoredSignalPost),
     totalCount: result.count ?? 0,
     errorMessage: null,
-  };
-}
-
-async function buildCurrentSignalCandidates() {
-  const { briefing } = await generateDailyBriefing();
-
-  return {
-    briefingDate: normalizeDateValue(briefing.briefingDate.slice(0, 10)) ?? new Date().toISOString().slice(0, 10),
-    candidates: buildSignalPostCandidates(briefing.items),
   };
 }
 
@@ -492,28 +488,6 @@ async function loadCurrentTopFive(client: EditorialClient, briefingDate: string 
   return ((result.data ?? []) as unknown as StoredSignalPost[]).map(mapStoredSignalPost);
 }
 
-async function ensureCurrentSignalPosts(client: EditorialClient) {
-  const { briefingDate, candidates } = await buildCurrentSignalCandidates();
-  const persisted = await persistSignalPostCandidates(client, {
-    briefingDate,
-    candidates,
-  });
-
-  if (!persisted.ok) {
-    return {
-      briefingDate,
-      posts: candidates,
-      warning: persisted.message,
-    };
-  }
-
-  return {
-    briefingDate: persisted.briefingDate,
-    posts: await loadCurrentTopFive(client, briefingDate),
-    warning: null,
-  };
-}
-
 async function getAdminEditorialContext(route: string): Promise<
   | {
       ok: true;
@@ -610,9 +584,8 @@ export async function getEditorialReviewState(
     };
   }
 
-  const ensured = await ensureCurrentSignalPosts(context.client);
   const latest = await getLatestBriefingDate(context.client);
-  const latestBriefingDate = ensured.briefingDate ?? latest.latestBriefingDate;
+  const latestBriefingDate = latest.latestBriefingDate;
   const loaded = await loadStoredSignalPosts(context.client, {
     status: normalizedStatus,
     scope: normalizedScope,
@@ -655,7 +628,9 @@ export async function getEditorialReviewState(
 
   const currentTopFive = await loadCurrentTopFive(context.client, latestBriefingDate);
   const warningParts = [
-    ensured.warning,
+    !latestBriefingDate
+      ? "No stored Top 5 signal snapshot exists yet. This page stays read-only until signal posts have been persisted."
+      : null,
     getEditorialStorageWarning(loaded.totalCount, normalizedScope),
   ].filter(Boolean);
 
@@ -1208,4 +1183,65 @@ export async function getPublishedSignalPosts(): Promise<EditorialSignalPost[]> 
     .map(mapStoredSignalPost)
     .filter((post) => normalizeEditorialText(post.publishedWhyItMatters))
     .slice(0, 5);
+}
+
+export async function getHomepageSignalSnapshot(): Promise<HomepageSignalSnapshot> {
+  const publishedPosts = await getPublishedSignalPosts();
+
+  if (publishedPosts.length > 0) {
+    return {
+      source: "published_live",
+      posts: publishedPosts,
+      briefingDate: publishedPosts[0]?.briefingDate ?? null,
+    };
+  }
+
+  const supabase = createSupabaseServiceRoleClient();
+
+  if (!supabase) {
+    return {
+      source: "none",
+      posts: [],
+      briefingDate: null,
+    };
+  }
+
+  const latest = await getLatestBriefingDate(supabase);
+
+  if (latest.errorMessage) {
+    logServerEvent("warn", "Homepage signal snapshot latest date could not be loaded", {
+      route: "/",
+      errorMessage: latest.errorMessage,
+    });
+
+    return {
+      source: "none",
+      posts: [],
+      briefingDate: null,
+    };
+  }
+
+  if (!latest.latestBriefingDate) {
+    return {
+      source: "none",
+      posts: [],
+      briefingDate: null,
+    };
+  }
+
+  const posts = await loadCurrentTopFive(supabase, latest.latestBriefingDate);
+
+  if (posts.length === 0) {
+    return {
+      source: "none",
+      posts: [],
+      briefingDate: latest.latestBriefingDate,
+    };
+  }
+
+  return {
+    source: "latest_snapshot",
+    posts,
+    briefingDate: latest.latestBriefingDate,
+  };
 }

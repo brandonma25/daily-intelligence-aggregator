@@ -217,37 +217,171 @@ const PIPELINE_TOPIC_ALIASES: Record<"tech" | "finance" | "politics", string[]> 
 const BRIEFING_SELECT =
   "id, briefing_date, title, intro, reading_window, briefing_items(id, topic_id, topic_name, title, what_happened, key_points, why_it_matters, sources, estimated_minutes, priority, is_read)";
 
-const DEMO_PUBLIC_FALLBACK_ITEMS: BriefingItem[] = [
-  {
-    id: "fallback-politics-1",
+function createStaticPublicHomepageFallbackItem(input: {
+  id: string;
+  topicId: string;
+  topicName: "Tech" | "Finance" | "Politics";
+  title: string;
+  whatHappened: string;
+  sourceTitle: string;
+  sourceUrl: string;
+  matchedKeywords: string[];
+  priority?: BriefingItem["priority"];
+  importanceScore: number;
+  importanceLabel: NonNullable<BriefingItem["importanceLabel"]>;
+}) {
+  const categoryLabel = input.topicName === "Tech" ? "technology" : input.topicName.toLowerCase();
+
+  return {
+    id: input.id,
+    topicId: input.topicId,
+    topicName: input.topicName,
+    title: input.title,
+    whatHappened: input.whatHappened,
+    keyPoints: [
+      `This is clearly labeled sample ${categoryLabel} fallback copy, not a live headline.`,
+      "Homepage SSR stayed on stored read models and did not fetch or parse feeds.",
+      "Publishing a live signal set or storing a fresh snapshot will replace this placeholder automatically.",
+    ],
+    whyItMatters: `It keeps the ${categoryLabel} rail readable without pretending the app has current live coverage when stored data is unavailable.`,
+    sources: [{ title: input.sourceTitle, url: input.sourceUrl }],
+    sourceCount: 1,
+    estimatedMinutes: 3,
+    read: false,
+    priority: input.priority ?? "normal",
+    matchedKeywords: input.matchedKeywords,
+    importanceScore: input.importanceScore,
+    importanceLabel: input.importanceLabel,
+    rankingSignals: [
+      "Stored homepage signal snapshot is unavailable.",
+      "Fallback stays category-specific and explicitly non-live.",
+    ],
+  } satisfies BriefingItem;
+}
+
+const STATIC_PUBLIC_HOME_FALLBACK_ITEMS: BriefingItem[] = [
+  createStaticPublicHomepageFallbackItem({
+    id: "static-home-tech-1",
+    topicId: "topic-tech",
+    topicName: "Tech",
+    title: "Technology placeholder: stored public signal snapshot unavailable",
+    whatHappened:
+      "The homepage is showing a technology placeholder because no stored public signal snapshot is available for this render.",
+    sourceTitle: "Product note",
+    sourceUrl: "https://example.com/fallback/technology",
+    matchedKeywords: ["technology", "placeholder", "stored snapshot"],
+    priority: "top",
+    importanceScore: 76,
+    importanceLabel: "High",
+  }),
+  createStaticPublicHomepageFallbackItem({
+    id: "static-home-finance-1",
+    topicId: "topic-finance",
+    topicName: "Finance",
+    title: "Finance placeholder: waiting for the next persisted Top 5 snapshot",
+    whatHappened:
+      "No stored finance signal is currently available for public SSR, so this card keeps the economics rail honest instead of implying live markets coverage.",
+    sourceTitle: "Product note",
+    sourceUrl: "https://example.com/fallback/finance",
+    matchedKeywords: ["finance", "economics", "placeholder"],
+    priority: "top",
+    importanceScore: 75,
+    importanceLabel: "High",
+  }),
+  createStaticPublicHomepageFallbackItem({
+    id: "static-home-politics-1",
     topicId: "topic-politics",
     topicName: "Politics",
-    title: "The public politics briefing keeps a ready fallback card so homepage SSR stays stable when published signals are unavailable",
+    title: "Politics placeholder: public SSR is waiting on persisted signal posts",
     whatHappened:
-      "The homepage fallback keeps a politics rail populated from static safe content when the live published signal set is empty, avoiding a broken or under-filled public briefing.",
-    keyPoints: [
-      "This fallback activates only when no published live signal set is available for the public homepage.",
-      "The SSR path stays read-only and avoids feed parsing, ingestion, and runtime source activation.",
-      "The layout still preserves the signed-out homepage contract with a balanced cross-category briefing.",
-    ],
-    whyItMatters:
-      "This preserves the homepage reading experience during storage gaps or rollout transitions without pulling ingestion code back into the render path.",
-    sources: [
-      { title: "BBC World News", url: "https://www.bbc.com/news/world" },
-      { title: "Foreign Affairs", url: "https://www.foreignaffairs.com" },
-    ],
-    sourceCount: 2,
-    estimatedMinutes: 4,
-    read: false,
+      "The politics rail is rendering safe placeholder copy because the current public signal set has not been persisted yet.",
+    sourceTitle: "Product note",
+    sourceUrl: "https://example.com/fallback/politics",
+    matchedKeywords: ["politics", "policy", "placeholder"],
     priority: "top",
-    matchedKeywords: ["politics", "world", "fallback"],
-    importanceScore: 70,
+    importanceScore: 74,
     importanceLabel: "High",
-    rankingSignals: [
-      "Static fallback protects homepage availability.",
-      "Balanced public briefing keeps cross-category coverage visible.",
-    ],
-  },
+  }),
+  createStaticPublicHomepageFallbackItem({
+    id: "static-home-tech-2",
+    topicId: "topic-tech",
+    topicName: "Tech",
+    title: "Technology sample slot: publish a stored signal set to replace this card",
+    whatHappened:
+      "This placeholder preserves a category-specific technology slot without routing the homepage back through ingestion or feed parsing.",
+    sourceTitle: "Engineering note",
+    sourceUrl: "https://example.com/fallback/technology-slot",
+    matchedKeywords: ["technology", "sample", "ssr safe"],
+    priority: "top",
+    importanceScore: 72,
+    importanceLabel: "High",
+  }),
+  createStaticPublicHomepageFallbackItem({
+    id: "static-home-finance-2",
+    topicId: "topic-finance",
+    topicName: "Finance",
+    title: "Economics sample slot: no persisted business signal is available yet",
+    whatHappened:
+      "This finance placeholder keeps the homepage structure intact while making it clear that stored public business coverage is unavailable.",
+    sourceTitle: "Engineering note",
+    sourceUrl: "https://example.com/fallback/economics-slot",
+    matchedKeywords: ["economics", "business", "sample"],
+    priority: "top",
+    importanceScore: 71,
+    importanceLabel: "High",
+  }),
+  createStaticPublicHomepageFallbackItem({
+    id: "static-home-politics-2",
+    topicId: "topic-politics",
+    topicName: "Politics",
+    title: "Politics sample slot: homepage stayed online without claiming live policy coverage",
+    whatHappened:
+      "The placeholder is intentionally non-live copy so the politics tab remains distinct even when persisted public signal data is missing.",
+    sourceTitle: "Engineering note",
+    sourceUrl: "https://example.com/fallback/politics-slot",
+    matchedKeywords: ["politics", "policy", "sample"],
+    importanceScore: 68,
+    importanceLabel: "Watch",
+  }),
+  createStaticPublicHomepageFallbackItem({
+    id: "static-home-tech-3",
+    topicId: "topic-tech",
+    topicName: "Tech",
+    title: "Technology fallback rail stays sample-only until stored headlines exist",
+    whatHappened:
+      "This sample technology card is a last-resort placeholder and should disappear as soon as a stored signal snapshot is available.",
+    sourceTitle: "Fallback policy",
+    sourceUrl: "https://example.com/fallback/technology-policy",
+    matchedKeywords: ["technology", "fallback rail", "sample"],
+    importanceScore: 67,
+    importanceLabel: "Watch",
+  }),
+  createStaticPublicHomepageFallbackItem({
+    id: "static-home-finance-3",
+    topicId: "topic-finance",
+    topicName: "Finance",
+    title: "Finance fallback rail uses sample copy rather than pretending a market move",
+    whatHappened:
+      "This placeholder makes the absence of stored finance coverage explicit while preserving the homepage layout and category filtering.",
+    sourceTitle: "Fallback policy",
+    sourceUrl: "https://example.com/fallback/finance-policy",
+    matchedKeywords: ["finance", "market", "fallback rail"],
+    importanceScore: 66,
+    importanceLabel: "Watch",
+  }),
+  createStaticPublicHomepageFallbackItem({
+    id: "static-home-politics-3",
+    topicId: "topic-politics",
+    topicName: "Politics",
+    title: "Politics fallback rail stays category-specific while persisted coverage is missing",
+    whatHappened:
+      "This sample politics card exists only so the homepage can keep a distinct politics lane without reintroducing feed-parsing dependencies.",
+    sourceTitle: "Fallback policy",
+    sourceUrl: "https://example.com/fallback/politics-policy",
+    matchedKeywords: ["politics", "fallback rail", "stored data"],
+    importanceScore: 65,
+    importanceLabel: "Watch",
+  }),
 ];
 
 type BriefingSummaryFields = Pick<
@@ -269,9 +403,9 @@ function createEmptyBriefing(): DailyBriefing {
   };
 }
 
-async function loadPublishedSignalPostsSafely() {
-  const { getPublishedSignalPosts } = await import("@/lib/signals-editorial");
-  return getPublishedSignalPosts();
+async function loadHomepageSignalSnapshotSafely() {
+  const { getHomepageSignalSnapshot } = await import("@/lib/signals-editorial");
+  return getHomepageSignalSnapshot();
 }
 
 type RequestAuthState = {
@@ -404,33 +538,71 @@ function getTopicId(topicName: string) {
   }
 }
 
-type PublishedSignalPost = Awaited<ReturnType<typeof loadPublishedSignalPostsSafely>>[number];
+type HomepageSignalPost = Awaited<ReturnType<typeof loadHomepageSignalSnapshotSafely>>["posts"][number];
+type HomepageSignalSnapshotSource = Awaited<ReturnType<typeof loadHomepageSignalSnapshotSafely>>["source"];
 
-function buildPublishedSignalKeyPoints(post: PublishedSignalPost): [string, string, string] {
+function selectHomepageSignalWhyItMatters(
+  post: HomepageSignalPost,
+  source: HomepageSignalSnapshotSource,
+) {
+  const preferredLiveText = post.publishedWhyItMatters?.trim();
+  const preferredSnapshotText = post.editedWhyItMatters?.trim();
+  const aiFallback = post.aiWhyItMatters?.trim();
+
+  if (source === "published_live") {
+    return preferredLiveText || preferredSnapshotText || aiFallback || post.selectionReason || post.summary || "";
+  }
+
+  return preferredSnapshotText || preferredLiveText || aiFallback || post.selectionReason || post.summary || "";
+}
+
+function buildHomepageSignalKeyPoints(
+  post: HomepageSignalPost,
+  source: HomepageSignalSnapshotSource,
+): [string, string, string] {
   const sourcePoint = post.sourceName
     ? `Lead coverage is anchored by ${post.sourceName}.`
-    : "Lead coverage is anchored by the published signal set.";
-  const rankPoint = `Published as live signal #${post.rank} for the homepage briefing.`;
-  const summaryPoint = post.summary || post.selectionReason || post.publishedWhyItMatters || "";
+    : source === "published_live"
+      ? "Lead coverage is anchored by the published signal set."
+      : "Lead coverage is anchored by the stored signal snapshot.";
+  const rankPoint =
+    source === "published_live"
+      ? `Published as live signal #${post.rank} for the homepage briefing.`
+      : `Read from the latest stored signal snapshot at rank #${post.rank}.`;
+  const summaryPoint = post.summary || post.selectionReason || selectHomepageSignalWhyItMatters(post, source);
 
   return [sourcePoint, rankPoint, summaryPoint];
 }
 
-function mapPublishedSignalPostToBriefingItem(post: PublishedSignalPost): BriefingItem {
+function mapHomepageSignalPostToBriefingItem(
+  post: HomepageSignalPost,
+  source: HomepageSignalSnapshotSource,
+): BriefingItem {
   const topicName = inferTopicName(post.tags);
+  const whyItMatters = selectHomepageSignalWhyItMatters(post, source);
+  const structuredWhyItMatters =
+    source === "published_live"
+      ? post.publishedWhyItMattersStructured
+      : post.editedWhyItMattersStructured ?? post.publishedWhyItMattersStructured;
 
   return {
     id: post.id,
     topicId: getTopicId(topicName),
     topicName,
     title: post.title,
-    whatHappened: post.summary || post.selectionReason || post.publishedWhyItMatters || "",
-    keyPoints: buildPublishedSignalKeyPoints(post),
-    whyItMatters: post.publishedWhyItMatters || "",
+    whatHappened: post.summary || post.selectionReason || whyItMatters,
+    keyPoints: buildHomepageSignalKeyPoints(post, source),
+    whyItMatters,
+    aiWhyItMatters: post.aiWhyItMatters || "",
+    editedWhyItMatters: post.editedWhyItMatters,
     publishedWhyItMatters: post.publishedWhyItMatters || "",
-    editorialWhyItMatters: post.publishedWhyItMattersStructured,
-    publishedWhyItMattersStructured: post.publishedWhyItMattersStructured,
-    editorialStatus: "published",
+    editedWhyItMattersStructured:
+      source === "published_live" ? null : structuredWhyItMatters,
+    editorialWhyItMatters:
+      source === "published_live" ? structuredWhyItMatters : null,
+    publishedWhyItMattersStructured:
+      source === "published_live" ? structuredWhyItMatters : null,
+    editorialStatus: source === "published_live" ? "published" : post.editorialStatus,
     sources: post.sourceUrl ? [{ title: post.sourceName || "Source", url: post.sourceUrl }] : [],
     sourceCount: post.sourceUrl ? 1 : 0,
     estimatedMinutes: 4,
@@ -461,44 +633,55 @@ function normalizeCalendarSafeBriefingDate(dateKey: string) {
   return `${dateKey}T12:00:00`;
 }
 
-function buildDemoHomepageData(): DashboardData {
+function buildStaticPublicHomepageFallbackData(): DashboardData {
   const sources = getSourcesForPublicSurface("public.home");
-  const items = [...demoDashboardData.briefing.items, ...DEMO_PUBLIC_FALLBACK_ITEMS].slice(0, 5);
-  const briefingDate = normalizeCalendarSafeBriefingDate(
-    getBriefingDateKey(demoDashboardData.briefing.briefingDate),
-  );
+  const briefingDate = normalizeCalendarSafeBriefingDate(getBriefingDateKey(formatISO(new Date())));
+  const topItems = STATIC_PUBLIC_HOME_FALLBACK_ITEMS
+    .slice(0, 5)
+    .map((item, index) => ({
+      ...item,
+      priority: index < 5 ? ("top" as const) : item.priority,
+    }));
 
   return {
-    ...demoDashboardData,
     mode: "public",
     briefing: {
-      ...demoDashboardData.briefing,
+      id: `static-homepage-${getBriefingDateKey(briefingDate)}`,
       briefingDate,
-      readingWindow: `${items.reduce((sum, item) => sum + item.estimatedMinutes, 0)} minutes`,
-      items,
+      title: "Daily Executive Briefing",
+      intro:
+        "Published public signal posts are unavailable, so the homepage is showing clearly labeled category placeholders instead of pretending those stories are live.",
+      readingWindow: `${topItems.reduce((sum, item) => sum + item.estimatedMinutes, 0)} minutes`,
+      items: topItems,
     },
     topics: demoTopics,
     sources,
-    publicRankedItems: items,
-    homepageDiagnostics: buildReadOnlyHomepageDiagnostics(sources, items.length),
+    publicRankedItems: STATIC_PUBLIC_HOME_FALLBACK_ITEMS,
+    homepageDiagnostics: buildReadOnlyHomepageDiagnostics(sources, STATIC_PUBLIC_HOME_FALLBACK_ITEMS.length),
   };
 }
 
 async function buildPublicHomepageData(): Promise<DashboardData> {
-  const publishedSignals = await loadPublishedSignalPostsSafely();
+  const homepageSignalSnapshot = await loadHomepageSignalSnapshotSafely();
   const sources = getSourcesForPublicSurface("public.home");
 
-  if (publishedSignals.length === 0) {
-    return buildDemoHomepageData();
+  if (homepageSignalSnapshot.posts.length === 0) {
+    return buildStaticPublicHomepageFallbackData();
   }
 
-  const firstBriefingDate = publishedSignals[0]?.briefingDate;
+  const firstBriefingDate = homepageSignalSnapshot.briefingDate ?? homepageSignalSnapshot.posts[0]?.briefingDate;
   const briefingDateKey =
     firstBriefingDate && /^\d{4}-\d{2}-\d{2}$/.test(firstBriefingDate)
       ? firstBriefingDate
       : getBriefingDateKey(formatISO(new Date()));
   const briefingDate = normalizeCalendarSafeBriefingDate(briefingDateKey);
-  const items = publishedSignals.map(mapPublishedSignalPostToBriefingItem);
+  const items = homepageSignalSnapshot.posts.map((post) =>
+    mapHomepageSignalPostToBriefingItem(post, homepageSignalSnapshot.source),
+  );
+  const intro =
+    homepageSignalSnapshot.source === "published_live"
+      ? "The homepage renders from the published live signal set instead of triggering feed ingestion during SSR."
+      : "Showing the latest stored Top 5 snapshot while published homepage signals are unavailable. This SSR path stays on persisted data only.";
 
   return {
     mode: "public",
@@ -506,8 +689,7 @@ async function buildPublicHomepageData(): Promise<DashboardData> {
       id: `published-homepage-${getBriefingDateKey(briefingDate)}`,
       briefingDate,
       title: "Daily Executive Briefing",
-      intro:
-        "The homepage renders from the published live signal set instead of triggering feed ingestion during SSR.",
+      intro,
       readingWindow: `${items.reduce((sum, item) => sum + item.estimatedMinutes, 0)} minutes`,
       items,
     },
