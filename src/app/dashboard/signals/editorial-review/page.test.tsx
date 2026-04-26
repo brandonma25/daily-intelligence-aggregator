@@ -264,4 +264,20 @@ describe("signals editorial review page", () => {
     expect(screen.getByText("No historical review-queue posts")).toBeInTheDocument();
     expect(screen.getByText(/Older briefing dates currently have no Draft or Needs Review posts/i)).toBeInTheDocument();
   });
+
+  it("shows a clean empty state when no stored Top 5 snapshot exists yet", async () => {
+    getEditorialReviewState.mockResolvedValue({
+      ...createAuthorizedState([]),
+      warning:
+        "No stored Top 5 signal snapshot exists yet. This page stays read-only until signal posts have been persisted.",
+      latestBriefingDate: null,
+      totalMatchingPosts: 0,
+    });
+
+    const Page = (await import("@/app/dashboard/signals/editorial-review/page")).default;
+    render(await Page({ searchParams: Promise.resolve({}) }));
+
+    expect(screen.getByText(/No stored Top 5 signal snapshot exists yet/i)).toBeInTheDocument();
+    expect(screen.getByText("No signal posts match this filter")).toBeInTheDocument();
+  });
 });

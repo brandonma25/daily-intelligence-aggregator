@@ -108,7 +108,7 @@ function createSupabaseMock(rows: SignalPostRow[]) {
       const inclusionFilters: Array<{ column: keyof SignalPostRow; values: unknown[] }> = [];
       const lessThanFilters: Array<{ column: keyof SignalPostRow; value: unknown }> = [];
       let orSearch = "";
-      let sortColumn: keyof SignalPostRow | null = null;
+      const orderRules: Array<{ column: keyof SignalPostRow; ascending: boolean }> = [];
       let rangeStart: number | null = null;
       let rangeEnd: number | null = null;
 
@@ -126,14 +126,22 @@ function createSupabaseMock(rows: SignalPostRow[]) {
       function selectResult(limit?: number) {
         let data = applyFilters();
 
-        if (sortColumn) {
+        if (orderRules.length > 0) {
           data = data.slice().sort((left, right) => {
-            const leftValue = left[sortColumn!];
-            const rightValue = right[sortColumn!];
-            if (typeof leftValue === "number" && typeof rightValue === "number") {
-              return leftValue - rightValue;
+            for (const rule of orderRules) {
+              const leftValue = left[rule.column];
+              const rightValue = right[rule.column];
+              const comparison =
+                typeof leftValue === "number" && typeof rightValue === "number"
+                  ? leftValue - rightValue
+                  : String(leftValue).localeCompare(String(rightValue));
+
+              if (comparison !== 0) {
+                return rule.ascending ? comparison : -comparison;
+              }
             }
-            return String(leftValue).localeCompare(String(rightValue));
+
+            return 0;
           });
         }
 
@@ -153,8 +161,8 @@ function createSupabaseMock(rows: SignalPostRow[]) {
           operation = "select";
           return builder;
         },
-        order(column: keyof SignalPostRow) {
-          sortColumn = column;
+        order(column: keyof SignalPostRow, options?: { ascending?: boolean }) {
+          orderRules.push({ column, ascending: options?.ascending ?? true });
           return builder;
         },
         limit(count: number) {
@@ -256,6 +264,29 @@ describe("signals editorial workflow", () => {
       userEmail: "reader@example.com",
     });
     expect(createSupabaseServiceRoleClient).not.toHaveBeenCalled();
+  });
+
+  it("keeps editorial review render-safe when no stored signal snapshot exists", async () => {
+    createSupabaseServiceRoleClient.mockReturnValue(createSupabaseMock([]));
+    safeGetUser.mockResolvedValue({
+      user: { id: "admin-1", email: "admin@example.com" },
+      supabase: {},
+      sessionCookiePresent: true,
+    });
+
+    const { getEditorialReviewState } = await loadEditorialModule();
+    const state = await getEditorialReviewState();
+
+    expect(state).toMatchObject({
+      kind: "authorized",
+      posts: [],
+      currentTopFive: [],
+      latestBriefingDate: null,
+      storageReady: true,
+      warning:
+        "No stored Top 5 signal snapshot exists yet. This page stays read-only until signal posts have been persisted.",
+    });
+    expect(generateDailyBriefing).not.toHaveBeenCalled();
   });
 
   it("lets an admin save a draft", async () => {
@@ -683,5 +714,42 @@ describe("signals editorial workflow", () => {
 
     expect(posts).toHaveLength(2);
     expect(posts.map((post) => post.id)).toEqual(["live-1", "live-2"]);
+  });
+
+  it("falls back to the latest stored snapshot for homepage SSR when no live published set exists", async () => {
+    const rows = [
+      createRow({
+        id: "latest-1",
+        briefing_date: "2026-04-25",
+        rank: 1,
+        editorial_status: "approved",
+        edited_why_it_matters: "Latest stored editorial text",
+        is_live: false,
+      }),
+      createRow({
+        id: "latest-2",
+        briefing_date: "2026-04-25",
+        rank: 2,
+        editorial_status: "draft",
+        ai_why_it_matters: "Latest AI fallback",
+        is_live: false,
+      }),
+      createRow({
+        id: "older-1",
+        briefing_date: "2026-04-24",
+        rank: 1,
+        editorial_status: "published",
+        published_why_it_matters: "Older published copy",
+        is_live: false,
+      }),
+    ];
+    createSupabaseServiceRoleClient.mockReturnValue(createSupabaseMock(rows));
+
+    const { getHomepageSignalSnapshot } = await loadEditorialModule();
+    const snapshot = await getHomepageSignalSnapshot();
+
+    expect(snapshot.source).toBe("latest_snapshot");
+    expect(snapshot.briefingDate).toBe("2026-04-25");
+    expect(snapshot.posts.map((post) => post.id)).toEqual(["latest-1", "latest-2"]);
   });
 });

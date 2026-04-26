@@ -1,240 +1,307 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { __testing__, syncEventClusters, syncTopicMatches } from "@/lib/data";
-import * as rssModule from "@/lib/rss";
-import type { FeedArticle } from "@/lib/rss";
-import type { Source, Topic } from "@/lib/types";
+const safeGetUser = vi.fn();
+const createSupabaseServerClient = vi.fn();
+const getHomepageSignalSnapshot = vi.fn();
 
-type QueryResult<T> = Promise<{ data: T; error: null }>;
+vi.mock("@/lib/supabase/server", () => ({
+  safeGetUser,
+  createSupabaseServerClient,
+}));
 
-function createSupabaseMock({
-  articles = [],
-  articleTopics = [],
-}: {
-  articles?: Array<Record<string, unknown>>;
-  articleTopics?: Array<Record<string, unknown>>;
-}) {
-  const operations: string[] = [];
+vi.mock("@/lib/signals-editorial", () => ({
+  getHomepageSignalSnapshot,
+}));
 
-  const client = {
-    from(table: string) {
-      if (table === "articles") {
-        return {
-          select() {
-            return {
-              eq(): QueryResult<typeof articles> {
-                operations.push("articles.select");
-                return Promise.resolve({ data: articles, error: null });
-              },
-            };
-          },
-          update() {
-            return {
-              eq() {
-                operations.push("articles.update.eq");
-                return Promise.resolve({ error: null });
-              },
-              in() {
-                operations.push("articles.update.in");
-                return Promise.resolve({ error: null });
-              },
-            };
-          },
-        };
-      }
-
-      if (table === "article_topics") {
-        return {
-          select() {
-            operations.push("article_topics.select");
-            return Promise.resolve({ data: articleTopics, error: null });
-          },
-          delete() {
-            return {
-              in() {
-                operations.push("article_topics.delete.in");
-                return Promise.resolve({ error: null });
-              },
-            };
-          },
-          insert() {
-            operations.push("article_topics.insert");
-            return Promise.resolve({ error: null });
-          },
-        };
-      }
-
-      if (table === "events") {
-        return {
-          delete() {
-            return {
-              eq() {
-                operations.push("events.delete.eq");
-                return Promise.resolve({ error: null });
-              },
-            };
-          },
-          insert() {
-            operations.push("events.insert");
-            return {
-              select() {
-                return {
-                  single() {
-                    return Promise.resolve({ data: { id: "event-1" }, error: null });
-                  },
-                };
-              },
-            };
-          },
-        };
-      }
-
-      throw new Error(`Unexpected table ${table}`);
-    },
-  };
-
+function createHomepageSignalPost(overrides: Partial<{
+  id: string;
+  briefingDate: string | null;
+  rank: number;
+  title: string;
+  sourceName: string;
+  sourceUrl: string;
+  summary: string;
+  tags: string[];
+  signalScore: number | null;
+  selectionReason: string;
+  aiWhyItMatters: string;
+  editedWhyItMatters: string | null;
+  publishedWhyItMatters: string | null;
+  editedWhyItMattersStructured: unknown | null;
+  publishedWhyItMattersStructured: unknown | null;
+  editorialStatus: "draft" | "needs_review" | "approved" | "published";
+  editedBy: string | null;
+  editedAt: string | null;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  publishedAt: string | null;
+  isLive: boolean;
+  createdAt: string | null;
+  updatedAt: string | null;
+  persisted: boolean;
+}> = {}) {
   return {
-    client,
-    operations,
+    id: overrides.id ?? `signal-${overrides.rank ?? 1}`,
+    briefingDate: overrides.briefingDate ?? "2026-04-25",
+    rank: overrides.rank ?? 1,
+    title: overrides.title ?? `Stored signal ${overrides.rank ?? 1}`,
+    sourceName: overrides.sourceName ?? "Source",
+    sourceUrl: overrides.sourceUrl ?? "https://example.com/source",
+    summary: overrides.summary ?? "Stored summary",
+    tags: overrides.tags ?? ["tech"],
+    signalScore: overrides.signalScore ?? 84,
+    selectionReason: overrides.selectionReason ?? "Stored ranking signal",
+    aiWhyItMatters: overrides.aiWhyItMatters ?? "Stored AI why it matters",
+    editedWhyItMatters: overrides.editedWhyItMatters ?? null,
+    publishedWhyItMatters: overrides.publishedWhyItMatters ?? null,
+    editedWhyItMattersStructured: overrides.editedWhyItMattersStructured ?? null,
+    publishedWhyItMattersStructured: overrides.publishedWhyItMattersStructured ?? null,
+    editorialStatus: overrides.editorialStatus ?? "approved",
+    editedBy: overrides.editedBy ?? null,
+    editedAt: overrides.editedAt ?? null,
+    approvedBy: overrides.approvedBy ?? null,
+    approvedAt: overrides.approvedAt ?? null,
+    publishedAt: overrides.publishedAt ?? null,
+    isLive: overrides.isLive ?? false,
+    createdAt: overrides.createdAt ?? null,
+    updatedAt: overrides.updatedAt ?? null,
+    persisted: overrides.persisted ?? true,
   };
 }
 
-describe("syncTopicMatches", () => {
-  it("preserves existing topic matches when recompute returns no rows", async () => {
-    const { client, operations } = createSupabaseMock({
-      articles: [
-        {
-          id: "article-1",
-          title: "Unrelated weather update",
-          summary_text: "A generic weather story with no topic keywords.",
-        },
+async function loadDataModule() {
+  vi.resetModules();
+  return import("@/lib/data");
+}
+
+function createAccountSupabase(options?: {
+  profileResult?: {
+    data: {
+      category_preferences?: unknown;
+      newsletter_enabled?: boolean | null;
+    } | null;
+    error: null;
+  };
+  profileError?: Error;
+  sourcesResult?: {
+    data: Array<{
+      id: string;
+      user_id: string;
+      name: string;
+      feed_url: string;
+      homepage_url: string | null;
+      topic_id: string | null;
+      status: "active" | "paused";
+      created_at: string;
+      topics: Array<{ name: string | null }> | null;
+    }>;
+    error: null;
+  };
+}) {
+  const from = vi.fn((table: string) => {
+    if (table === "user_profiles") {
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            maybeSingle: vi.fn(async () => {
+              if (options?.profileError) {
+                throw options.profileError;
+              }
+
+              return (
+                options?.profileResult ?? {
+                  data: {
+                    category_preferences: ["tech", "politics"],
+                    newsletter_enabled: true,
+                  },
+                  error: null,
+                }
+              );
+            }),
+          })),
+        })),
+      };
+    }
+
+    if (table === "sources") {
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            order: vi.fn(async () =>
+              options?.sourcesResult ?? {
+                data: [
+                  {
+                    id: "source-1",
+                    user_id: "user-1",
+                    name: "Technology Feed",
+                    feed_url: "https://example.com/rss.xml",
+                    homepage_url: "https://example.com",
+                    topic_id: "topic-tech",
+                    status: "active" as const,
+                    created_at: "2026-04-26T00:00:00.000Z",
+                    topics: [{ name: "Tech" }],
+                  },
+                ],
+                error: null,
+              },
+            ),
+          })),
+        })),
+      };
+    }
+
+    throw new Error(`Unexpected table lookup: ${table}`);
+  });
+
+  return { from };
+}
+
+describe("homepage read model", () => {
+  beforeEach(() => {
+    safeGetUser.mockReset();
+    createSupabaseServerClient.mockReset();
+    getHomepageSignalSnapshot.mockReset();
+    createSupabaseServerClient.mockResolvedValue(null);
+    safeGetUser.mockResolvedValue({
+      supabase: null,
+      user: null,
+      sessionCookiePresent: false,
+    });
+  });
+
+  it("prefers the latest stored signal snapshot over demo briefing copy", async () => {
+    getHomepageSignalSnapshot.mockResolvedValue({
+      source: "latest_snapshot",
+      briefingDate: "2026-04-25",
+      posts: [
+        createHomepageSignalPost({
+          id: "finance-1",
+          rank: 1,
+          title: "Stored finance signal",
+          tags: ["finance", "markets"],
+          summary: "Stored finance summary",
+          editedWhyItMatters: "Stored finance editorial note",
+        }),
+        createHomepageSignalPost({
+          id: "tech-1",
+          rank: 2,
+          title: "Stored tech signal",
+          tags: ["tech", "software"],
+          summary: "Stored tech summary",
+          editedWhyItMatters: "Stored tech editorial note",
+        }),
       ],
     });
 
-    const topics: Topic[] = [
-      {
-        id: "topic-1",
-        name: "Finance",
-        description: "Finance coverage",
-        color: "#111111",
-        keywords: ["fed", "inflation"],
-        excludeKeywords: [],
-      },
-    ];
+    const { getHomepagePageState } = await loadDataModule();
+    const state = await getHomepagePageState("/");
 
-    await syncTopicMatches(client as never, "user-1", topics);
-
-    expect(operations).not.toContain("article_topics.delete.in");
-    expect(operations).not.toContain("article_topics.insert");
+    expect(state.data.briefing.intro).toMatch(/latest stored Top 5 snapshot/i);
+    expect(state.data.briefing.items.map((item) => item.title)).toEqual([
+      "Stored finance signal",
+      "Stored tech signal",
+    ]);
+    expect(
+      state.data.briefing.items.some((item) => /static sample copy|public finance briefing now surfaces/i.test(item.title)),
+    ).toBe(false);
   });
-});
 
-describe("syncEventClusters", () => {
-  it("preserves existing events when no seeded articles are available", async () => {
-    const { client, operations } = createSupabaseMock({
-      articles: [
-        {
-          id: "article-1",
-          title: "Existing coverage",
-          summary_text: "Existing summary",
-          published_at: "2026-04-16T08:00:00.000Z",
-          url: "https://example.com/story",
-          source_id: "source-1",
-        },
-      ],
-      articleTopics: [],
+  it("uses clearly labeled category-specific placeholders when no stored snapshot exists", async () => {
+    getHomepageSignalSnapshot.mockResolvedValue({
+      source: "none",
+      briefingDate: null,
+      posts: [],
     });
 
-    const topics: Topic[] = [
-      {
-        id: "topic-1",
-        name: "Finance",
-        description: "Finance coverage",
-        color: "#111111",
-        keywords: ["fed", "inflation"],
-        excludeKeywords: [],
-      },
-    ];
+    const { getHomepagePageState } = await loadDataModule();
+    const { buildHomepageViewModel } = await import("@/lib/homepage-model");
+    const state = await getHomepagePageState("/");
+    const viewModel = buildHomepageViewModel(state.data);
 
-    await syncEventClusters(client as never, "user-1", topics, []);
-
-    expect(operations).not.toContain("articles.update.eq");
-    expect(operations).not.toContain("events.delete.eq");
+    expect(state.data.briefing.intro).toMatch(/clearly labeled category placeholders/i);
+    expect(
+      state.data.briefing.items.some((item) => /static sample copy|live business feeds|live headlines/i.test(item.title)),
+    ).toBe(false);
+    expect(viewModel.debug.categoryCounts.tech).toBeGreaterThan(0);
+    expect(viewModel.debug.categoryCounts.finance).toBeGreaterThan(0);
+    expect(viewModel.debug.categoryCounts.politics).toBeGreaterThan(0);
   });
 });
 
-describe("fetchSourceArticlesWithFallback", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
+describe("account page read model", () => {
+  beforeEach(() => {
+    safeGetUser.mockReset();
+    createSupabaseServerClient.mockReset();
+    getHomepageSignalSnapshot.mockReset();
+    createSupabaseServerClient.mockResolvedValue(null);
   });
 
-  it("uses a curated fallback when a GDELT source hard-fails", async () => {
-    const fetchSpy = vi.spyOn(rssModule, "fetchFeedArticles");
-    const fallbackArticles: FeedArticle[] = [
-      {
-        title: "Recovered story",
-        url: "https://example.com/recovered",
-        summaryText: "Recovered summary",
-        sourceName: "AP",
-        publishedAt: new Date().toISOString(),
+  it("keeps account SSR on auth, profile, and source reads only", async () => {
+    const supabase = createAccountSupabase();
+
+    safeGetUser.mockResolvedValue({
+      supabase,
+      user: {
+        id: "user-1",
+        email: "reader@example.com",
+        user_metadata: { full_name: "Reader Example" },
       },
-    ];
+      sessionCookiePresent: true,
+    });
 
-    fetchSpy
-      .mockRejectedValueOnce(new Error("Feed request timed out for GDELT Finance Monitor after 4500ms"))
-      .mockResolvedValueOnce(fallbackArticles);
+    const { getAccountPageState } = await loadDataModule();
+    const state = await getAccountPageState("/account");
 
-    const source: Source = {
-      id: "source-1",
-      name: "GDELT Finance Monitor",
-      feedUrl: "https://api.gdeltproject.org/api/v2/doc/doc?query=finance",
-      topicName: "Finance",
-      status: "active",
-    };
-
-    const result = await __testing__.fetchSourceArticlesWithFallback(source);
-
-    expect(result.usedFallback).toBe(true);
-    expect(result.articles).toHaveLength(1);
-    expect(fetchSpy).toHaveBeenNthCalledWith(
-      1,
-      source.feedUrl,
-      source.name,
-      expect.objectContaining({ timeoutMs: 4500, retryCount: 0 }),
-    );
-    expect(fetchSpy).toHaveBeenNthCalledWith(
-      2,
-      "https://feeds.reuters.com/reuters/businessNews",
-      source.name,
-      expect.objectContaining({ timeoutMs: 4500, retryCount: 0 }),
-    );
+    expect(state.viewer?.email).toBe("reader@example.com");
+    expect(state.preferences).toEqual({
+      categories: ["tech", "politics"],
+      newsletterEnabled: true,
+      storageReady: true,
+    });
+    expect(state.sources).toEqual([
+      {
+        id: "source-1",
+        userId: "user-1",
+        name: "Technology Feed",
+        feedUrl: "https://example.com/rss.xml",
+        homepageUrl: "https://example.com",
+        topicId: "topic-tech",
+        topicName: "Tech",
+        status: "active",
+        createdAt: "2026-04-26T00:00:00.000Z",
+      },
+    ]);
+    expect(supabase.from).toHaveBeenCalledTimes(2);
+    expect(supabase.from).toHaveBeenNthCalledWith(1, "user_profiles");
+    expect(supabase.from).toHaveBeenNthCalledWith(2, "sources");
   });
 
-  it("drops stale fallback articles instead of surfacing misleading recovery cards", async () => {
-    const fetchSpy = vi.spyOn(rssModule, "fetchFeedArticles");
-    const staleArticle: FeedArticle = {
-      title: "Old fallback story",
-      url: "https://example.com/old-story",
-      summaryText: "Old summary",
-      sourceName: "TechCrunch",
-      publishedAt: "2026-01-01T00:00:00.000Z",
-    };
+  it("keeps account rendering safe when profile storage is unavailable", async () => {
+    const supabase = createAccountSupabase({
+      profileError: new Error("relation \"user_profiles\" does not exist"),
+    });
 
-    fetchSpy
-      .mockRejectedValueOnce(new Error("Feed request failed"))
-      .mockResolvedValueOnce([staleArticle]);
+    safeGetUser.mockResolvedValue({
+      supabase,
+      user: {
+        id: "user-1",
+        email: "reader@example.com",
+        user_metadata: {},
+      },
+      sessionCookiePresent: true,
+    });
 
-    const source: Source = {
-      id: "source-2",
-      name: "GDELT AI Monitor",
-      feedUrl: "https://api.gdeltproject.org/api/v2/doc/doc?query=ai",
-      topicName: "AI",
-      status: "active",
-    };
+    const { getAccountPageState } = await loadDataModule();
+    const state = await getAccountPageState("/account");
 
-    const result = await __testing__.fetchSourceArticlesWithFallback(source);
-
-    expect(result.articles).toHaveLength(0);
-    expect(result.failures.at(-1)?.errorMessage).toBe("Feed returned zero articles");
+    expect(state.viewer?.email).toBe("reader@example.com");
+    expect(state.sources).toHaveLength(1);
+    expect(state.preferences).toEqual({
+      categories: ["tech", "finance", "politics"],
+      newsletterEnabled: false,
+      storageReady: false,
+      storageMessage: "Account preference storage is pending the Artifact 6 profile migration.",
+    });
+    expect(supabase.from).toHaveBeenCalledTimes(2);
   });
 });
