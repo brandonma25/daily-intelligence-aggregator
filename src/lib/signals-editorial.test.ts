@@ -289,6 +289,61 @@ describe("signals editorial workflow", () => {
     expect(generateDailyBriefing).not.toHaveBeenCalled();
   });
 
+  it("loads editorial history in stable reverse briefing-date order", async () => {
+    const rows = [
+      createRow({
+        id: "signal-apr23",
+        briefing_date: "2026-04-23",
+        rank: 1,
+        signal_score: 99,
+        created_at: "2026-04-23T08:00:00.000Z",
+        updated_at: "2026-04-26T12:00:00.000Z",
+      }),
+      createRow({
+        id: "signal-apr26-b",
+        briefing_date: "2026-04-26",
+        rank: 2,
+        signal_score: 75,
+        created_at: "2026-04-26T08:00:00.000Z",
+        updated_at: "2026-04-24T12:00:00.000Z",
+      }),
+      createRow({
+        id: "signal-apr25",
+        briefing_date: "2026-04-25",
+        rank: 1,
+        signal_score: 88,
+        created_at: "2026-04-25T08:00:00.000Z",
+        updated_at: "2026-04-25T12:00:00.000Z",
+      }),
+      createRow({
+        id: "signal-apr26-a",
+        briefing_date: "2026-04-26",
+        rank: 1,
+        signal_score: 95,
+        created_at: "2026-04-26T08:00:00.000Z",
+        updated_at: "2026-04-23T12:00:00.000Z",
+      }),
+    ];
+    createSupabaseServiceRoleClient.mockReturnValue(createSupabaseMock(rows));
+    safeGetUser.mockResolvedValue({
+      user: { id: "admin-1", email: "admin@example.com" },
+      supabase: {},
+      sessionCookiePresent: true,
+    });
+
+    const { getEditorialReviewState } = await loadEditorialModule();
+    const state = await getEditorialReviewState(undefined, { scope: "all" });
+
+    expect(state.kind).toBe("authorized");
+    if (state.kind !== "authorized") return;
+    expect(state.posts.map((post) => post.id)).toEqual([
+      "signal-apr26-a",
+      "signal-apr26-b",
+      "signal-apr25",
+      "signal-apr23",
+    ]);
+  });
+
   it("lets an admin save a draft", async () => {
     const rows = [createRow({ id: "signal-1" })];
     createSupabaseServiceRoleClient.mockReturnValue(createSupabaseMock(rows));
