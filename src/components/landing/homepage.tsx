@@ -47,6 +47,10 @@ export default function LandingHomepage({
   const briefingDateKey = getBriefingDateKey(data.briefing.briefingDate);
   const detailHref = `/briefing/${briefingDateKey}`;
   const noDataMessage = buildOverallNoDataMessage(topEvents.length);
+  const topEventsEmptyMessage =
+    data.homepageFreshnessNotice?.kind === "empty"
+      ? { title: data.homepageFreshnessNotice.text, body: "" }
+      : noDataMessage;
   const authMessage = getHomepageAuthMessage(authState);
 
   return (
@@ -68,6 +72,14 @@ export default function LandingHomepage({
           {briefingDateLabel}
         </p>
 
+        {data.homepageFreshnessNotice ? (
+          <Panel className="border-[var(--accent)]/30 bg-[var(--card)] p-4" data-testid="home-freshness-notice">
+            <p className="text-sm font-semibold text-[var(--text-primary)]">
+              {data.homepageFreshnessNotice.text}
+            </p>
+          </Panel>
+        ) : null}
+
         <CategoryTabStrip
           topEvents={topEvents}
           categorySections={categorySections}
@@ -75,7 +87,7 @@ export default function LandingHomepage({
           gatedCategoryState={({ onDismiss }) => (
             <CategorySoftGate redirectTo="/" onDismiss={onDismiss} />
           )}
-          topEventsEmptyState={<StatusPanel title={noDataMessage.title} body={noDataMessage.body} />}
+          topEventsEmptyState={<StatusPanel title={topEventsEmptyMessage.title} body={topEventsEmptyMessage.body} />}
           renderTopEvent={(event, index) => (
             <HomeTopEventCard
               event={event}
@@ -402,11 +414,11 @@ function CategorySoftGate({
   );
 }
 
-function StatusPanel({ title, body }: { title: string; body: string }) {
+function StatusPanel({ title, body }: { title: string; body?: string }) {
   return (
     <Panel className="p-5 text-base text-[var(--text-secondary)]">
       <p className="font-semibold text-[var(--text-primary)]">{title}</p>
-      <p className="mt-2">{body}</p>
+      {body ? <p className="mt-2">{body}</p> : null}
     </Panel>
   );
 }

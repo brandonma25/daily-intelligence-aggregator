@@ -188,7 +188,7 @@ export type SignalSnapshotPersistenceResult = {
 };
 
 export type HomepageSignalSnapshot = {
-  source: "published_live" | "latest_snapshot" | "none";
+  source: "published_live" | "recent_published" | "none";
   posts: EditorialSignalPost[];
   depthPosts: EditorialSignalPost[];
   briefingDate: string | null;
@@ -640,6 +640,14 @@ async function loadCurrentSignalDepth(client: EditorialClient, briefingDate: str
   return ((result.data ?? []) as unknown as StoredSignalPost[]).map(mapStoredSignalPost);
 }
 
+function selectPublishedEditorialWhyItMatters(post: EditorialSignalPost) {
+  if (post.editorialStatus !== "published") {
+    return "";
+  }
+
+  return normalizeEditorialText(post.publishedWhyItMatters);
+}
+
 function selectApprovedEditorialWhyItMatters(post: EditorialSignalPost) {
   if (post.editorialStatus !== "approved" && post.editorialStatus !== "published") {
     return "";
@@ -648,7 +656,7 @@ function selectApprovedEditorialWhyItMatters(post: EditorialSignalPost) {
   return normalizeEditorialText(post.editedWhyItMatters || post.publishedWhyItMatters);
 }
 
-async function loadPublicApprovedSnapshot(
+async function loadPublishedHomepageSnapshotForDate(
   client: EditorialClient,
   briefingDate: string | null,
   limit: number,
@@ -661,7 +669,7 @@ async function loadPublicApprovedSnapshot(
     .from("signal_posts")
     .select(SIGNAL_POST_SELECT)
     .eq("briefing_date", briefingDate)
-    .in("editorial_status", ["approved", "published"])
+    .eq("editorial_status", "published")
     .order("rank", { ascending: true })
     .limit(limit);
 
@@ -671,7 +679,39 @@ async function loadPublicApprovedSnapshot(
 
   return ((result.data ?? []) as unknown as StoredSignalPost[])
     .map(mapStoredSignalPost)
-    .filter((post) => selectApprovedEditorialWhyItMatters(post));
+    .filter((post) => selectPublishedEditorialWhyItMatters(post));
+}
+
+async function loadMostRecentPublishedHomepageSnapshot(
+  client: EditorialClient,
+  limit: number,
+) {
+  const result = await client
+    .from("signal_posts")
+    .select(SIGNAL_POST_SELECT)
+    .eq("editorial_status", "published")
+    .order("briefing_date", { ascending: false })
+    .order("rank", { ascending: true })
+    .limit(100);
+
+  if (result.error) {
+    return {
+      briefingDate: null,
+      posts: [] as EditorialSignalPost[],
+    };
+  }
+
+  const publishedPosts = ((result.data ?? []) as unknown as StoredSignalPost[])
+    .map(mapStoredSignalPost)
+    .filter((post) => selectPublishedEditorialWhyItMatters(post));
+  const briefingDate = publishedPosts[0]?.briefingDate ?? null;
+
+  return {
+    briefingDate,
+    posts: briefingDate
+      ? publishedPosts.filter((post) => post.briefingDate === briefingDate).slice(0, limit)
+      : [],
+  };
 }
 
 async function getAdminEditorialContext(route: string): Promise<
@@ -1410,19 +1450,7 @@ export async function getPublishedSignalPosts(): Promise<EditorialSignalPost[]> 
   return (await loadPublishedSignalPosts(5)).slice(0, 5);
 }
 
-export async function getHomepageSignalSnapshot(): Promise<HomepageSignalSnapshot> {
-  const publishedDepthPosts = await loadPublishedSignalPosts(PUBLIC_SIGNAL_DEPTH_LIMIT);
-  const publishedPosts = publishedDepthPosts.slice(0, 5);
-
-  if (publishedPosts.length > 0) {
-    return {
-      source: "published_live",
-      posts: publishedPosts,
-      depthPosts: publishedDepthPosts,
-      briefingDate: publishedPosts[0]?.briefingDate ?? null,
-    };
-  }
-
+export async function getHomepageSignalSnapshot(input: { today?: Date } = {}): Promise<HomepageSignalSnapshot> {
   const supabase = createSupabaseServiceRoleClient();
 
   if (!supabase) {
@@ -1434,51 +1462,42 @@ export async function getHomepageSignalSnapshot(): Promise<HomepageSignalSnapsho
     };
   }
 
-  const latest = await getLatestBriefingDate(supabase);
-
-  if (latest.errorMessage) {
-    logServerEvent("warn", "Homepage signal snapshot latest date could not be loaded", {
-      route: "/",
-      errorMessage: latest.errorMessage,
-    });
-
-    return {
-      source: "none",
-      posts: [],
-      depthPosts: [],
-      briefingDate: null,
-    };
-  }
-
-  if (!latest.latestBriefingDate) {
-    return {
-      source: "none",
-      posts: [],
-      depthPosts: [],
-      briefingDate: null,
-    };
-  }
-
-  const depthPosts = await loadPublicApprovedSnapshot(
+  const todayKey = input.today?.toISOString().slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+  const todayDepthPosts = await loadPublishedHomepageSnapshotForDate(
     supabase,
-    latest.latestBriefingDate,
+    todayKey,
     PUBLIC_SIGNAL_DEPTH_LIMIT,
   );
-  const posts = depthPosts.slice(0, 5);
+  const todayPosts = todayDepthPosts.slice(0, 5);
 
-  if (posts.length === 0) {
+  if (todayPosts.length > 0) {
+    return {
+      source: "published_live",
+      posts: todayPosts,
+      depthPosts: todayDepthPosts,
+      briefingDate: todayKey,
+    };
+  }
+
+  const recentSnapshot = await loadMostRecentPublishedHomepageSnapshot(
+    supabase,
+    PUBLIC_SIGNAL_DEPTH_LIMIT,
+  );
+  const recentPosts = recentSnapshot.posts.slice(0, 5);
+
+  if (recentPosts.length === 0) {
     return {
       source: "none",
       posts: [],
       depthPosts: [],
-      briefingDate: latest.latestBriefingDate,
+      briefingDate: null,
     };
   }
 
   return {
-    source: "latest_snapshot",
-    posts,
-    depthPosts,
-    briefingDate: latest.latestBriefingDate,
+    source: "recent_published",
+    posts: recentPosts,
+    depthPosts: recentSnapshot.posts,
+    briefingDate: recentSnapshot.briefingDate,
   };
 }

@@ -816,12 +816,12 @@ describe("signals editorial workflow", () => {
     expect(posts.map((post) => post.id)).toEqual(["live-1", "live-2", "live-3", "live-4", "live-5"]);
   });
 
-  it("keeps a broader published live pool for homepage tab depth", async () => {
+  it("uses today's published rows as the homepage Tier 1 signal set", async () => {
     const rows = Array.from({ length: 7 }, (_, index) =>
       createRow({
         id: `live-${index + 1}`,
         rank: index + 1,
-        briefing_date: "2026-04-24",
+        briefing_date: "2026-04-26",
         editorial_status: "published",
         published_why_it_matters: `Live published ${index + 1}`,
         is_live: true,
@@ -830,9 +830,10 @@ describe("signals editorial workflow", () => {
     createSupabaseServiceRoleClient.mockReturnValue(createSupabaseMock(rows));
 
     const { getHomepageSignalSnapshot } = await loadEditorialModule();
-    const snapshot = await getHomepageSignalSnapshot();
+    const snapshot = await getHomepageSignalSnapshot({ today: new Date("2026-04-26T12:00:00.000Z") });
 
     expect(snapshot.source).toBe("published_live");
+    expect(snapshot.briefingDate).toBe("2026-04-26");
     expect(snapshot.posts.map((post) => post.id)).toEqual(["live-1", "live-2", "live-3", "live-4", "live-5"]);
     expect(snapshot.depthPosts.map((post) => post.id)).toEqual([
       "live-1",
@@ -845,33 +846,41 @@ describe("signals editorial workflow", () => {
     ]);
   });
 
-  it("falls back only to human-approved latest snapshot rows for homepage SSR", async () => {
+  it("uses the most recent published rows as homepage Tier 2 when today's set is not published", async () => {
     const rows = [
       createRow({
-        id: "latest-1",
+        id: "today-review",
+        briefing_date: "2026-04-26",
+        rank: 1,
+        editorial_status: "needs_review",
+        ai_why_it_matters: "Today still needs editorial review.",
+        why_it_matters_validation_status: "requires_human_rewrite",
+        why_it_matters_validation_failures: ["minimum_specificity"],
+        why_it_matters_validation_details: ["missing specificity"],
+        is_live: true,
+      }),
+      createRow({
+        id: "recent-1",
         briefing_date: "2026-04-25",
         rank: 1,
-        editorial_status: "approved",
-        edited_why_it_matters: "Latest stored editorial text",
+        editorial_status: "published",
+        published_why_it_matters: "Most recent published editorial text",
         is_live: false,
       }),
       createRow({
-        id: "latest-2",
+        id: "recent-2",
         briefing_date: "2026-04-25",
         rank: 2,
-        editorial_status: "needs_review",
-        ai_why_it_matters: "Latest AI fallback",
-        why_it_matters_validation_status: "requires_human_rewrite",
-        why_it_matters_validation_failures: ["template_placeholder_language"],
-        why_it_matters_validation_details: ["blocked phrase: Latest AI fallback"],
+        editorial_status: "published",
+        published_why_it_matters: "Second recent published editorial text",
         is_live: false,
       }),
       createRow({
-        id: "latest-3",
+        id: "recent-empty-copy",
         briefing_date: "2026-04-25",
         rank: 3,
         editorial_status: "published",
-        published_why_it_matters: "Human published snapshot text",
+        published_why_it_matters: null,
         is_live: false,
       }),
       createRow({
@@ -886,13 +895,39 @@ describe("signals editorial workflow", () => {
     createSupabaseServiceRoleClient.mockReturnValue(createSupabaseMock(rows));
 
     const { getHomepageSignalSnapshot } = await loadEditorialModule();
-    const snapshot = await getHomepageSignalSnapshot();
+    const snapshot = await getHomepageSignalSnapshot({ today: new Date("2026-04-26T12:00:00.000Z") });
 
-    expect(snapshot.source).toBe("latest_snapshot");
+    expect(snapshot.source).toBe("recent_published");
     expect(snapshot.briefingDate).toBe("2026-04-25");
-    expect(snapshot.posts.map((post) => post.id)).toEqual(["latest-1", "latest-3"]);
-    expect(snapshot.depthPosts.map((post) => post.id)).toEqual(["latest-1", "latest-3"]);
-    expect(snapshot.posts.some((post) => post.aiWhyItMatters === "Latest AI fallback")).toBe(false);
+    expect(snapshot.posts.map((post) => post.id)).toEqual(["recent-1", "recent-2"]);
+    expect(snapshot.depthPosts.map((post) => post.id)).toEqual(["recent-1", "recent-2"]);
+    expect(snapshot.posts.some((post) => post.aiWhyItMatters === "Today still needs editorial review.")).toBe(false);
+  });
+
+  it("returns Tier 3 empty state data when no published signal set exists", async () => {
+    const rows = [
+      createRow({
+        id: "rewrite-1",
+        briefing_date: "2026-04-26",
+        rank: 1,
+        editorial_status: "needs_review",
+        ai_why_it_matters: "It keeps the technology rail readable without pretending the app has current live coverage when stored data is unavailable.",
+        why_it_matters_validation_status: "requires_human_rewrite",
+        why_it_matters_validation_failures: ["minimum_specificity"],
+        why_it_matters_validation_details: ["missing specificity"],
+      }),
+    ];
+    createSupabaseServiceRoleClient.mockReturnValue(createSupabaseMock(rows));
+
+    const { getHomepageSignalSnapshot } = await loadEditorialModule();
+    const snapshot = await getHomepageSignalSnapshot({ today: new Date("2026-04-26T12:00:00.000Z") });
+
+    expect(snapshot).toEqual({
+      source: "none",
+      posts: [],
+      depthPosts: [],
+      briefingDate: null,
+    });
   });
 
   it("keeps quality-gate-rejected rows in the editorial queue with failure reasons", async () => {
