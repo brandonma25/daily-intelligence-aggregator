@@ -260,6 +260,87 @@ function buildSignalPostCandidates(items: BriefingItem[]) {
   return items.slice(0, 5).map(mapBriefingItemToSignalPost);
 }
 
+function parseEditorialSortTime(value: string | null | undefined) {
+  const timestamp = Date.parse(value ?? "");
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function compareTimestampDescending(left: string | null | undefined, right: string | null | undefined) {
+  const leftTime = parseEditorialSortTime(left);
+  const rightTime = parseEditorialSortTime(right);
+
+  if (leftTime === null && rightTime === null) {
+    return 0;
+  }
+
+  if (leftTime === null) {
+    return 1;
+  }
+
+  if (rightTime === null) {
+    return -1;
+  }
+
+  return rightTime - leftTime;
+}
+
+function compareNumberDescending(left: number | null | undefined, right: number | null | undefined) {
+  const leftValue = typeof left === "number" && Number.isFinite(left) ? left : null;
+  const rightValue = typeof right === "number" && Number.isFinite(right) ? right : null;
+
+  if (leftValue === null && rightValue === null) {
+    return 0;
+  }
+
+  if (leftValue === null) {
+    return 1;
+  }
+
+  if (rightValue === null) {
+    return -1;
+  }
+
+  return rightValue - leftValue;
+}
+
+function compareEditorialHistoryPosts(left: EditorialSignalPost, right: EditorialSignalPost) {
+  const briefingDateComparison = compareTimestampDescending(left.briefingDate, right.briefingDate);
+
+  if (briefingDateComparison !== 0) {
+    return briefingDateComparison;
+  }
+
+  const publishedComparison = compareTimestampDescending(left.publishedAt, right.publishedAt);
+
+  if (publishedComparison !== 0) {
+    return publishedComparison;
+  }
+
+  const scoreComparison = compareNumberDescending(left.signalScore, right.signalScore);
+
+  if (scoreComparison !== 0) {
+    return scoreComparison;
+  }
+
+  const createdComparison = compareTimestampDescending(left.createdAt, right.createdAt);
+
+  if (createdComparison !== 0) {
+    return createdComparison;
+  }
+
+  const updatedComparison = compareTimestampDescending(left.updatedAt, right.updatedAt);
+
+  if (updatedComparison !== 0) {
+    return updatedComparison;
+  }
+
+  return left.id.localeCompare(right.id);
+}
+
+export function sortEditorialHistoryPostsReverseChronological(posts: EditorialSignalPost[]) {
+  return posts.slice().sort(compareEditorialHistoryPosts);
+}
+
 async function loadStoredSignalPosts(
   client: EditorialClient,
   input: {
@@ -297,8 +378,12 @@ async function loadStoredSignalPosts(
   const from = (input.page - 1) * EDITORIAL_PAGE_SIZE;
   const to = from + EDITORIAL_PAGE_SIZE - 1;
   const result = await queryBuilder
-    .order("briefing_date", { ascending: false })
-    .order("rank", { ascending: true })
+    .order("briefing_date", { ascending: false, nullsFirst: false })
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .order("signal_score", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false, nullsFirst: false })
+    .order("updated_at", { ascending: false, nullsFirst: false })
+    .order("id", { ascending: true })
     .range(from, to);
 
   if (result.error) {
@@ -310,7 +395,9 @@ async function loadStoredSignalPosts(
   }
 
   return {
-    posts: ((result.data ?? []) as unknown as StoredSignalPost[]).map(mapStoredSignalPost),
+    posts: sortEditorialHistoryPostsReverseChronological(
+      ((result.data ?? []) as unknown as StoredSignalPost[]).map(mapStoredSignalPost),
+    ),
     totalCount: result.count ?? 0,
     errorMessage: null,
   };

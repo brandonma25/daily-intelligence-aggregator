@@ -19,6 +19,7 @@ import { Panel } from "@/components/ui/panel";
 import {
   SIGNALS_EDITORIAL_ROUTE,
   getEditorialReviewState,
+  sortEditorialHistoryPostsReverseChronological,
   type EditorialScopeFilter,
   type EditorialPostStatusFilter,
   type EditorialSignalPost,
@@ -86,7 +87,7 @@ export default async function SignalsEditorialReviewPage({ searchParams }: PageP
     );
   }
 
-  const posts = state.posts.slice().sort(sortEditorialPosts);
+  const posts = sortEditorialHistoryPostsReverseChronological(state.posts);
   const visiblePosts = posts;
   const topFivePosts = (state.currentTopFive ?? posts)
     .slice()
@@ -366,17 +367,6 @@ function getFilterCount(
 
 function isBulkApprovablePost(post: EditorialSignalPost) {
   return post.persisted && ["draft", "needs_review"].includes(post.editorialStatus);
-}
-
-function sortEditorialPosts(left: EditorialSignalPost, right: EditorialSignalPost) {
-  const leftUpdated = Date.parse(left.updatedAt ?? left.createdAt ?? "") || 0;
-  const rightUpdated = Date.parse(right.updatedAt ?? right.createdAt ?? "") || 0;
-
-  if (leftUpdated !== rightUpdated) {
-    return rightUpdated - leftUpdated;
-  }
-
-  return left.rank - right.rank;
 }
 
 function StatusFilterLink({

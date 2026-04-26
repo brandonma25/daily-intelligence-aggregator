@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getEditorialReviewState = vi.fn();
 
-vi.mock("@/lib/signals-editorial", () => {
+vi.mock("@/lib/signals-editorial", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/signals-editorial")>();
+
   return {
-    SIGNALS_EDITORIAL_ROUTE: "/dashboard/signals/editorial-review",
+    ...actual,
     getEditorialReviewState,
   };
 });
@@ -21,6 +23,7 @@ vi.mock("@/app/dashboard/signals/editorial-review/actions", () => ({
 
 const reviewPost = {
   id: "signal-1",
+  briefingDate: "2026-04-24",
   rank: 1,
   title: "Signal 1",
   sourceName: "Source",
@@ -38,6 +41,9 @@ const reviewPost = {
   approvedBy: null,
   approvedAt: null,
   publishedAt: null,
+  isLive: false,
+  createdAt: "2026-04-24T08:00:00.000Z",
+  updatedAt: "2026-04-24T08:00:00.000Z",
   persisted: true,
 };
 
@@ -172,6 +178,59 @@ describe("signals editorial review page", () => {
       .toHaveValue("Approved editorial text");
     expect(screen.getByLabelText("Thesis / opening statement", { selector: "#editorialThesis-signal-published" }))
       .toHaveValue("Published editorial text");
+  });
+
+  it("renders editorial history cards in reverse briefing-date order without updated-date jumps", async () => {
+    getEditorialReviewState.mockResolvedValue({
+      ...createAuthorizedState([
+        {
+          ...reviewPost,
+          id: "signal-apr23",
+          title: "April 23 Signal",
+          briefingDate: "2026-04-23",
+          signalScore: 99,
+          createdAt: "2026-04-23T08:00:00.000Z",
+          updatedAt: "2026-04-26T12:00:00.000Z",
+        },
+        {
+          ...reviewPost,
+          id: "signal-apr26-b",
+          title: "April 26 Lower Signal",
+          briefingDate: "2026-04-26",
+          signalScore: 75,
+          createdAt: "2026-04-26T08:00:00.000Z",
+          updatedAt: "2026-04-24T12:00:00.000Z",
+        },
+        {
+          ...reviewPost,
+          id: "signal-apr25",
+          title: "April 25 Signal",
+          briefingDate: "2026-04-25",
+          signalScore: 88,
+          createdAt: "2026-04-25T08:00:00.000Z",
+          updatedAt: "2026-04-25T12:00:00.000Z",
+        },
+        {
+          ...reviewPost,
+          id: "signal-apr26-a",
+          title: "April 26 Higher Signal",
+          briefingDate: "2026-04-26",
+          signalScore: 95,
+          createdAt: "2026-04-26T08:00:00.000Z",
+          updatedAt: "2026-04-23T12:00:00.000Z",
+        },
+      ]),
+    });
+
+    const Page = (await import("@/app/dashboard/signals/editorial-review/page")).default;
+    render(await Page({ searchParams: Promise.resolve({ scope: "all" }) }));
+
+    expect(Array.from(document.querySelectorAll("h2")).map((heading) => heading.textContent)).toEqual([
+      "April 26 Higher Signal",
+      "April 26 Lower Signal",
+      "April 25 Signal",
+      "April 23 Signal",
+    ]);
   });
 
   it("shows structured editorial authoring fields and homepage preview simulation", async () => {
