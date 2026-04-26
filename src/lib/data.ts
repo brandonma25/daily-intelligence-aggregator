@@ -243,7 +243,7 @@ function createStaticPublicHomepageFallbackItem(input: {
       "Homepage SSR stayed on stored read models and did not fetch or parse feeds.",
       "Publishing a live signal set or storing a fresh snapshot will replace this placeholder automatically.",
     ],
-    whyItMatters: `It keeps the ${categoryLabel} rail readable without pretending the app has current live coverage when stored data is unavailable.`,
+    whyItMatters: "",
     sources: [{ title: input.sourceTitle, url: input.sourceUrl }],
     sourceCount: 1,
     estimatedMinutes: 3,
@@ -547,13 +547,12 @@ function selectHomepageSignalWhyItMatters(
 ) {
   const preferredLiveText = post.publishedWhyItMatters?.trim();
   const preferredSnapshotText = post.editedWhyItMatters?.trim();
-  const aiFallback = post.aiWhyItMatters?.trim();
 
   if (source === "published_live") {
-    return preferredLiveText || preferredSnapshotText || aiFallback || post.selectionReason || post.summary || "";
+    return preferredLiveText || "";
   }
 
-  return preferredSnapshotText || preferredLiveText || aiFallback || post.selectionReason || post.summary || "";
+  return preferredSnapshotText || preferredLiveText || "";
 }
 
 function buildHomepageSignalKeyPoints(

@@ -148,6 +148,7 @@ function HomeTopEventCard({
     .map((article) => article.sourceName.trim())
     .filter(Boolean)
     .slice(0, 4);
+  const whyItMatters = event.whyItMatters.trim();
 
   return (
     <Panel
@@ -195,12 +196,14 @@ function HomeTopEventCard({
           </ul>
         ) : null}
 
-        <div className="rounded-card border border-[var(--border)] bg-[var(--bg)] px-4 py-4">
-          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
-            Why it matters
-          </p>
-          <WhyItMattersPreview text={event.whyItMatters} structuredContent={event.editorialWhyItMatters} />
-        </div>
+        {whyItMatters ? (
+          <div className="rounded-card border border-[var(--border)] bg-[var(--bg)] px-4 py-4">
+            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.08em] text-[var(--text-secondary)]">
+              Why it matters
+            </p>
+            <WhyItMattersPreview text={whyItMatters} structuredContent={event.editorialWhyItMatters} />
+          </div>
+        ) : null}
 
         {sourceNames.length ? (
           <div className="flex flex-wrap gap-2">

@@ -230,6 +230,11 @@ describe("homepage read model", () => {
     expect(
       state.data.briefing.items.some((item) => /static sample copy|public finance briefing now surfaces/i.test(item.title)),
     ).toBe(false);
+    expect(state.data.briefing.items.map((item) => item.whyItMatters)).toEqual([
+      "Stored finance editorial note",
+      "Stored tech editorial note",
+    ]);
+    expect(state.data.briefing.items.some((item) => item.whyItMatters === "Stored AI why it matters")).toBe(false);
     expect(state.data.publicRankedItems?.map((item) => item.title)).toContain("Stored tech depth signal");
   }, 10_000);
 
@@ -250,6 +255,8 @@ describe("homepage read model", () => {
     expect(
       state.data.briefing.items.some((item) => /static sample copy|live business feeds|live headlines/i.test(item.title)),
     ).toBe(false);
+    expect(state.data.briefing.items.some((item) => item.whyItMatters.includes("rail readable"))).toBe(false);
+    expect([viewModel.featured, ...viewModel.topRanked].filter(Boolean).every((event) => event?.whyItMatters === "")).toBe(true);
     expect(viewModel.debug.categoryCounts.tech).toBeGreaterThan(0);
     expect(viewModel.debug.categoryCounts.finance).toBeGreaterThan(0);
     expect(viewModel.debug.categoryCounts.politics).toBeGreaterThan(0);

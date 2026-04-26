@@ -412,6 +412,27 @@ describe("LandingHomepage", () => {
     expect(screen.queryByRole("button", { name: "Read more" })).not.toBeInTheDocument();
   });
 
+  it("does not render a Why it matters section when no approved copy is available", () => {
+    const data = createData([
+      createItem({
+        id: "no-approved-why",
+        whyItMatters: "",
+      }),
+    ]);
+
+    render(
+      <LandingHomepage
+        data={data}
+        viewer={null}
+        briefingDateLabel="Wednesday, April 15, 2026"
+        homepageViewModel={buildHomepageViewModel(data)}
+      />,
+    );
+
+    expect(screen.queryByText("Why it matters")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("home-why-it-matters-text")).not.toBeInTheDocument();
+  });
+
   it("renders keyPoints from BriefingItem.keyPoints without substituting internal fields", () => {
     const data = createData([
       createItem({

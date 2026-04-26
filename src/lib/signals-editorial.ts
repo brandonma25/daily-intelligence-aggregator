@@ -13,6 +13,11 @@ import {
   safeGetUser,
 } from "@/lib/supabase/server";
 import type { BriefingItem, EditorialStatus } from "@/lib/types";
+import {
+  flagCardForRewrite,
+  type WhyItMattersReviewStatus,
+  type WhyItMattersValidationResult,
+} from "@/lib/why-it-matters-quality-gate";
 
 export const SIGNALS_EDITORIAL_ROUTE = "/dashboard/signals/editorial-review";
 export const PUBLIC_SIGNALS_ROUTE = "/signals";
@@ -33,6 +38,10 @@ const SIGNAL_POST_SELECT = [
   "published_why_it_matters",
   "edited_why_it_matters_payload",
   "published_why_it_matters_payload",
+  "why_it_matters_validation_status",
+  "why_it_matters_validation_failures",
+  "why_it_matters_validation_details",
+  "why_it_matters_validated_at",
   "editorial_status",
   "edited_by",
   "edited_at",
@@ -69,6 +78,10 @@ type StoredSignalPost = {
   published_why_it_matters: string | null;
   edited_why_it_matters_payload: unknown | null;
   published_why_it_matters_payload: unknown | null;
+  why_it_matters_validation_status: WhyItMattersReviewStatus | null;
+  why_it_matters_validation_failures: string[] | null;
+  why_it_matters_validation_details: string[] | null;
+  why_it_matters_validated_at: string | null;
   editorial_status: EditorialStatus;
   edited_by: string | null;
   edited_at: string | null;
@@ -96,6 +109,10 @@ export type EditorialSignalPost = {
   publishedWhyItMatters: string | null;
   editedWhyItMattersStructured: EditorialWhyItMattersContent | null;
   publishedWhyItMattersStructured: EditorialWhyItMattersContent | null;
+  whyItMattersValidationStatus: WhyItMattersReviewStatus;
+  whyItMattersValidationFailures: string[];
+  whyItMattersValidationDetails: string[];
+  whyItMattersValidatedAt: string | null;
   editorialStatus: EditorialStatus;
   editedBy: string | null;
   editedAt: string | null;
@@ -211,6 +228,10 @@ function mapStoredSignalPost(row: StoredSignalPost): EditorialSignalPost {
     publishedWhyItMatters: row.published_why_it_matters,
     editedWhyItMattersStructured: parseEditorialWhyItMattersContent(row.edited_why_it_matters_payload),
     publishedWhyItMattersStructured: parseEditorialWhyItMattersContent(row.published_why_it_matters_payload),
+    whyItMattersValidationStatus: row.why_it_matters_validation_status ?? "passed",
+    whyItMattersValidationFailures: row.why_it_matters_validation_failures ?? [],
+    whyItMattersValidationDetails: row.why_it_matters_validation_details ?? [],
+    whyItMattersValidatedAt: row.why_it_matters_validated_at,
     editorialStatus: row.editorial_status,
     editedBy: row.edited_by,
     editedAt: row.edited_at,
@@ -235,6 +256,7 @@ function mapBriefingItemToSignalPost(item: BriefingItem, index: number): Editori
     item.importanceLabel,
   ].filter((value): value is string => Boolean(value));
   const aiWhyItMatters = normalizeEditorialText(item.aiWhyItMatters ?? item.whyItMatters);
+  const validation = flagCardForRewrite({ aiWhyItMatters }).whyItMattersValidation;
 
   return {
     id: `candidate-${index + 1}`,
@@ -252,6 +274,10 @@ function mapBriefingItemToSignalPost(item: BriefingItem, index: number): Editori
     publishedWhyItMatters: null,
     editedWhyItMattersStructured: null,
     publishedWhyItMattersStructured: null,
+    whyItMattersValidationStatus: getValidationStatus(validation),
+    whyItMattersValidationFailures: validation.failures,
+    whyItMattersValidationDetails: validation.failureDetails,
+    whyItMattersValidatedAt: new Date().toISOString(),
     editorialStatus: "needs_review",
     editedBy: null,
     editedAt: null,
@@ -263,6 +289,10 @@ function mapBriefingItemToSignalPost(item: BriefingItem, index: number): Editori
     updatedAt: null,
     persisted: false,
   };
+}
+
+function getValidationStatus(validation: WhyItMattersValidationResult): WhyItMattersReviewStatus {
+  return validation.passed ? "passed" : "requires_human_rewrite";
 }
 
 function buildSignalPostCandidates(items: BriefingItem[]) {
@@ -484,8 +514,9 @@ async function persistSignalPostCandidates(
     }
   }
 
+  const flaggedCandidates = missingCandidates.map(flagCardForRewrite);
   const insertResult = await client.from("signal_posts").insert(
-    missingCandidates.map((post) => ({
+    flaggedCandidates.map((post) => ({
       briefing_date: briefingDate,
       rank: post.rank,
       title: post.title,
@@ -496,6 +527,12 @@ async function persistSignalPostCandidates(
       signal_score: post.signalScore,
       selection_reason: post.selectionReason,
       ai_why_it_matters: post.aiWhyItMatters,
+      why_it_matters_validation_status: post.reviewStatus === "requires_human_rewrite"
+        ? "requires_human_rewrite"
+        : "passed",
+      why_it_matters_validation_failures: post.whyItMattersValidation.failures,
+      why_it_matters_validation_details: post.whyItMattersValidation.failureDetails,
+      why_it_matters_validated_at: now,
       editorial_status: "needs_review",
       is_live: shouldActivateInsertedRows,
       created_at: now,
@@ -601,6 +638,40 @@ async function loadCurrentSignalDepth(client: EditorialClient, briefingDate: str
   }
 
   return ((result.data ?? []) as unknown as StoredSignalPost[]).map(mapStoredSignalPost);
+}
+
+function selectApprovedEditorialWhyItMatters(post: EditorialSignalPost) {
+  if (post.editorialStatus !== "approved" && post.editorialStatus !== "published") {
+    return "";
+  }
+
+  return normalizeEditorialText(post.editedWhyItMatters || post.publishedWhyItMatters);
+}
+
+async function loadPublicApprovedSnapshot(
+  client: EditorialClient,
+  briefingDate: string | null,
+  limit: number,
+) {
+  if (!briefingDate) {
+    return [];
+  }
+
+  const result = await client
+    .from("signal_posts")
+    .select(SIGNAL_POST_SELECT)
+    .eq("briefing_date", briefingDate)
+    .in("editorial_status", ["approved", "published"])
+    .order("rank", { ascending: true })
+    .limit(limit);
+
+  if (result.error) {
+    return [];
+  }
+
+  return ((result.data ?? []) as unknown as StoredSignalPost[])
+    .map(mapStoredSignalPost)
+    .filter((post) => selectApprovedEditorialWhyItMatters(post));
 }
 
 async function getAdminEditorialContext(route: string): Promise<
@@ -1186,11 +1257,14 @@ export async function publishApprovedSignals(input: {
       .map((post) => {
         const structuredContent =
           post.editedWhyItMattersStructured ?? post.publishedWhyItMattersStructured;
+        const humanEditorialText = selectApprovedEditorialWhyItMatters(post);
         const depthText = normalizeEditorialText(
-          buildEditorialWhyItMattersText(
-            structuredContent,
-            post.editedWhyItMatters || post.publishedWhyItMatters || post.aiWhyItMatters,
-          ),
+          humanEditorialText
+            ? buildEditorialWhyItMattersText(
+                structuredContent,
+                humanEditorialText,
+              )
+            : "",
         );
 
         return { post, structuredContent, depthText };
@@ -1385,7 +1459,12 @@ export async function getHomepageSignalSnapshot(): Promise<HomepageSignalSnapsho
     };
   }
 
-  const posts = await loadCurrentTopFive(supabase, latest.latestBriefingDate);
+  const depthPosts = await loadPublicApprovedSnapshot(
+    supabase,
+    latest.latestBriefingDate,
+    PUBLIC_SIGNAL_DEPTH_LIMIT,
+  );
+  const posts = depthPosts.slice(0, 5);
 
   if (posts.length === 0) {
     return {
@@ -1399,7 +1478,7 @@ export async function getHomepageSignalSnapshot(): Promise<HomepageSignalSnapsho
   return {
     source: "latest_snapshot",
     posts,
-    depthPosts: posts,
+    depthPosts,
     briefingDate: latest.latestBriefingDate,
   };
 }
