@@ -173,6 +173,8 @@ Presentation is not currently confused inside the visible homepage card componen
 
 `signal_posts` represents editorial/published placement plus card content. It does not represent canonical Signal identity.
 
+Operational contract: `docs/engineering/SIGNAL_POSTS_OPERATIONAL_CONTRACT.md`.
+
 Evidence:
 
 - The table has `briefing_date`, `rank`, `is_live`, editorial status, published timestamp, and published why-it-matters copy.
@@ -232,8 +234,8 @@ The following drift has product or architecture consequences:
 
 ## Recommended Next Implementation Tasks
 
-1. Before MVP: add or update operational documentation stating that `signal_posts` is a live editorial placement/card read model, not canonical Signal identity.
-2. Before MVP: verify whether `generateBriefingAction()` can write global `signal_posts` rows from any reachable non-editorial path; if reachable, decide whether that is intended operator behavior.
+1. Before MVP: add or update operational documentation stating that `signal_posts` is a live editorial placement/card read model, not canonical Signal identity. Completed in `docs/engineering/SIGNAL_POSTS_OPERATIONAL_CONTRACT.md`.
+2. Before MVP: verify whether `generateBriefingAction()` can write global `signal_posts` rows from any reachable non-editorial path; if reachable, decide whether that is intended operator behavior. Completed in `docs/engineering/GENERATE_BRIEFING_SIGNAL_POSTS_WRITE_AUDIT.md`.
 3. Before Phase 2: define a canonical `Signal` or `SignalCandidate` model with stable identity, source cluster references, interpretation fields, and progression/lineage fields.
 4. Before Phase 2: separate `BriefingItem` into narrower formation and presentation types, such as Signal Candidate, Card view model, and Surface Placement.
 5. Before Phase 2: rename or alias `SignalCluster` to Story Cluster terminology in a scoped compatibility-safe refactor.
