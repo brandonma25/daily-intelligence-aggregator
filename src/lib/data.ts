@@ -1341,19 +1341,8 @@ function resolvePipelineTopic(
   return fallbackTopic;
 }
 
-function selectPublicBriefingItems(items: BriefingItem[], limit = 5) {
-  const sorted = items
-    .slice()
-    .sort((left, right) => {
-      const highSignalDelta =
-        Number(Boolean(right.eventIntelligence?.isHighSignal)) -
-        Number(Boolean(left.eventIntelligence?.isHighSignal));
-      if (highSignalDelta !== 0) {
-        return highSignalDelta;
-      }
-
-      return compareBriefingItemsByRanking(left, right);
-    });
+export function selectPublicBriefingItems(items: BriefingItem[], limit = 5) {
+  const sorted = items.slice().sort(compareBriefingItemsByRanking);
   const selected: BriefingItem[] = [];
   const topicCounts = new Map<string, number>();
   const skippedForSecondPass: BriefingItem[] = [];

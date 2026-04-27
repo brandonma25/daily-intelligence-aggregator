@@ -368,7 +368,7 @@ describe("buildEventIntelligence", () => {
   });
 });
 
-describe("rankNewsClusters", () => {
+describe("legacy rankNewsClusters compatibility path", () => {
   it("filters low-signal clusters from ranked output", () => {
     const ranked = rankNewsClusters("Tech", [
       {
