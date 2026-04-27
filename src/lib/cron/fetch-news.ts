@@ -3,9 +3,18 @@ import { errorContext, logServerEvent } from "@/lib/observability";
 import {
   captureRssCronCheckIn,
   captureRssFailure,
+  flushRssTelemetry,
   withRssSpan,
 } from "@/lib/observability/rss";
 import { persistSignalPostsForBriefing } from "@/lib/signals-editorial";
+
+type DailyNewsCronFailureStage =
+  | "cron_start"
+  | "briefing_generation"
+  | "briefing_summary"
+  | "seed_fallback_guard"
+  | "minimum_item_guard"
+  | "editorial_persistence";
 
 export type DailyNewsCronRunSummary = {
   briefingDate: string | null;
@@ -16,6 +25,7 @@ export type DailyNewsCronRunSummary = {
   rankedClusterCount: number;
   usedSeedFallback: boolean;
   feedFailureCount: number;
+  failureStage?: DailyNewsCronFailureStage;
   message: string;
 };
 
@@ -25,19 +35,29 @@ export type DailyNewsCronRunResult = {
   summary: DailyNewsCronRunSummary;
 };
 
-function buildFailureResult(timestamp: string, message: string): DailyNewsCronRunResult {
+function buildEmptySummary(): Omit<DailyNewsCronRunSummary, "message"> {
+  return {
+    briefingDate: null,
+    insertedSignalPostCount: 0,
+    pipelineRunId: null,
+    rawItemCount: 0,
+    clusterCount: 0,
+    rankedClusterCount: 0,
+    usedSeedFallback: false,
+    feedFailureCount: 0,
+  };
+}
+
+function buildFailureResult(
+  timestamp: string,
+  message: string,
+  partialSummary: Omit<DailyNewsCronRunSummary, "message"> = buildEmptySummary(),
+): DailyNewsCronRunResult {
   return {
     success: false,
     timestamp,
     summary: {
-      briefingDate: null,
-      insertedSignalPostCount: 0,
-      pipelineRunId: null,
-      rawItemCount: 0,
-      clusterCount: 0,
-      rankedClusterCount: 0,
-      usedSeedFallback: false,
-      feedFailureCount: 0,
+      ...partialSummary,
       message,
     },
   };
@@ -47,6 +67,8 @@ export async function runDailyNewsCron(): Promise<DailyNewsCronRunResult> {
   const timestamp = new Date().toISOString();
   const startedAtMs = Date.now();
   const checkInId = captureRssCronCheckIn("in_progress");
+  let failureStage: DailyNewsCronFailureStage = "cron_start";
+  let partialSummary = buildEmptySummary();
 
   logServerEvent("info", "Daily news cron started", {
     route: "/api/cron/fetch-news",
@@ -54,6 +76,7 @@ export async function runDailyNewsCron(): Promise<DailyNewsCronRunResult> {
   });
 
   try {
+    failureStage = "briefing_generation";
     const { briefing, publicRankedItems, pipelineRun } = await withRssSpan(
       "rss.refresh",
       "refresh",
@@ -62,6 +85,7 @@ export async function runDailyNewsCron(): Promise<DailyNewsCronRunResult> {
       },
       () => generateDailyBriefing(),
     );
+    failureStage = "briefing_summary";
     const briefingDate = briefing.briefingDate.slice(0, 10);
     const baseSummary = {
       briefingDate,
@@ -73,7 +97,9 @@ export async function runDailyNewsCron(): Promise<DailyNewsCronRunResult> {
       usedSeedFallback: pipelineRun.used_seed_fallback,
       feedFailureCount: pipelineRun.feed_failures.length,
     };
+    partialSummary = baseSummary;
 
+    failureStage = "seed_fallback_guard";
     if (pipelineRun.used_seed_fallback) {
       const result = {
         success: false,
@@ -106,6 +132,7 @@ export async function runDailyNewsCron(): Promise<DailyNewsCronRunResult> {
       return result;
     }
 
+    failureStage = "minimum_item_guard";
     if (briefing.items.length < 5) {
       const result = {
         success: false,
@@ -138,6 +165,7 @@ export async function runDailyNewsCron(): Promise<DailyNewsCronRunResult> {
       return result;
     }
 
+    failureStage = "editorial_persistence";
     const snapshot = await persistSignalPostsForBriefing({
       briefingDate,
       items: briefing.items,
@@ -176,11 +204,20 @@ export async function runDailyNewsCron(): Promise<DailyNewsCronRunResult> {
 
     return result;
   } catch (error) {
-    const result = buildFailureResult(timestamp, "Daily news cron failed before completion.");
+    const failureSummary = {
+      ...partialSummary,
+      failureStage,
+    };
+    const result = buildFailureResult(
+      timestamp,
+      "Daily news cron failed before completion.",
+      failureSummary,
+    );
 
     logServerEvent("error", "Daily news cron failed", {
       route: "/api/cron/fetch-news",
       timestamp,
+      ...result.summary,
       ...errorContext(error),
     });
     captureRssFailure(error, {
@@ -190,9 +227,11 @@ export async function runDailyNewsCron(): Promise<DailyNewsCronRunResult> {
       message: result.summary.message,
       extra: {
         route: "/api/cron/fetch-news",
+        ...failureSummary,
       },
     });
     captureRssCronCheckIn("error", checkInId, durationSeconds(startedAtMs));
+    await flushRssTelemetry();
 
     return result;
   }
