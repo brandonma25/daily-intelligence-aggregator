@@ -57,3 +57,6 @@ project.md
 
 # local remediation evidence
 /recovery-audit-*/
+
+# controlled pipeline run artifacts
+/.pipeline-runs/

@@ -125,8 +125,9 @@ function createSupabaseMock(
     from(tableName: string) {
       expect(tableName).toBe("signal_posts");
 
-      let operation: "select" | "update" | null = null;
+      let operation: "select" | "update" | "insert" | null = null;
       let updateValues: Partial<SignalPostRow> = {};
+      let insertedRows: SignalPostRow[] = [];
       let selectError: { message: string } | null = null;
       let selectedColumns: string[] = [];
       const filters: Array<{ column: keyof SignalPostRow; value: unknown }> = [];
@@ -191,7 +192,9 @@ function createSupabaseMock(
 
       const builder = {
         select(columns?: string) {
-          operation = "select";
+          if (operation !== "insert") {
+            operation = "select";
+          }
           selectedColumns = String(columns ?? "")
             .split(",")
             .map((column) => column.trim().split(/\s+/)[0])
@@ -236,11 +239,15 @@ function createSupabaseMock(
           });
         },
         insert(values: Partial<SignalPostRow>[]) {
+          operation = "insert";
+          insertedRows = [];
           values.forEach((value, index) => {
-            rows.push(createRow({ id: `inserted-${index + 1}`, ...value }));
+            const row = createRow({ id: `inserted-${index + 1}`, ...value });
+            rows.push(row);
+            insertedRows.push(row);
           });
 
-          return Promise.resolve({ error: null });
+          return builder;
         },
         update(values: Partial<SignalPostRow>) {
           operation = "update";
@@ -279,6 +286,14 @@ function createSupabaseMock(
         ) {
           if (operation === "select" || operation === null) {
             return selectResult().then(onfulfilled, onrejected);
+          }
+
+          if (operation === "insert") {
+            return Promise.resolve({
+              data: insertedRows,
+              error: null,
+              count: insertedRows.length,
+            }).then(onfulfilled, onrejected);
           }
 
           return Promise.resolve({ data: [], error: null, count: 0 }).then(onfulfilled, onrejected);
@@ -785,7 +800,48 @@ describe("signals editorial workflow", () => {
     expect(rows[6].is_live).toBe(false);
   });
 
-  it("persists a new daily Top 5 snapshot with bounded public depth and archives the previous live set", async () => {
+  it("keeps live-set replacement inside the explicit publish workflow", async () => {
+    const oldLiveRows = Array.from({ length: 5 }, (_, index) =>
+      createRow({
+        id: `old-live-${index + 1}`,
+        briefing_date: "2026-04-26",
+        rank: index + 1,
+        editorial_status: "published",
+        published_why_it_matters: createValidWhyItMatters(`Old Google ${index + 1}`),
+        is_live: true,
+        published_at: "2026-04-26T10:00:00.000Z",
+      }),
+    );
+    const approvedRows = Array.from({ length: 5 }, (_, index) =>
+      createRow({
+        id: `approved-${index + 1}`,
+        briefing_date: "2026-04-27",
+        rank: index + 1,
+        edited_why_it_matters: createValidWhyItMatters(`New Google ${index + 1}`),
+        editorial_status: "approved",
+        is_live: false,
+      }),
+    );
+    const rows = [...oldLiveRows, ...approvedRows];
+    createSupabaseServiceRoleClient.mockReturnValue(createSupabaseMock(rows));
+    safeGetUser.mockResolvedValue({
+      user: { id: "admin-1", email: "admin@example.com" },
+      supabase: {},
+      sessionCookiePresent: true,
+    });
+
+    const { publishApprovedSignals } = await loadEditorialModule();
+    const result = await publishApprovedSignals();
+
+    expect(result.ok).toBe(true);
+    expect(oldLiveRows.every((row) => row.is_live === false)).toBe(true);
+    expect(approvedRows.every((row) => row.editorial_status === "published")).toBe(true);
+    expect(approvedRows.every((row) => row.is_live === true)).toBe(true);
+    expect(approvedRows.every((row) => row.published_at !== null)).toBe(true);
+    expect(approvedRows[0].published_why_it_matters).toBe(createValidWhyItMatters("New Google 1"));
+  });
+
+  it("persists generated signal posts for editorial review without changing the live public set", async () => {
     const rows = Array.from({ length: 5 }, (_, index) =>
       createRow({
         id: `live-${index + 1}`,
@@ -806,12 +862,60 @@ describe("signals editorial workflow", () => {
 
     expect(result.ok).toBe(true);
     expect(result.insertedCount).toBe(8);
-    expect(rows.filter((row) => row.briefing_date === "2026-04-24").every((row) => row.is_live === false)).toBe(true);
+    expect(result.insertedPostIds).toEqual([
+      "inserted-1",
+      "inserted-2",
+      "inserted-3",
+      "inserted-4",
+      "inserted-5",
+      "inserted-6",
+      "inserted-7",
+      "inserted-8",
+    ]);
+    expect(rows.filter((row) => row.briefing_date === "2026-04-24").every((row) => row.is_live === true)).toBe(true);
 
     const insertedRows = rows.filter((row) => row.briefing_date === "2026-04-25");
     expect(insertedRows).toHaveLength(8);
-    expect(insertedRows.every((row) => row.is_live === true)).toBe(true);
+    expect(insertedRows.every((row) => row.editorial_status === "needs_review")).toBe(true);
+    expect(insertedRows.every((row) => row.is_live === false)).toBe(true);
+    expect(insertedRows.every((row) => row.published_at === null)).toBe(true);
     expect(insertedRows.map((row) => row.rank)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+
+  it("draft_only mode persists only review rows with validation details", async () => {
+    const rows: SignalPostRow[] = [];
+    createSupabaseServiceRoleClient.mockReturnValue(createSupabaseMock(rows));
+
+    const { persistSignalPostsForBriefing } = await loadEditorialModule();
+    const result = await persistSignalPostsForBriefing({
+      briefingDate: "2026-04-27",
+      mode: "draft_only",
+      items: Array.from({ length: 5 }, (_, index) => ({
+        ...createBriefingItem(index + 1),
+        aiWhyItMatters:
+          index === 0
+            ? "This changes how investors price rates, demand, or risk in rates and equities over"
+            : createValidWhyItMatters(`Google ${index + 1}`),
+      })),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.mode).toBe("draft_only");
+    expect(result.insertedCount).toBe(5);
+    expect(result.insertedPostIds).toEqual([
+      "inserted-1",
+      "inserted-2",
+      "inserted-3",
+      "inserted-4",
+      "inserted-5",
+    ]);
+    expect(rows).toHaveLength(5);
+    expect(rows.every((row) => row.editorial_status === "needs_review")).toBe(true);
+    expect(rows.every((row) => row.is_live === false)).toBe(true);
+    expect(rows.every((row) => row.published_at === null)).toBe(true);
+    expect(rows[0].why_it_matters_validation_status).toBe("requires_human_rewrite");
+    expect(rows[0].why_it_matters_validation_failures).toContain("template_placeholder_language");
+    expect(rows[1].why_it_matters_validation_status).toBe("passed");
   });
 
   it("flags malformed why-it-matters drafts without blocking signal snapshot persistence", async () => {

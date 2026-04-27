@@ -188,8 +188,12 @@ export type SignalSnapshotPersistenceResult = {
   ok: boolean;
   briefingDate: string;
   insertedCount: number;
+  insertedPostIds?: string[];
+  mode?: SignalPostPersistenceMode;
   message: string;
 };
+
+export type SignalPostPersistenceMode = "normal" | "draft_only";
 
 export type HomepageSignalSnapshot = {
   source: "published_live" | "recent_published" | "none";
@@ -587,9 +591,11 @@ async function persistSignalPostCandidates(
   input: {
     briefingDate: string;
     candidates: EditorialSignalPost[];
+    mode?: SignalPostPersistenceMode;
   },
 ): Promise<SignalSnapshotPersistenceResult> {
   const briefingDate = normalizeDateValue(input.briefingDate) ?? new Date().toISOString().slice(0, 10);
+  const mode = input.mode ?? "normal";
 
   if (input.candidates.length < TOP_SIGNAL_SET_SIZE) {
     return {
@@ -602,7 +608,7 @@ async function persistSignalPostCandidates(
 
   const existingResult = await client
     .from("signal_posts")
-    .select("id, rank, is_live")
+    .select("id, rank")
     .eq("briefing_date", briefingDate);
 
   if (existingResult.error) {
@@ -622,7 +628,7 @@ async function persistSignalPostCandidates(
     };
   }
 
-  const existingRows = ((existingResult.data ?? []) as Array<{ id: string; rank: number | null; is_live: boolean | null }>);
+  const existingRows = ((existingResult.data ?? []) as Array<{ id: string; rank: number | null }>);
   const existingRanks = new Set(
     existingRows
       .map((row) => row.rank)
@@ -635,40 +641,13 @@ async function persistSignalPostCandidates(
       ok: true,
       briefingDate,
       insertedCount: 0,
+      insertedPostIds: [],
+      mode,
       message: "The daily signal snapshot already exists for this briefing date.",
     };
   }
 
-  const shouldActivateInsertedRows =
-    existingRows.length > 0 ? existingRows.some((row) => Boolean(row.is_live)) : true;
   const now = new Date().toISOString();
-
-  if (existingRows.length === 0 && shouldActivateInsertedRows) {
-    const deactivateOldLiveSet = await client
-      .from("signal_posts")
-      .update({
-        is_live: false,
-        updated_at: now,
-      })
-      .eq("is_live", true);
-
-    if (deactivateOldLiveSet.error) {
-      captureRssEditorialStorageFailure({
-        failureType: "rss_cache_write_failed",
-        phase: "store",
-        operation: "archive_previous_live_signal_set",
-        briefingDate,
-        message: "Previous live RSS signal set could not be archived before persistence.",
-      });
-
-      return {
-        ok: false,
-        briefingDate,
-        insertedCount: 0,
-        message: `The previous live signal set could not be archived before the new daily snapshot was inserted: ${deactivateOldLiveSet.error.message}`,
-      };
-    }
-  }
 
   const flaggedCandidates = missingCandidates.map(flagCardForRewrite);
   const insertResult = await client.from("signal_posts").insert(
@@ -690,11 +669,12 @@ async function persistSignalPostCandidates(
       why_it_matters_validation_details: post.whyItMattersValidation.failureDetails,
       why_it_matters_validated_at: now,
       editorial_status: "needs_review",
-      is_live: shouldActivateInsertedRows,
+      published_at: null,
+      is_live: false,
       created_at: now,
       updated_at: now,
     })),
-  );
+  ).select("id");
 
   if (insertResult.error) {
     captureRssEditorialStorageFailure({
@@ -718,16 +698,21 @@ async function persistSignalPostCandidates(
     ok: true,
     briefingDate,
     insertedCount: missingCandidates.length,
+    insertedPostIds: ((insertResult.data ?? []) as Array<{ id: string | null }>)
+      .map((row) => row.id)
+      .filter((id): id is string => Boolean(id)),
+    mode,
     message:
       missingCandidates.length === TOP_SIGNAL_SET_SIZE
-        ? "Persisted a new daily Top 5 snapshot."
-        : `Persisted ${missingCandidates.length} missing signal snapshot rows.`,
+        ? "Persisted a new daily Top 5 snapshot for editorial review."
+        : `Persisted ${missingCandidates.length} missing signal snapshot rows for editorial review.`,
   };
 }
 
 export async function persistSignalPostsForBriefing(input: {
   briefingDate: string;
   items: BriefingItem[];
+  mode?: SignalPostPersistenceMode;
 }): Promise<SignalSnapshotPersistenceResult> {
   const client = createSupabaseServiceRoleClient();
   const briefingDate = normalizeDateValue(input.briefingDate) ?? new Date().toISOString().slice(0, 10);
@@ -755,6 +740,7 @@ export async function persistSignalPostsForBriefing(input: {
   return persistSignalPostCandidates(client, {
     briefingDate: input.briefingDate,
     candidates: buildSignalPostCandidates(input.items),
+    mode: input.mode,
   });
 }
 

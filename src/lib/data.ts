@@ -56,6 +56,7 @@ type SupabaseServerClient = NonNullable<Awaited<ReturnType<typeof createSupabase
 async function runClusterFirstPipelineSafely(options: {
   sources?: Source[];
   suppliedByManifest?: boolean;
+  persistArticleCandidates?: boolean;
 } = {}): Promise<ClusterFirstPipelineResult> {
   const { runClusterFirstPipeline } = await import("@/lib/pipeline");
   return runClusterFirstPipeline(options);
@@ -1175,7 +1176,7 @@ export async function getBriefingDetailPageState(dateKey: string, route = `/brie
 export async function generateDailyBriefing(
   topics: Topic[] = demoTopics,
   sources: Source[] = getMvpDefaultPublicSources(),
-  options: { suppliedByManifest?: boolean } = {},
+  options: { suppliedByManifest?: boolean; persistPipelineCandidates?: boolean } = {},
 ): Promise<{
   briefing: DailyBriefing;
   publicRankedItems: BriefingItem[];
@@ -1184,6 +1185,7 @@ export async function generateDailyBriefing(
   const pipelineOptions: Parameters<typeof runClusterFirstPipelineSafely>[0] = {
     sources,
     suppliedByManifest: options.suppliedByManifest,
+    persistArticleCandidates: options.persistPipelineCandidates,
   };
   const { run, ranked_clusters } = await runClusterFirstPipelineSafely(pipelineOptions);
   const topicFallback = topics[0] ?? demoTopics[0];
