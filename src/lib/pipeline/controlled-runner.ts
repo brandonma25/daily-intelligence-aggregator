@@ -1,0 +1,48 @@
+import { generateDailyBriefing } from "@/lib/data";
+import {
+  assertControlledPipelineCanExecute,
+  buildControlledPipelineReport,
+  type ControlledPipelineConfig,
+  type ControlledPipelineReport,
+} from "@/lib/pipeline/controlled-execution";
+import { persistSignalPostsForBriefing } from "@/lib/signals-editorial";
+
+export async function runControlledPipeline(
+  config: ControlledPipelineConfig,
+): Promise<ControlledPipelineReport> {
+  assertControlledPipelineCanExecute(config);
+
+  if (config.mode === "normal") {
+    throw new Error(
+      "Controlled pipeline execution is limited to dry_run and draft_only. Normal scheduled execution remains owned by /api/cron/fetch-news after re-enable approval.",
+    );
+  }
+
+  const { briefing, publicRankedItems, pipelineRun } = await generateDailyBriefing(
+    undefined,
+    undefined,
+    {
+      persistPipelineCandidates: false,
+    },
+  );
+  const briefingDate = config.briefingDateOverride ?? briefing.briefingDate.slice(0, 10);
+  const persistence = config.mode === "draft_only"
+    ? await persistSignalPostsForBriefing({
+        briefingDate,
+        items: briefing.items,
+        mode: "draft_only",
+      })
+    : null;
+
+  return buildControlledPipelineReport({
+    mode: config.mode,
+    testRunId: config.testRunId,
+    briefing: {
+      ...briefing,
+      briefingDate: `${briefingDate}T12:00:00.000Z`,
+    },
+    publicRankedItems,
+    pipelineRun,
+    persistence,
+  });
+}

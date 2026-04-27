@@ -24,10 +24,12 @@ export type ClusterFirstPipelineResult = {
 export async function runClusterFirstPipeline(options: {
   sources?: Source[];
   suppliedByManifest?: boolean;
+  persistArticleCandidates?: boolean;
 } = {}): Promise<ClusterFirstPipelineResult> {
   const runId = `pipeline-${Date.now()}`;
   const run = createEmptyPipelineRun(runId);
   const integrationSnapshot = getPipelineIntegrationSnapshot();
+  const shouldPersistArticleCandidates = options.persistArticleCandidates ?? true;
 
   logPipelineEvent("info", "Pipeline integration snapshot", integrationSnapshot);
 
@@ -45,17 +47,25 @@ export async function runClusterFirstPipeline(options: {
   run.used_seed_fallback = ingestion.usedSeedFallback;
 
   const normalized = normalizeRawItems(ingestion.items);
-  persistNormalizedArticleCandidates({ runId: run.run_id, articles: normalized });
   const deduped = deduplicateArticles(normalized);
   const clusters = clusterNormalizedArticles(deduped);
-  updateArticleCandidateClusters({ runId: run.run_id, clusters });
   const rankedStoryClusters = rankStoryClusters(clusters);
-  updateArticleCandidateRankingOutcomes({
-    runId: run.run_id,
-    normalizedArticles: normalized,
-    dedupedArticles: deduped,
-    rankedClusters: rankedStoryClusters,
-  });
+
+  if (shouldPersistArticleCandidates) {
+    persistNormalizedArticleCandidates({ runId: run.run_id, articles: normalized });
+    updateArticleCandidateClusters({ runId: run.run_id, clusters });
+    updateArticleCandidateRankingOutcomes({
+      runId: run.run_id,
+      normalizedArticles: normalized,
+      dedupedArticles: deduped,
+      rankedClusters: rankedStoryClusters,
+    });
+  } else {
+    logPipelineEvent("info", "Pipeline article candidate persistence skipped by run mode", {
+      run_id: run.run_id,
+    });
+  }
+
   const digest = buildDigestOutput(rankedStoryClusters);
   const singletonCount = clusters.filter((cluster) => cluster.cluster_size === 1).length;
   const preventedMergeCount = clusters.reduce(
