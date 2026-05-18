@@ -7,6 +7,11 @@ import {
   withRssSpan,
 } from "@/lib/observability/rss";
 import { persistSignalPostsForBriefing } from "@/lib/signals-editorial";
+import {
+  entriesFromBreakerSnapshot,
+  writeSourceHealthLog,
+} from "@/lib/observability/source-health-log";
+import { CIRCUIT_BREAKER_THRESHOLD } from "@/lib/observability/source-circuit-breaker";
 import { getPublicSourcePlanForSurface, getRequiredSourcesForPublicSurface } from "@/lib/source-manifest";
 
 export type DailyNewsCronRunSummary = {
@@ -186,6 +191,23 @@ export async function runDailyNewsCron(): Promise<DailyNewsCronRunResult> {
     }
 
     captureRssCronCheckIn(snapshot.ok ? "ok" : "error", checkInId, durationSeconds(startedAtMs));
+
+    // Source Health Log write. Graceful: env var missing or write failure
+    // never affects the cron result. Only logs sources that had failures or
+    // breaker skips this run — success-tracking is deliberately not done here
+    // (would require threading state through the pipeline). For now this
+    // serves as the "which sources broke" record; the success count comes
+    // from the pipeline's existing feed_failures vs. raw_item_count signals.
+    try {
+      const breakerEntries = entriesFromBreakerSnapshot(CIRCUIT_BREAKER_THRESHOLD);
+      if (breakerEntries.length > 0) {
+        await writeSourceHealthLog({ briefingDate, entries: breakerEntries });
+      }
+    } catch (logError) {
+      logServerEvent("warn", "Source Health Log: post-run write threw; ignoring", {
+        error: logError instanceof Error ? logError.message : String(logError),
+      });
+    }
 
     return result;
   } catch (error) {

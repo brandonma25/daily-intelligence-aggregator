@@ -10,6 +10,10 @@ import {
   type RssFailureType,
   type RssPhase,
 } from "@/lib/observability/rss";
+import {
+  recordSourceFailure,
+  shouldSkipSource,
+} from "@/lib/observability/source-circuit-breaker";
 import { getUrlHost } from "@/lib/sentry-config";
 import type { SourceExtractionMethod } from "@/lib/source-accessibility-types";
 import { fetchTldrFeed, isTldrFeedUrl, type TldrDiscoveryMetadata } from "@/lib/tldr";
@@ -43,6 +47,21 @@ export async function fetchFeedArticles(
   sourceName: string,
   requestOptions: FeedRequestOptions = {},
 ) {
+  // Circuit breaker: if this source has already failed N times in the
+  // current invocation, return an empty article list and skip the fetch.
+  // This protects retry budget — a known-bad source (e.g. Reuters Business)
+  // can otherwise consume the entire 60s function timeout on retries alone.
+  // Empty result is the same as "feed returned no articles", which the
+  // ingestion pipeline already tolerates without aborting.
+  if (shouldSkipSource(sourceName)) {
+    console.info("[rss] skipped_circuit_breaker", {
+      action: "skipped_circuit_breaker",
+      source: sourceName,
+      feedUrl,
+    });
+    return [] as FeedArticle[];
+  }
+
   return withRssSpan(
     "rss.fetch",
     "fetch",
@@ -68,6 +87,11 @@ export async function fetchFeedArticles(
         recordRssFetchSuccess({ feedUrl, feedName: sourceName, feedId: requestOptions.feedId });
         return articles;
       } catch (error) {
+        // Count this failure toward the per-source breaker threshold.
+        // The breaker is invocation-scoped; one bad source closes the
+        // circuit for itself only, not the whole pipeline.
+        recordSourceFailure(sourceName);
+
         captureRssFailure(error, {
           failureType: classifyRssFailure(error),
           phase: error instanceof Error && error.name === "RssError" && "phase" in error
