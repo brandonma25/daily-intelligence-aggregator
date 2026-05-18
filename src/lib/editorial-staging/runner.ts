@@ -1,7 +1,10 @@
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { errorContext, logServerEvent } from "@/lib/observability";
 import { deduplicateCandidates, type NewsletterCandidate, type RssCandidate } from "@/lib/editorial-staging/dedup";
-import { writeEditorialQueueRow } from "@/lib/editorial-staging/notion-writer";
+import {
+  fetchExistingHeadlinesForBriefingDate,
+  writeEditorialQueueRow,
+} from "@/lib/editorial-staging/notion-writer";
 import { sendEditorialCompletionEmail } from "@/lib/editorial-staging/email";
 
 type Category = "Tech" | "Finance" | "Politics";
@@ -266,13 +269,40 @@ export async function runEditorialStaging(options: {
   const selected = scoreAndSelect(dedupedPool);
 
   // Step F: Write to Notion Editorial Queue
+  //
+  // Idempotency: prefetch all existing headlines for today's briefingDate
+  // before the write loop. Each writeEditorialQueueRow call consults this set
+  // and skips its POST when a duplicate is detected. This prevents the May 16
+  // failure mode where multiple same-day cron runs created 4-5 copies of the
+  // same headline. Prefetch is fail-open: a Notion read error returns an
+  // empty set and the loop proceeds (better to risk one extra dup than to
+  // block the whole pipeline).
+  const existingHeadlines = await fetchExistingHeadlinesForBriefingDate({
+    briefingDate,
+    notionDbId,
+  });
+  logServerEvent("info", "Editorial staging: idempotency prefetch", {
+    briefingDate,
+    existingCount: existingHeadlines.size,
+  });
+
   let notionRowsWritten = 0;
+  let notionRowsSkipped = 0;
   const notionErrors: string[] = [];
 
   for (const candidate of selected) {
     try {
-      await writeEditorialQueueRow({ candidate, briefingDate, notionDbId });
-      notionRowsWritten += 1;
+      const result = await writeEditorialQueueRow({
+        candidate,
+        briefingDate,
+        notionDbId,
+        existingHeadlines,
+      });
+      if (result.written) {
+        notionRowsWritten += 1;
+      } else {
+        notionRowsSkipped += 1;
+      }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       notionErrors.push(`[${candidate.headline.slice(0, 40)}] ${msg}`);
@@ -282,6 +312,14 @@ export async function runEditorialStaging(options: {
         ...errorContext(error),
       });
     }
+  }
+
+  if (notionRowsSkipped > 0) {
+    logServerEvent("info", "Editorial staging: skipped duplicate rows", {
+      briefingDate,
+      notionRowsSkipped,
+      notionRowsWritten,
+    });
   }
 
   const coreCount = selected.filter((c) => c.slot === "Core").length;
