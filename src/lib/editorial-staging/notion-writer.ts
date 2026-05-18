@@ -11,198 +11,119 @@ export type EditorialCandidateForNotion = {
   slot: Slot;
 };
 
-const NOTION_API_VERSION = "2022-06-28";
-const NOTION_PAGES_URL = "https://api.notion.com/v1/pages";
-const NOTION_DATA_SOURCES_QUERY_URL = (databaseId: string) =>
-  `https://api.notion.com/v1/databases/${databaseId}/query`;
+export type EditorialQueueWriteAction =
+  | "inserted"
+  | "updated"
+  | "skipped_human_edited";
 
-function richText(content: string) {
-  return [{ text: { content: content.slice(0, 2000) } }];
-}
-
-/**
- * Normalize a headline for duplicate detection.
- * Idempotency relies on headlines being structurally identical across cron
- * runs even if whitespace or casing differs trivially. The pipeline tends to
- * produce stable headlines from RSS titles, so this is conservative — we trim,
- * collapse internal whitespace, and lowercase. We do not strip punctuation
- * (a story titled "Foo: Bar" should not collide with "Foo Bar").
- */
-function normalizeHeadline(headline: string): string {
-  return headline.trim().replace(/\s+/g, " ").toLowerCase();
-}
-
-/**
- * Extract the Headline (title property) text from a Notion page row.
- * Notion title properties are arrays of rich-text objects; we concatenate
- * their plain_text values to recover the visible string.
- */
-function extractHeadlineFromPage(page: unknown): string | null {
-  if (!page || typeof page !== "object") return null;
-  const properties = (page as { properties?: Record<string, unknown> }).properties;
-  if (!properties) return null;
-  const headline = properties["Headline"];
-  if (!headline || typeof headline !== "object") return null;
-  const titleArr = (headline as { title?: unknown }).title;
-  if (!Array.isArray(titleArr)) return null;
-  return titleArr
-    .map((node: unknown) => {
-      if (!node || typeof node !== "object") return "";
-      return (node as { plain_text?: string }).plain_text ?? "";
-    })
-    .join("");
-}
-
-/**
- * Query the Editorial Queue for all rows whose Briefing Date equals the given
- * date string (YYYY-MM-DD). Returns a Set of normalized headlines. Used as a
- * pre-flight check so callers can skip writes for already-present rows.
- *
- * Briefing Date is a Notion date property — filter syntax confirmed against
- * a live row: `properties["Briefing Date"]` returns `{ date: { start: "YYYY-MM-DD" } }`.
- *
- * Pagination: a single editorial day produces ≤7 rows by design, so one page
- * (100 rows max) is always sufficient. Defensive `has_more` handling is added
- * anyway in case the same date accumulates stale entries from past bugs.
- *
- * Fail-open: if the query errors out, we return an empty set so writes
- * proceed (preferable to blocking the whole pipeline on a transient Notion
- * read failure). The duplicate risk is bounded — the next clean run picks up.
- */
-export async function fetchExistingHeadlinesForBriefingDate(input: {
-  briefingDate: string;
-  notionDbId: string;
-}): Promise<Set<string>> {
-  const { briefingDate, notionDbId } = input;
-  const token = process.env.NOTION_TOKEN?.trim();
-  if (!token) return new Set();
-
-  const headers = {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-    "Notion-Version": NOTION_API_VERSION,
-  };
-
-  const seen = new Set<string>();
-  let cursor: string | undefined;
-
-  try {
-    do {
-      const body: Record<string, unknown> = {
-        filter: {
-          property: "Briefing Date",
-          date: { equals: briefingDate },
-        },
-        page_size: 100,
-      };
-      if (cursor) body.start_cursor = cursor;
-
-      const response = await fetch(NOTION_DATA_SOURCES_QUERY_URL(notionDbId), {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) {
-        const text = await response.text().catch(() => "(no body)");
-        console.warn("[notion-writer] idempotency prefetch failed; proceeding fail-open", {
-          status: response.status,
-          briefingDate,
-          notionDbId,
-          responseBody: text.slice(0, 500),
-        });
-        return seen;
-      }
-
-      const json = (await response.json()) as {
-        results?: unknown[];
-        has_more?: boolean;
-        next_cursor?: string | null;
-      };
-
-      for (const page of json.results ?? []) {
-        const headline = extractHeadlineFromPage(page);
-        if (headline) seen.add(normalizeHeadline(headline));
-      }
-
-      cursor = json.has_more && json.next_cursor ? json.next_cursor : undefined;
-    } while (cursor);
-  } catch (error) {
-    console.warn("[notion-writer] idempotency prefetch threw; proceeding fail-open", {
-      briefingDate,
-      notionDbId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return seen;
-  }
-
-  return seen;
-}
-
-export type WriteEditorialQueueRowResult = {
-  /** True if a new row was inserted. False if it was skipped as a duplicate. */
-  written: boolean;
-  /** Set to "duplicate" when the row was skipped. */
-  reason?: "duplicate";
+export type EditorialQueueWriteResult = {
+  action: EditorialQueueWriteAction;
+  /** The Notion page ID for the row (set for inserted/updated; also set for skipped). */
+  pageId: string;
+  /**
+   * Existing Status value seen when the action is `skipped_human_edited`. Omitted
+   * for inserts; for updates, this is always "raw" (otherwise we would skip).
+   */
+  existingStatus?: string;
 };
 
-export async function writeEditorialQueueRow(input: {
-  candidate: EditorialCandidateForNotion;
-  briefingDate: string;
-  notionDbId: string;
-  /**
-   * Pre-fetched set of normalized headlines already present for this
-   * briefingDate. If the candidate's normalized headline is in this set,
-   * the write is skipped (idempotency guard). Pass an empty Set to force a
-   * write — the prefetch is the caller's responsibility.
-   */
-  existingHeadlines?: Set<string>;
-}): Promise<WriteEditorialQueueRowResult> {
-  const { candidate, briefingDate, notionDbId, existingHeadlines } = input;
-  const token = process.env.NOTION_TOKEN?.trim();
+const NOTION_API_VERSION = "2022-06-28";
+const NOTION_PAGES_URL = "https://api.notion.com/v1/pages";
+const NOTION_TITLE_MAX = 2000;
 
-  if (!token) {
-    throw new Error("NOTION_TOKEN is not configured.");
-  }
+function richText(content: string) {
+  return [{ text: { content: content.slice(0, NOTION_TITLE_MAX) } }];
+}
 
-  // Idempotency guard. Skip if the same headline already exists for this
-  // briefingDate. The May 16 duplicates (4-5x same row) were caused by the
-  // unguarded POST below firing on every cron run; this check is the fix.
-  if (existingHeadlines) {
-    const normalized = normalizeHeadline(candidate.headline);
-    if (existingHeadlines.has(normalized)) {
-      console.info("[notion-writer] skipping duplicate", {
-        headline: candidate.headline.slice(0, 80),
-        briefingDate,
-      });
-      return { written: false, reason: "duplicate" };
-    }
-    // Record this headline so a duplicate inside the SAME batch is also caught
-    // (rare but possible if scoring picks two candidates with identical titles
-    // from different sources). The set is mutated by reference.
-    existingHeadlines.add(normalized);
-  }
-
+function buildProperties(
+  candidate: EditorialCandidateForNotion,
+  briefingDate: string,
+  options: { includeStatus: boolean },
+): Record<string, unknown> {
   const properties: Record<string, unknown> = {
-    "Headline": { title: richText(candidate.headline) },
-    "Source": { rich_text: richText(candidate.source) },
+    Headline: { title: richText(candidate.headline) },
+    Source: { rich_text: richText(candidate.source) },
     "Article Body": { rich_text: richText(candidate.body) },
     "Newsletter Co-occurrence": { number: candidate.newsletterCoOccurrence },
-    "Slot": { select: { name: candidate.slot } },
+    Slot: { select: { name: candidate.slot } },
     "Briefing Date": { date: { start: briefingDate } },
-    "Status": { select: { name: "raw" } },
     "Pushed to Supabase": { checkbox: false },
     "Editorial Source": { select: { name: "AI" } },
   };
+
+  if (options.includeStatus) {
+    properties.Status = { select: { name: "raw" } };
+  }
 
   if (candidate.url) {
     properties["Source URL"] = { url: candidate.url };
   }
 
   if (candidate.category) {
-    properties["Category"] = { select: { name: candidate.category } };
+    properties.Category = { select: { name: candidate.category } };
   }
 
+  return properties;
+}
+
+type NotionFindMatch = {
+  pageId: string;
+  status: string | null;
+};
+
+async function findExistingRow(
+  notionDbId: string,
+  headline: string,
+  briefingDate: string,
+  token: string,
+): Promise<NotionFindMatch | null> {
+  const headlineForQuery = headline.slice(0, NOTION_TITLE_MAX);
+  const response = await fetch(
+    `https://api.notion.com/v1/databases/${notionDbId}/query`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "Notion-Version": NOTION_API_VERSION,
+      },
+      body: JSON.stringify({
+        filter: {
+          and: [
+            { property: "Headline", title: { equals: headlineForQuery } },
+            { property: "Briefing Date", date: { equals: briefingDate } },
+          ],
+        },
+        page_size: 5,
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "(no body)");
+    throw new Error(`Notion query failed (${response.status}): ${text}`);
+  }
+
+  const data = (await response.json()) as {
+    results?: Array<{
+      id?: string;
+      properties?: { Status?: { select?: { name?: string } | null } };
+    }>;
+  };
+
+  const first = data.results?.[0];
+  if (!first?.id) return null;
+
+  const statusName = first.properties?.Status?.select?.name ?? null;
+  return { pageId: first.id, status: statusName };
+}
+
+async function createRow(
+  notionDbId: string,
+  candidate: EditorialCandidateForNotion,
+  briefingDate: string,
+  token: string,
+): Promise<string> {
   const response = await fetch(NOTION_PAGES_URL, {
     method: "POST",
     headers: {
@@ -212,22 +133,111 @@ export async function writeEditorialQueueRow(input: {
     },
     body: JSON.stringify({
       parent: { database_id: notionDbId },
-      properties,
+      properties: buildProperties(candidate, briefingDate, { includeStatus: true }),
     }),
   });
 
   if (!response.ok) {
     const text = await response.text().catch(() => "(no body)");
     let parsed: unknown;
-    try { parsed = JSON.parse(text); } catch { parsed = text; }
-    console.error("[notion-writer] write failed", {
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = text;
+    }
+    console.error("[notion-writer] create failed", {
       status: response.status,
-      headline: input.candidate.headline.slice(0, 80),
-      notionDbId: input.notionDbId,
+      headline: candidate.headline.slice(0, 80),
+      notionDbId,
       responseBody: parsed,
     });
-    throw new Error(`Notion write failed (${response.status}): ${text}`);
+    throw new Error(`Notion create failed (${response.status}): ${text}`);
   }
 
-  return { written: true };
+  const data = (await response.json()) as { id?: string };
+  if (!data.id) {
+    throw new Error("Notion create response did not contain a page id.");
+  }
+  return data.id;
+}
+
+async function updateRow(
+  pageId: string,
+  candidate: EditorialCandidateForNotion,
+  briefingDate: string,
+  token: string,
+): Promise<void> {
+  // Do not overwrite Status — the row already exists at status=raw and we
+  // never want a write to demote a row that may be about to be promoted.
+  const response = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "Notion-Version": NOTION_API_VERSION,
+    },
+    body: JSON.stringify({
+      properties: buildProperties(candidate, briefingDate, { includeStatus: false }),
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "(no body)");
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = text;
+    }
+    console.error("[notion-writer] update failed", {
+      status: response.status,
+      headline: candidate.headline.slice(0, 80),
+      pageId,
+      responseBody: parsed,
+    });
+    throw new Error(`Notion update failed (${response.status}): ${text}`);
+  }
+}
+
+/**
+ * Idempotent write to the Notion Editorial Queue, keyed on Headline +
+ * Briefing Date:
+ *  - inserts when no matching row exists,
+ *  - updates in place when a matching row exists with Status="raw",
+ *  - skips entirely when a matching row exists with any other Status
+ *    (the row has been touched by the human editor).
+ */
+export async function writeEditorialQueueRow(input: {
+  candidate: EditorialCandidateForNotion;
+  briefingDate: string;
+  notionDbId: string;
+}): Promise<EditorialQueueWriteResult> {
+  const { candidate, briefingDate, notionDbId } = input;
+  const token = process.env.NOTION_TOKEN?.trim();
+
+  if (!token) {
+    throw new Error("NOTION_TOKEN is not configured.");
+  }
+
+  const existing = await findExistingRow(
+    notionDbId,
+    candidate.headline,
+    briefingDate,
+    token,
+  );
+
+  if (existing) {
+    if (existing.status !== "raw") {
+      return {
+        action: "skipped_human_edited",
+        pageId: existing.pageId,
+        existingStatus: existing.status ?? "(unset)",
+      };
+    }
+    await updateRow(existing.pageId, candidate, briefingDate, token);
+    return { action: "updated", pageId: existing.pageId };
+  }
+
+  const pageId = await createRow(notionDbId, candidate, briefingDate, token);
+  return { action: "inserted", pageId };
 }

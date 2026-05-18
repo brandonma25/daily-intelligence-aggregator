@@ -1,60 +1,124 @@
-# Observability — Boot Up Pipeline
+# Observability — Boot Up Ingestion Pipeline
 
-The pipeline has four layers of visibility, each answering a different question. Use the right tier for the failure mode you're chasing.
+Where to look when something breaks, and what each surface is good for. The pipeline architecture is in [`ARCHITECTURE.md`](ARCHITECTURE.md); the scheduling runbook is in [`CRON_SETUP.md`](CRON_SETUP.md). This document tells you how to debug a failure once you know one happened.
 
-## Four-tier model
+## The three operational surfaces
 
-| Tier | Surface | Question it answers |
-|---|---|---|
-| 1 | **cron-job.org execution log** | Did the HTTP call to Vercel succeed? |
-| 2 | **Vercel function logs** | Did the function complete without throwing? |
-| 3 | **Notion Pipeline Log** | Did the pipeline write the expected rows? |
-| 4 | **Notion Source Health Log** | Which sources contributed (or failed) today? |
+| Layer | Surface | Best for |
+| --- | --- | --- |
+| **Primary** | cron-job.org dashboard + email alerts | Did the cron fire? What HTTP status did it return? |
+| **Secondary** | Vercel function logs | *Why* did a run return non-200? Stack traces, branch-level errors. |
+| **Tertiary** | Notion Pipeline Log + Source Health Log | Long-term operational history. Per-source-per-day fetch outcomes. |
+| Out-of-band | Sentry | Genuinely unexpected errors. Most RSS feed-flakiness noise is filtered out by design. |
 
-Each tier is the right place for a different class of question. Reaching for Vercel logs to answer "did the queue get populated?" is the wrong tool — it'll be there if the function completed even on a zero-row day. The Pipeline Log is the right tool for that question. Conversely, reaching for the Pipeline Log to debug a 500 from the route hander is wrong — that's a Vercel logs question.
+Operate top-down: the email alert points at the cron-job.org execution row → that row tells you which Vercel function invocation to inspect → the Notion logs explain whether this is an isolated incident or a pattern.
 
-## Decision tree — "today's editorial run looks broken"
+## Decision tree
 
-1. **Start at cron-job.org** (Tier 1). Did the scheduled job fire? Did the HTTP response come back 200?
-   - **No response / timeout** → the request never reached Vercel. Check cron-job.org config (URL, auth header). Move to Tier 2 only if cron-job.org confirms a successful send.
-   - **5xx response** → the function errored. Go to Tier 2.
-   - **200, but you're missing rows** → go to Tier 3.
+```
+                    cron-job.org email alert arrives
+                                 |
+                                 v
+                  Open cron-job.org → relevant job
+                                 |
+                                 v
+                 What HTTP status did the failing fire return?
+                                 |
+                    -----------------------------
+                    |                           |
+                  4xx (auth)                 5xx (server)
+                    |                           |
+                    v                           v
+        Check x-cron-secret matches      Open Vercel function log
+        CRON_SECRET in Vercel prod env   for the matching timestamp
+                    |                           |
+                    v                           v
+        Fix the secret, re-sync          Read the error
+                                                 |
+                                  -----------------------------
+                                  |                           |
+                            Branch-level error           Health check fail
+                            (RSS / newsletter            (row_count < 7)
+                            / staging failure)                |
+                                  |                           v
+                                  v                  Check Notion Editorial
+                          Inspect Notion              Queue for today —
+                          Pipeline Log for            were rows even
+                          per-branch flags            written?
+                                                              |
+                                                              v
+                                                  If no: was today's
+                                                  ingestion run successful?
+                                                  Check the Pipeline Log
+                                                  for run_type=ingestion.
+                                                              |
+                                                              v
+                                                  If yes but rows<7:
+                                                  Check Source Health
+                                                  Log — is a source
+                                                  circuit-broken?
+```
 
-2. **Vercel function logs** (Tier 2). Look for the most recent invocation of `/api/cron/fetch-editorial-inputs`.
-   - **Exception thrown** → the stack trace is here. Sentry should also have captured it (unless it was filtered — see "Sentry filtering" below).
-   - **Completed normally but with `success: false`** → the runner caught an error internally. The Pipeline Log (Tier 3) will have the message.
-   - **Completed `success: true`** → no Vercel-level problem. Go to Tier 3 to see what was written.
+## Source Health vs Pipeline Health
 
-3. **Notion Pipeline Log** (Tier 3, database id in `NOTION_PIPELINE_LOG_DB_ID`). Filter by today's Briefing Date.
-   - **No rows for today** → the health-check log never wrote. Either the env var isn't set or cron-job.org's health-check job didn't fire. Check Tier 1 for the health-check job specifically.
-   - **`Run Type=health_check, Status=fail, Row Count=0`** → ingestion never wrote rows. Go to Tier 4 to see which sources were available.
-   - **`Run Type=health_check, Status=warn, Row Count=2`** → partial run. Editorial can proceed on what arrived; go to Tier 4 to understand why the count was low.
+Two different questions, two different logs:
 
-4. **Notion Source Health Log** (Tier 4, database id in `NOTION_SOURCE_HEALTH_DB_ID`). Filter by today's Briefing Date.
-   - **A specific source has `Status=skipped_circuit_breaker`** → that source failed 3+ times this morning. The circuit breaker did its job. Consider whether to de-list the source.
-   - **Multiple sources have `Status=failed`** → upstream incident (likely a CDN or DNS issue affecting several feeds simultaneously). Usually self-corrects.
-   - **No rows in this database** → either the env var isn't set, or no sources failed today. Check Tier 2 for the success path; if successful runs are silent here, that's by design (success tracking is not yet implemented — see `docs/notion-source-health-schema.md`).
+- **Pipeline Health** answers *"did the pipeline complete and produce 7 rows today?"* — the [Notion Pipeline Log](notion-pipeline-log-schema.md) captures one row per ingestion run plus one row per health check. `Status` is one of `ok` / `warn` / `fail`. This is what cron-job.org's email alert is tied to.
+- **Source Health** answers *"did every expected source contribute today?"* — the [Notion Source Health Log](notion-source-health-schema.md) captures one row per `(Source, Date)`. `Last Outcome` is one of `success` / `fail` / `skipped_circuit_breaker`. A failing source produces a Pipeline Log `warn` (HTTP 200, no alert) as long as the total row count is still ≥ 7.
+- **Sentry** answers *"are unexpected errors occurring?"* — only events that are **not** already tracked in the Source Health Log surface here. The `beforeSend` filter in [`src/sentry.server.config.ts`](../src/sentry.server.config.ts) drops events whose exception message matches `^Feed request retry exhausted for ` because those are routine feed-flakiness signals tracked authoritatively in the Source Health Log. Other `RssError` variants and all non-RSS errors continue to report normally.
 
-## Sentry filtering
+A useful mental model:
 
-The server-side Sentry config drops events whose exception value contains `Feed request retry exhausted` (see [src/sentry.server.config.ts](../src/sentry.server.config.ts)). These are normal expected outcomes for flaky feeds and were generating noise. The Source Health Log captures the same signal in a more useful form. If you're investigating a missing-from-Sentry issue with a feed error, check the Source Health Log first — it's where the signal went.
+- A `fail` in the Pipeline Log is the **system level** signal — something is wrong with the pipeline as a whole.
+- A pattern in the Source Health Log is the **source level** signal — a specific feed is degrading and the circuit breaker may kick in within a few days.
+- A new Sentry issue is the **unexpected** signal — a code path that broke, not a known-flaky feed.
 
-Other RssError shapes (parse failures, empty feeds, transient HTTP errors) continue to report to Sentry normally.
+If you ever see a flood of `Feed request retry exhausted for *` in Sentry, the filter has regressed. The expected steady state is **zero** such events in Sentry — the Source Health Log holds the truth.
 
-## Where the env vars live
+## Common failure shapes and where to look
 
-| Var | Purpose | Required? |
-|---|---|---|
-| `CRON_SECRET` | Auth for `/api/cron/*` routes | Yes |
-| `NOTION_TOKEN` | Notion API token (used by all writers) | Yes |
-| `NOTION_EDITORIAL_QUEUE_DB_ID` | Where ingestion writes candidates | Yes |
-| `NOTION_PIPELINE_LOG_DB_ID` | Where health checks write per-run logs | No (graceful skip) |
-| `NOTION_SOURCE_HEALTH_DB_ID` | Where RSS cron writes per-source health | No (graceful skip) |
+| Symptom | First place to look | Likely cause |
+| --- | --- | --- |
+| Email alert: health check returned 500 | cron-job.org execution row → response body | Today's row count is < 7. Often: ingestion timed out, or every source slot was used but staging crashed mid-write. |
+| Email alert: ingestion returned 500 | Vercel function log | Branch-level failure. RSS or newsletter branch returned `success: false`; check which one in the response JSON. |
+| Email alert: ingestion returned 401 | Vercel env vars | `CRON_SECRET` in Vercel doesn't match the value on cron-job.org. Re-sync the secret on both sides. |
+| Notion Editorial Queue empty at 8 PM Taipei | Pipeline Log → filter `Run Type=ingestion` for today | If no row: cron didn't fire (check cron-job.org). If row exists at `status=fail`: see Vercel log. If row exists at `status=ok` but Notion empty: investigate Branch C staging path. |
+| One source consistently empty | Source Health Log → filter by source | If `Last Outcome` is `fail` repeatedly: source is degrading. If `Last Outcome` is `skipped_circuit_breaker`: breaker tripped (5+ fails today). Will auto-retry tomorrow. |
+| Duplicate row appeared in Editorial Queue | Pipeline Log → look for two `inserted` rows for the same `Briefing Date` | Should not happen post-PRD-65. If it does, the idempotency query may be returning a false negative. Check the row's `Headline` for invisible characters. |
+| BM edited a row, next ingestion overwrote it | Pipeline Log + the row's `Status` | Should not happen. The PATCH path explicitly omits `Status` and skips on `Status != raw`. If observed, treat as a bug in the human-edit guard. |
+| Sentry shows a new RSS error | Sentry issue + Source Health Log | If the error message is `Feed request retry exhausted for *` and it's still reaching Sentry, the `beforeSend` filter has regressed. Otherwise it's a genuinely new failure mode. |
 
-Optional vars are graceful: missing them does not break the pipeline, just disables one tier of observability.
+## Useful queries
 
-## Related docs
+### "What ran today?"
 
-- [CRON_SETUP.md](./CRON_SETUP.md) — trigger model and rollback
-- [notion-pipeline-log-schema.md](./notion-pipeline-log-schema.md) — Tier 3 database fields
-- [notion-source-health-schema.md](./notion-source-health-schema.md) — Tier 4 database fields
+Filter the Pipeline Log by `Briefing Date = today (Taipei)`. Expect 2 rows with `Run Type=ingestion` and 1 row with `Run Type=health_check`. Anything else is unusual.
+
+### "Is this source healthy?"
+
+Filter the Source Health Log by `Source = <name>` and sort by `Date` descending. Look for `Last Outcome` trends and the `Last Successful Fetch` timestamp.
+
+### "Why did the health check warn?"
+
+Open the most recent `Run Type=health_check` row. The `Source Health` JSON column has the structure:
+
+```json
+{
+  "contributed": ["Reuters", "Bloomberg", "TechCrunch"],
+  "expected":    ["Reuters", "Bloomberg", "TechCrunch", "Wired"],
+  "missing":     ["Wired"],
+  "distinctSourceCount": 3
+}
+```
+
+`missing` is the list of expected sources that did not contribute a row. Cross-reference with the Source Health Log for that day to see whether the missing source failed, was circuit-broken, or simply produced no qualifying articles.
+
+## Retention
+
+- **cron-job.org execution history** — ~25 most recent fires per job (free tier).
+- **Vercel function logs** — 1 day on Hobby, 7 days on Pro (no upgrade is planned).
+- **Notion Pipeline Log** — indefinite. The authoritative long-term operational history.
+- **Notion Source Health Log** — indefinite. One row per `(Source, Date)`.
+- **Sentry** — 30 days on the free tier; 90+ on paid plans. Whatever the project is currently on.
+
+The Notion logs are the system of record for anything older than ~24 hours. Don't rely on Vercel or cron-job.org for historical investigation beyond the current day.

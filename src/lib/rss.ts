@@ -11,9 +11,10 @@ import {
   type RssPhase,
 } from "@/lib/observability/rss";
 import {
-  recordSourceFailure,
-  shouldSkipSource,
-} from "@/lib/observability/source-circuit-breaker";
+  RssCircuitBreakerSkipError,
+  checkCircuitBreaker,
+  recordFetchOutcome,
+} from "@/lib/observability/rss-circuit-breaker";
 import { getUrlHost } from "@/lib/sentry-config";
 import type { SourceExtractionMethod } from "@/lib/source-accessibility-types";
 import { fetchTldrFeed, isTldrFeedUrl, type TldrDiscoveryMetadata } from "@/lib/tldr";
@@ -47,21 +48,6 @@ export async function fetchFeedArticles(
   sourceName: string,
   requestOptions: FeedRequestOptions = {},
 ) {
-  // Circuit breaker: if this source has already failed N times in the
-  // current invocation, return an empty article list and skip the fetch.
-  // This protects retry budget — a known-bad source (e.g. Reuters Business)
-  // can otherwise consume the entire 60s function timeout on retries alone.
-  // Empty result is the same as "feed returned no articles", which the
-  // ingestion pipeline already tolerates without aborting.
-  if (shouldSkipSource(sourceName)) {
-    console.info("[rss] skipped_circuit_breaker", {
-      action: "skipped_circuit_breaker",
-      source: sourceName,
-      feedUrl,
-    });
-    return [] as FeedArticle[];
-  }
-
   return withRssSpan(
     "rss.fetch",
     "fetch",
@@ -70,6 +56,24 @@ export async function fetchFeedArticles(
       "rss.feed_name": sourceName,
     },
     async () => {
+      // PRD-65 Phase 4.5 circuit breaker — skip the fetch entirely if this
+      // source has failed >= CIRCUIT_BREAKER_THRESHOLD times today. The skip
+      // is recorded in the Source Health Log so operators can see it; no
+      // Sentry event is emitted because skipped fetches are not failures.
+      const decision = await checkCircuitBreaker(sourceName);
+      if (decision.skip) {
+        await recordFetchOutcome({
+          sourceName,
+          outcome: "skipped_circuit_breaker",
+          notes: `Skipped: ${decision.failCount} failures earlier today exceed the circuit-breaker threshold.`,
+        });
+        throw new RssCircuitBreakerSkipError(
+          sourceName,
+          decision.briefingDate,
+          decision.failCount,
+        );
+      }
+
       try {
         const articles = await fetchFeedArticlesUnchecked(feedUrl, sourceName, requestOptions);
 
@@ -85,13 +89,21 @@ export async function fetchFeedArticles(
         }
 
         recordRssFetchSuccess({ feedUrl, feedName: sourceName, feedId: requestOptions.feedId });
+        await recordFetchOutcome({ sourceName, outcome: "success" });
         return articles;
       } catch (error) {
-        // Count this failure toward the per-source breaker threshold.
-        // The breaker is invocation-scoped; one bad source closes the
-        // circuit for itself only, not the whole pipeline.
-        recordSourceFailure(sourceName);
+        // Circuit-breaker skips are not failures — bypass Sentry and the
+        // source-health failure recording (the skip was already logged
+        // above before the throw).
+        if (error instanceof RssCircuitBreakerSkipError) {
+          throw error;
+        }
 
+        await recordFetchOutcome({
+          sourceName,
+          outcome: "fail",
+          notes: error instanceof Error ? error.message : String(error),
+        });
         captureRssFailure(error, {
           failureType: classifyRssFailure(error),
           phase: error instanceof Error && error.name === "RssError" && "phase" in error

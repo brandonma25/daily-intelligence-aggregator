@@ -7,11 +7,6 @@ import {
   withRssSpan,
 } from "@/lib/observability/rss";
 import { persistSignalPostsForBriefing } from "@/lib/signals-editorial";
-import {
-  entriesFromBreakerSnapshot,
-  writeSourceHealthLog,
-} from "@/lib/observability/source-health-log";
-import { CIRCUIT_BREAKER_THRESHOLD } from "@/lib/observability/source-circuit-breaker";
 import { getPublicSourcePlanForSurface, getRequiredSourcesForPublicSurface } from "@/lib/source-manifest";
 
 export type DailyNewsCronRunSummary = {
@@ -71,16 +66,7 @@ export async function runDailyNewsCron(): Promise<DailyNewsCronRunResult> {
       },
       () => generateDailyBriefing(demoTopics, sources, { suppliedByManifest: sourcePlan.suppliedByManifest }),
     );
-    // Use Taipei date so RSS signal_posts.briefing_date aligns with
-    // editorial-staging's Taipei-based candidate lookup. Without this the
-    // briefingDate would be UTC, and staging would miss today's RSS data
-    // whenever the cron ran during the UTC/Taipei date overlap window.
-    const briefingDate = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Asia/Taipei",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(new Date());
+    const briefingDate = briefing.briefingDate.slice(0, 10);
     const baseSummary = {
       briefingDate,
       insertedSignalPostCount: 0,
@@ -191,23 +177,6 @@ export async function runDailyNewsCron(): Promise<DailyNewsCronRunResult> {
     }
 
     captureRssCronCheckIn(snapshot.ok ? "ok" : "error", checkInId, durationSeconds(startedAtMs));
-
-    // Source Health Log write. Graceful: env var missing or write failure
-    // never affects the cron result. Only logs sources that had failures or
-    // breaker skips this run — success-tracking is deliberately not done here
-    // (would require threading state through the pipeline). For now this
-    // serves as the "which sources broke" record; the success count comes
-    // from the pipeline's existing feed_failures vs. raw_item_count signals.
-    try {
-      const breakerEntries = entriesFromBreakerSnapshot(CIRCUIT_BREAKER_THRESHOLD);
-      if (breakerEntries.length > 0) {
-        await writeSourceHealthLog({ briefingDate, entries: breakerEntries });
-      }
-    } catch (logError) {
-      logServerEvent("warn", "Source Health Log: post-run write threw; ignoring", {
-        error: logError instanceof Error ? logError.message : String(logError),
-      });
-    }
 
     return result;
   } catch (error) {

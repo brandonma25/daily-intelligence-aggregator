@@ -1,10 +1,7 @@
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { errorContext, logServerEvent } from "@/lib/observability";
 import { deduplicateCandidates, type NewsletterCandidate, type RssCandidate } from "@/lib/editorial-staging/dedup";
-import {
-  fetchExistingHeadlinesForBriefingDate,
-  writeEditorialQueueRow,
-} from "@/lib/editorial-staging/notion-writer";
+import { writeEditorialQueueRow } from "@/lib/editorial-staging/notion-writer";
 import { sendEditorialCompletionEmail } from "@/lib/editorial-staging/email";
 
 type Category = "Tech" | "Finance" | "Politics";
@@ -28,7 +25,11 @@ export type EditorialStagingRunSummary = {
   coreCount: number;
   contextCount: number;
   categoryBreakdown: Record<string, number>;
+  /** Total Notion writes that mutated state — inserts + updates. Skips are not counted. */
   notionRowsWritten: number;
+  notionRowsInserted: number;
+  notionRowsUpdated: number;
+  notionRowsSkippedHumanEdited: number;
   notionErrors: string[];
 };
 
@@ -201,6 +202,9 @@ function buildFailureResult(
       contextCount: 0,
       categoryBreakdown: {},
       notionRowsWritten: 0,
+      notionRowsInserted: 0,
+      notionRowsUpdated: 0,
+      notionRowsSkippedHumanEdited: 0,
       notionErrors: [],
     },
   };
@@ -268,41 +272,29 @@ export async function runEditorialStaging(options: {
   // Step E: Score and select top 7
   const selected = scoreAndSelect(dedupedPool);
 
-  // Step F: Write to Notion Editorial Queue
-  //
-  // Idempotency: prefetch all existing headlines for today's briefingDate
-  // before the write loop. Each writeEditorialQueueRow call consults this set
-  // and skips its POST when a duplicate is detected. This prevents the May 16
-  // failure mode where multiple same-day cron runs created 4-5 copies of the
-  // same headline. Prefetch is fail-open: a Notion read error returns an
-  // empty set and the loop proceeds (better to risk one extra dup than to
-  // block the whole pipeline).
-  const existingHeadlines = await fetchExistingHeadlinesForBriefingDate({
-    briefingDate,
-    notionDbId,
-  });
-  logServerEvent("info", "Editorial staging: idempotency prefetch", {
-    briefingDate,
-    existingCount: existingHeadlines.size,
-  });
-
-  let notionRowsWritten = 0;
-  let notionRowsSkipped = 0;
+  // Step F: Write to Notion Editorial Queue (idempotent — insert | update | skip)
+  let notionRowsInserted = 0;
+  let notionRowsUpdated = 0;
+  let notionRowsSkippedHumanEdited = 0;
   const notionErrors: string[] = [];
 
   for (const candidate of selected) {
     try {
-      const result = await writeEditorialQueueRow({
-        candidate,
+      const result = await writeEditorialQueueRow({ candidate, briefingDate, notionDbId });
+      if (result.action === "inserted") notionRowsInserted += 1;
+      else if (result.action === "updated") notionRowsUpdated += 1;
+      else notionRowsSkippedHumanEdited += 1;
+
+      logServerEvent("info", "editorial_queue_row write", {
         briefingDate,
-        notionDbId,
-        existingHeadlines,
+        headline: candidate.headline.slice(0, 60),
+        slot: candidate.slot,
+        editorial_queue_row: {
+          action: result.action,
+          pageId: result.pageId,
+          ...(result.existingStatus ? { existingStatus: result.existingStatus } : {}),
+        },
       });
-      if (result.written) {
-        notionRowsWritten += 1;
-      } else {
-        notionRowsSkipped += 1;
-      }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       notionErrors.push(`[${candidate.headline.slice(0, 40)}] ${msg}`);
@@ -314,13 +306,7 @@ export async function runEditorialStaging(options: {
     }
   }
 
-  if (notionRowsSkipped > 0) {
-    logServerEvent("info", "Editorial staging: skipped duplicate rows", {
-      briefingDate,
-      notionRowsSkipped,
-      notionRowsWritten,
-    });
-  }
+  const notionRowsWritten = notionRowsInserted + notionRowsUpdated;
 
   const coreCount = selected.filter((c) => c.slot === "Core").length;
   const contextCount = selected.filter((c) => c.slot === "Context").length;
@@ -358,6 +344,9 @@ export async function runEditorialStaging(options: {
     coreCount,
     contextCount,
     notionRowsWritten,
+    notionRowsInserted,
+    notionRowsUpdated,
+    notionRowsSkippedHumanEdited,
   });
 
   return {
@@ -371,6 +360,9 @@ export async function runEditorialStaging(options: {
       contextCount,
       categoryBreakdown,
       notionRowsWritten,
+      notionRowsInserted,
+      notionRowsUpdated,
+      notionRowsSkippedHumanEdited,
       notionErrors,
     },
   };

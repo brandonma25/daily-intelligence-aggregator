@@ -4,6 +4,7 @@ import { runDailyNewsCron, type DailyNewsCronRunResult } from "@/lib/cron/fetch-
 import { runNewsletterIngestion, type NewsletterIngestionRunResult } from "@/lib/newsletter-ingestion/runner";
 import { runEditorialStaging, type EditorialStagingRunResult } from "@/lib/editorial-staging/runner";
 import { errorContext, logServerEvent } from "@/lib/observability";
+import { writePipelineLogEntry } from "@/lib/observability/pipeline-log";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -22,9 +23,20 @@ type EditorialInputTaskResult = {
 
 function isAuthorized(request: Request) {
   const cronSecret = process.env.CRON_SECRET?.trim();
-  const authHeader = request.headers.get("authorization")?.trim() ?? "";
+  if (!cronSecret) return false;
 
-  return Boolean(cronSecret) && authHeader === `Bearer ${cronSecret}`;
+  const headerSecret = request.headers.get("x-cron-secret")?.trim() ?? "";
+  if (headerSecret === cronSecret) return true;
+
+  // Rollback escape hatch: honor the legacy Vercel Cron `Authorization: Bearer`
+  // header only when ALLOW_VERCEL_CRON_FALLBACK is explicitly enabled. Default
+  // auth is x-cron-secret header only.
+  if (process.env.ALLOW_VERCEL_CRON_FALLBACK === "true") {
+    const authHeader = request.headers.get("authorization")?.trim() ?? "";
+    if (authHeader === `Bearer ${cronSecret}`) return true;
+  }
+
+  return false;
 }
 
 async function runTask<T extends DailyNewsCronRunResult | NewsletterIngestionRunResult | EditorialStagingRunResult>(
@@ -98,6 +110,50 @@ export async function GET(request: Request) {
     newsletterSuccess: newsletter.success,
     editorialStagingSuccess: editorialStaging.success,
   });
+
+  // Pipeline Log write — best-effort, never fails the cron.
+  const stagingSummary = editorialStaging.summary as
+    | { briefingDate?: string; notionRowsInserted?: number; notionRowsUpdated?: number; notionRowsSkippedHumanEdited?: number; notionErrors?: string[] }
+    | null;
+  const briefingDateForLog =
+    typeof stagingSummary?.briefingDate === "string" ? stagingSummary.briefingDate : null;
+  const inserted = stagingSummary?.notionRowsInserted ?? 0;
+  const updated = stagingSummary?.notionRowsUpdated ?? 0;
+  const skipped = stagingSummary?.notionRowsSkippedHumanEdited ?? 0;
+  const stagingErrors = stagingSummary?.notionErrors ?? [];
+
+  const pipelineLogStatus = success
+    ? stagingErrors.length > 0
+      ? "warn"
+      : "ok"
+    : "fail";
+
+  const pipelineLogMessage = success
+    ? `Ingestion completed: RSS=${rss.success ? "ok" : "fail"}, newsletter=${newsletter.success ? "ok" : "fail"}, editorial staging inserted=${inserted} updated=${updated} skipped=${skipped}${stagingErrors.length > 0 ? `; staging errors=${stagingErrors.length}` : ""}.`
+    : `Ingestion failed: RSS=${rss.success ? "ok" : "fail"}, newsletter=${newsletter.success ? "ok" : "fail"}.`;
+
+  if (briefingDateForLog) {
+    await writePipelineLogEntry({
+      runType: "ingestion",
+      status: pipelineLogStatus,
+      rowCount: inserted + updated,
+      message: pipelineLogMessage,
+      briefingDate: briefingDateForLog,
+      sourceHealth: {
+        rssSuccess: rss.success,
+        newsletterSuccess: newsletter.success,
+        editorialStagingSuccess: editorialStaging.success,
+        notionRowsInserted: inserted,
+        notionRowsUpdated: updated,
+        notionRowsSkippedHumanEdited: skipped,
+        stagingErrorCount: stagingErrors.length,
+      },
+    });
+  } else {
+    logServerEvent("warn", "Pipeline log skipped: no briefingDate from editorial staging", {
+      route: "/api/cron/fetch-editorial-inputs",
+    });
+  }
 
   return NextResponse.json(
     {

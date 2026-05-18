@@ -4,6 +4,7 @@ const runDailyNewsCron = vi.fn();
 const runNewsletterIngestion = vi.fn();
 const runEditorialStaging = vi.fn();
 const logServerEvent = vi.fn();
+const writePipelineLogEntry = vi.fn();
 
 vi.mock("@/lib/cron/fetch-news", () => ({
   runDailyNewsCron,
@@ -24,9 +25,25 @@ vi.mock("@/lib/observability", () => ({
   logServerEvent,
 }));
 
-function buildRequest(secret?: string) {
+vi.mock("@/lib/observability/pipeline-log", () => ({
+  writePipelineLogEntry,
+}));
+
+type RequestAuth = { header?: "x-cron-secret" | "authorization"; secret?: string };
+
+function buildRequest(auth: RequestAuth | string = {}): Request {
+  const normalized: RequestAuth =
+    typeof auth === "string" ? { header: "x-cron-secret", secret: auth } : auth;
+  const headers: Record<string, string> = {};
+  if (normalized.secret) {
+    if (normalized.header === "authorization") {
+      headers.authorization = `Bearer ${normalized.secret}`;
+    } else {
+      headers["x-cron-secret"] = normalized.secret;
+    }
+  }
   return new Request("http://localhost:3000/api/cron/fetch-editorial-inputs", {
-    headers: secret ? { authorization: `Bearer ${secret}` } : undefined,
+    headers: Object.keys(headers).length > 0 ? headers : undefined,
   });
 }
 
@@ -35,6 +52,7 @@ describe("/api/cron/fetch-editorial-inputs", () => {
     vi.resetModules();
     vi.resetAllMocks();
     process.env.CRON_SECRET = "local-cron-secret";
+    delete process.env.ALLOW_VERCEL_CRON_FALLBACK;
     runDailyNewsCron.mockResolvedValue({
       success: true,
       timestamp: "2026-05-12T10:15:00.000Z",
@@ -54,8 +72,14 @@ describe("/api/cron/fetch-editorial-inputs", () => {
       timestamp: "2026-05-12T10:15:02.000Z",
       summary: {
         message: "Editorial staging completed.",
+        briefingDate: "2026-05-12",
+        notionRowsInserted: 7,
+        notionRowsUpdated: 0,
+        notionRowsSkippedHumanEdited: 0,
+        notionErrors: [],
       },
     });
+    writePipelineLogEntry.mockResolvedValue({ written: true, pageId: "log-1" });
   });
 
   it("rejects unauthorized requests without triggering either fetch path", async () => {
@@ -74,6 +98,43 @@ describe("/api/cron/fetch-editorial-inputs", () => {
 
     const { GET } = await import("@/app/api/cron/fetch-editorial-inputs/route");
     const response = await GET(buildRequest("local-cron-secret"));
+
+    expect(response.status).toBe(401);
+    expect(runDailyNewsCron).not.toHaveBeenCalled();
+    expect(runNewsletterIngestion).not.toHaveBeenCalled();
+  });
+
+  it("rejects legacy Authorization Bearer when ALLOW_VERCEL_CRON_FALLBACK is unset", async () => {
+    const { GET } = await import("@/app/api/cron/fetch-editorial-inputs/route");
+    const response = await GET(
+      buildRequest({ header: "authorization", secret: "local-cron-secret" }),
+    );
+
+    expect(response.status).toBe(401);
+    expect(runDailyNewsCron).not.toHaveBeenCalled();
+    expect(runNewsletterIngestion).not.toHaveBeenCalled();
+  });
+
+  it("accepts legacy Authorization Bearer when ALLOW_VERCEL_CRON_FALLBACK=true (rollback escape hatch)", async () => {
+    process.env.ALLOW_VERCEL_CRON_FALLBACK = "true";
+
+    const { GET } = await import("@/app/api/cron/fetch-editorial-inputs/route");
+    const response = await GET(
+      buildRequest({ header: "authorization", secret: "local-cron-secret" }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(runDailyNewsCron).toHaveBeenCalledTimes(1);
+    expect(runNewsletterIngestion).toHaveBeenCalledTimes(1);
+  });
+
+  it("still rejects wrong legacy Bearer when ALLOW_VERCEL_CRON_FALLBACK=true", async () => {
+    process.env.ALLOW_VERCEL_CRON_FALLBACK = "true";
+
+    const { GET } = await import("@/app/api/cron/fetch-editorial-inputs/route");
+    const response = await GET(
+      buildRequest({ header: "authorization", secret: "wrong-secret" }),
+    );
 
     expect(response.status).toBe(401);
     expect(runDailyNewsCron).not.toHaveBeenCalled();
@@ -111,6 +172,36 @@ describe("/api/cron/fetch-editorial-inputs", () => {
     expect(runDailyNewsCron.mock.invocationCallOrder[0]).toBeLessThan(
       runEditorialStaging.mock.invocationCallOrder[0],
     );
+  });
+
+  it("writes a Pipeline Log entry on completion with status=ok when all branches succeed", async () => {
+    const { GET } = await import("@/app/api/cron/fetch-editorial-inputs/route");
+    await GET(buildRequest("local-cron-secret"));
+
+    expect(writePipelineLogEntry).toHaveBeenCalledTimes(1);
+    expect(writePipelineLogEntry.mock.calls[0][0]).toMatchObject({
+      runType: "ingestion",
+      status: "ok",
+      rowCount: 7,
+      briefingDate: "2026-05-12",
+    });
+  });
+
+  it("writes Pipeline Log status=fail when a branch fails", async () => {
+    runDailyNewsCron.mockResolvedValue({
+      success: false,
+      timestamp: "2026-05-12T10:15:00.000Z",
+      summary: { message: "RSS failed." },
+    });
+
+    const { GET } = await import("@/app/api/cron/fetch-editorial-inputs/route");
+    await GET(buildRequest("local-cron-secret"));
+
+    expect(writePipelineLogEntry).toHaveBeenCalledTimes(1);
+    expect(writePipelineLogEntry.mock.calls[0][0]).toMatchObject({
+      runType: "ingestion",
+      status: "fail",
+    });
   });
 
   it("still attempts newsletter ingestion when the RSS path fails closed", async () => {

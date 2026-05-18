@@ -1,47 +1,91 @@
-# Notion Database — Source Health Log
+# Notion Source Health Log — Database Schema
 
-This database records one row per source per RSS run: which sources delivered articles, which failed, which were skipped by the circuit breaker. Cross-run history complements the in-memory circuit breaker (per-invocation) — together they give you both real-time protection and trend visibility.
+The Source Health Log is a Notion database that records per-source-per-day
+fetch outcomes for the Branch B (RSS) ingestion path. It feeds the circuit
+breaker added in PRD-65 Phase 4.5 and replaces Sentry noise for known-flaky
+sources.
 
-The schema below is what the pipeline writes. **Create the database in Notion manually**, then add its ID to Vercel as `NOTION_SOURCE_HEALTH_DB_ID`. The RSS cron auto-detects the env var and starts writing once it is set. No code change is required.
+## Who creates it
 
-## Setup steps
+**BM creates this database manually in Notion.** The endpoint code reads its
+ID from the `NOTION_SOURCE_HEALTH_LOG_DB_ID` environment variable. If the env
+var is missing or empty, the writer logs a warning and continues — Source
+Health Log writes are best-effort and never fail the ingestion run.
 
-1. In Notion, create a new database titled **Source Health Log** under the **BOOT UP** page (or wherever you keep ops-related databases).
-2. Configure the fields listed below. Field names must match exactly — the writer addresses them by name.
-3. Copy the database ID from the URL (the 32-char string after the workspace slug).
-4. In Vercel → bootup project → Settings → Environment Variables, add:
-   - Name: `NOTION_SOURCE_HEALTH_DB_ID`
-   - Value: the 32-char ID
-   - Scope: Production (Preview optional)
-5. Redeploy. From the next RSS run forward, any source that failed or hit the circuit breaker gets logged.
+## Schema
 
-## Field schema
+| Property | Notion type | Required | Notes |
+| --- | --- | --- | --- |
+| `Source` | Title | Yes (primary) | Display name of the source, e.g. `Reuters`, `Bloomberg`. Stable string — the circuit breaker keys on this exact value. |
+| `Date` | Date | Yes | The Taipei briefing day this entry covers (YYYY-MM-DD). One row per source per day. |
+| `Success Count` | Number | Yes | Number of successful feed fetches for this source on this day. Updated each run that touches the source. |
+| `Fail Count` | Number | Yes | Number of failed feed fetches for this source on this day. Used by the Phase 4.5 circuit breaker — when 24-hour rolling fail count ≥ 5, the source is skipped on the next run. |
+| `Last Successful Fetch` | Date (with time) | No | ISO timestamp of the last successful fetch. Updated only on success; preserves prior value on failure. |
+| `Last Outcome` | Select | Yes | Options: `success`, `fail`, `skipped_circuit_breaker`. Records what happened on the most recent run for this source. |
+| `Notes` | Text | No | Optional context: the error message on failure, or a brief note on a successful recovery after prior failures. Cap at ~500 chars. |
 
-| Field | Type | Notes |
-|---|---|---|
-| `Name` | Title | Source name (e.g. `Reuters Business`, `Heatmap`). Matches the `sourceName` argument to `fetchFeedArticles`. |
-| `Briefing Date` | Date | Taipei calendar date for the run (`YYYY-MM-DD`). One row per source per day. |
-| `Status` | Select | Options: `success`, `failed`, `skipped_circuit_breaker`. Today the writer only emits the latter two; success tracking requires extra wiring (see "What writes here" below). |
-| `Article Count` | Number | Number of articles the source returned. Zero for failures and skips. |
-| `Error Message` | Rich text | One-line summary of the failure, e.g. `"3 failure(s) recorded this run"` for breaker-skipped sources. Truncated to 2000 chars. |
-| `Last Successful Fetch` | Date | When this source last delivered articles successfully. Today the writer does not populate this — left for a future PR that threads success state through the pipeline. |
+## Keying and idempotency
 
-## Suggested views
+The natural key is `(Source, Date)`. The writer follows the same idempotency
+contract used at Branch C E3:
 
-- **Today** — filter where `Briefing Date` is today (Taipei). Quick "what broke this morning?" view.
-- **Chronic failures** — filter where `Status` is `skipped_circuit_breaker`. These are the sources to consider de-listing.
-- **By source** — group by `Name`. Spot whether one specific source is repeatedly failing or only had one bad day.
+- Query the database for an existing row matching `Source` and `Date`.
+- If a match exists, PATCH it: increment `Success Count` or `Fail Count`,
+  update `Last Outcome`, and update `Last Successful Fetch` on success.
+- If no match exists, POST a new row.
 
-## What writes here
+## Status `warn` vs `fail` in the Pipeline Log
 
-- `/api/cron/fetch-news` (the RSS phase of `fetch-editorial-inputs`) — after the pipeline completes, the breaker snapshot is written as one row per source that hit a failure or was skipped. Sources that succeeded are NOT currently written; the writer's `entriesFromBreakerSnapshot` helper only knows about failures (success counts aren't tracked separately yet — see [src/lib/observability/source-health-log.ts](../src/lib/observability/source-health-log.ts) for the seam where this would be added).
+The Source Health Log is the data source for the `Source Health` JSON column
+in the Pipeline Log. The health endpoint reads today's Source Health Log
+rows to compute:
 
-## Graceful behavior
+- `contributed` — sources whose `Success Count > 0` for the day.
+- `missing` — expected sources from `getRequiredSourcesForPublicSurface("public.home")` that have no row, or have `Success Count == 0`.
 
-The writer is wrapped in try/catch around every per-row Notion call, plus a top-level try around the batch. If a row fails, the others still write. If the whole batch fails, the cron's return value is unaffected. The Source Health Log is observability, not the critical path.
+A health check with `Row Count >= 7` but `missing.length > 0` returns
+`status: "warn"` (HTTP 200, no alert). `Row Count < 7` is always `fail`
+(HTTP 500, alert).
 
-## Pairs with
+## Phase 4.5 — circuit breaker integration
 
-- [src/lib/observability/source-circuit-breaker.ts](../src/lib/observability/source-circuit-breaker.ts) — the in-memory tracker
-- [docs/notion-pipeline-log-schema.md](./notion-pipeline-log-schema.md) — the per-run audit log (different database)
-- [docs/OBSERVABILITY.md](./OBSERVABILITY.md) — the four-tier observability model
+The Branch B RSS fetch step (R2) consults this database before fetching each
+source. Implementation lives in
+[`src/lib/observability/rss-circuit-breaker.ts`](../src/lib/observability/rss-circuit-breaker.ts)
+and is invoked from [`src/lib/rss.ts`](../src/lib/rss.ts) inside
+`fetchFeedArticles`.
+
+- The pre-fetch gate reads today's row for the source and inspects `Fail Count`.
+- If `Fail Count >= 5`, skip the fetch. Write a Source Health Log entry for the
+  same `(Source, Date)` with `Last Outcome = skipped_circuit_breaker`, then
+  throw `RssCircuitBreakerSkipError`. The skip is **not** reported to Sentry —
+  circuit-breaker skips bypass `captureRssFailure` entirely.
+- Auto-reset: the Source Health Log is keyed on Taipei-day. Each new day starts
+  at `Fail Count = 0`, so a skipped source is automatically retried on the next
+  day's first ingestion run. The scheduled runs at 18:15 and 19:45 Taipei
+  produce a worst-case skip window of ~22 hours — close enough to the spec's
+  24-hour auto-reset; daily rollover is the canonical reset mechanism.
+- After each fetch attempt, the fetch path writes the outcome:
+  - **`success`** — updates `Last Successful Fetch` and increments `Success Count`.
+  - **`fail`** — increments `Fail Count`; leaves `Last Successful Fetch` untouched. The underlying error still reports to Sentry **unless** it matches the `Feed request retry exhausted for *` pattern (those are now dropped by the `beforeSend` filter and tracked here instead).
+  - **`skipped_circuit_breaker`** — does not increment either counter.
+
+### Permissive failure contract
+
+The circuit breaker must never silently disable ingestion when the
+observability layer is degraded. If `NOTION_SOURCE_HEALTH_LOG_DB_ID` is unset,
+the Notion query fails, or any unexpected exception is raised inside the
+gate, the gate returns `skip: false` and the fetch proceeds normally. The
+degradation surfaces as warn-level log lines; the editorial pipeline keeps
+running.
+
+## Operational notes
+
+- One row per `(Source, Date)`. Day boundaries are Taipei time (UTC+8) — see
+  the health endpoint's briefing-date logic.
+- A write failure on Source Health Log must not fail the ingestion run. The
+  writer catches internally and returns a result; the run logs a warning
+  and continues.
+- The database can be inspected directly in Notion to spot a source that
+  has been consistently failing — useful for proactive maintenance before
+  the circuit breaker trips.

@@ -1,42 +1,73 @@
-# Notion Database — Pipeline Log
+# Notion Pipeline Log — Database Schema
 
-This database records one row per cron invocation: ingestion runs and health checks. It is the per-run audit trail.
+The Pipeline Log is a Notion database that captures one row per operational
+event for the ingestion pipeline (one row per `ingestion` run, one row per
+`health_check` run). It is the long-term operational history that survives
+beyond cron-job.org's per-job execution retention and is queryable in Notion
+for spot checks and trend review.
 
-The schema below is what the pipeline writes. **Create the database in Notion manually**, then add its ID to Vercel as `NOTION_PIPELINE_LOG_DB_ID`. The health endpoint and ingestion runners auto-detect the env var and start writing once it is set. No code change is required.
+## Who creates it
 
-## Setup steps
+**BM creates this database manually in Notion.** The endpoint code reads its
+ID from the `NOTION_PIPELINE_LOG_DB_ID` environment variable and writes to it
+on every ingestion run and every health check. If the env var is missing or
+empty, both endpoints log a warning and continue without failing — the
+ingestion and health-check happy paths remain intact even when the log DB is
+not yet configured.
 
-1. In Notion, create a new database titled **Pipeline Log** under the **BOOT UP** page (or wherever you keep ops-related databases).
-2. Configure the fields listed below. Field names must match exactly — the writer addresses them by name.
-3. Copy the database ID from the URL (the 32-char string after the workspace slug).
-4. In Vercel → bootup project → Settings → Environment Variables, add:
-   - Name: `NOTION_PIPELINE_LOG_DB_ID`
-   - Value: the 32-char ID
-   - Scope: Production (Preview optional)
-5. Redeploy. From the next run forward, every ingestion and health check writes one row.
+## Schema
 
-## Field schema
+| Property | Notion type | Required | Notes |
+| --- | --- | --- | --- |
+| `Timestamp` | Created time | Yes (primary) | Notion's built-in `Created time` field. No code-side writes — Notion sets this on row creation. Use as the database's primary sort key, descending. |
+| `Run Type` | Select | Yes | Options: `ingestion`, `health_check`. |
+| `Status` | Select | Yes | Options: `ok`, `warn`, `fail`. See "Status semantics" below. |
+| `Row Count` | Number | Yes | For ingestion runs: total number of Editorial Queue rows that exist for the day after the run completes. For health checks: same — the row count observed at health-check time. |
+| `Message` | Text | Yes | Human-readable summary of the run. Includes branch-level errors when present. Cap at ~500 chars; do not paste full stack traces. |
+| `Briefing Date` | Date | Yes | The Taipei briefing day this run pertains to (YYYY-MM-DD). For ingestion runs, this is the day the run is staging rows for. For health checks, this is the day the check is asserting against. |
+| `Source Health` | Text | Yes | JSON-encoded snapshot of per-source contribution for this run. Schema below. |
 
-| Field | Type | Notes |
-|---|---|---|
-| `Name` | Title | Auto-set by the writer to an ISO timestamp string (`2026-05-18T18:41:00.000Z`). Acts as the per-run ID; no editing needed. |
-| `Run Type` | Select | Options: `ingestion`, `health_check`. The writer creates new option values if you forget to add them — but pre-creating them lets you set colors. |
-| `Status` | Select | Options: `ok`, `warn`, `fail`. Matches the same status taxonomy the health endpoint returns. |
-| `Row Count` | Number | Number of Editorial Queue rows present (for health checks) or written (for ingestion runs). |
-| `Message` | Rich text | One-line human-readable summary. Truncated to 2000 chars by the writer. |
-| `Briefing Date` | Date | Taipei calendar date for the run (`YYYY-MM-DD`). Use this for grouping in views. |
+### `Source Health` JSON shape
 
-## Suggested views
+The `Source Health` text column contains a JSON string with this shape:
 
-- **Today** — filter where `Briefing Date` is today (Taipei). Default sort by `Name` descending so newest run is on top.
-- **Failures** — filter where `Status` is `fail`. Useful when triaging which day broke.
-- **Ingestion only** — filter where `Run Type` is `ingestion`. Confirms the two daily runs both executed.
+```json
+{
+  "contributed": ["Reuters", "Bloomberg", "TechCrunch"],
+  "expected": ["Reuters", "Bloomberg", "TechCrunch", "Wired"],
+  "missing": ["Wired"],
+  "distinctSourceCount": 3
+}
+```
 
-## What writes here
+- `contributed` — distinct `Source` values observed across the day's Editorial Queue rows.
+- `expected` — the source list returned by `getRequiredSourcesForPublicSurface("public.home")` at run time.
+- `missing` — expected sources that did not contribute any row.
+- `distinctSourceCount` — `contributed.length`.
 
-- `/api/cron/health` — one row per health check call. `Run Type = health_check`.
-- (Future) `/api/cron/fetch-editorial-inputs` — currently does not write here. Adding ingestion logging is straightforward; the health-check writer in [src/app/api/cron/health/route.ts](../src/app/api/cron/health/route.ts) is the template.
+Phase 4.5 extends this with per-source success/fail counts from the new
+Source Health Log database (see [`notion-source-health-schema.md`](notion-source-health-schema.md)).
 
-## Graceful behavior
+## Status semantics
 
-The writer is wrapped in try/catch and logs warnings on failure. If the database ID is wrong, schema is missing a field, or Notion is down, the health endpoint still returns its HTTP response normally — the log is observability, not the critical path.
+| `Status` | When emitted |
+| --- | --- |
+| `ok` | Run completed normally. For ingestion: every branch returned `success`. For health check: `Row Count` ≥ 7 and every expected source is in `contributed`. |
+| `warn` | Run nominally succeeded but is degraded. For health check: `Row Count` ≥ 7 but one or more expected sources contributed zero articles. For ingestion: any non-fatal branch warning (e.g. editorial staging surfaced row-level Notion errors but the cron still returned 200). |
+| `fail` | Run did not produce a usable result. For ingestion: any branch's `success` flag was `false`. For health check: `Row Count` < 7 (the editorial queue is not viable for review). |
+
+HTTP-status-code mapping for the health endpoint: `ok` and `warn` → HTTP 200;
+`fail` → HTTP 500 (so cron-job.org's email alert fires).
+
+## Operational notes
+
+- The endpoint code never reads from this database — it only writes. Notion
+  is the single source of truth for log entries; no shadow store exists in
+  Supabase.
+- Notion API rate limits: ~3 requests/sec/integration. The endpoint emits at
+  most one log entry per cron invocation, so contention is not a concern at
+  the current schedule (two ingestion runs + one health check per day).
+- A failed Pipeline Log write **must not** fail the endpoint that produced
+  it. The writer catches and logs internally and returns a `written: false`
+  result. The cron's pass/fail status is determined by the underlying work,
+  not by whether the log entry persisted.
